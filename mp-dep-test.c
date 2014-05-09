@@ -10,27 +10,10 @@
 // mp+sync+addr - not observed; good!
 
 
-#include <atomic>
+#include "atomic.h"
 #include <stdio.h>
 #include <assert.h>
 
-#define smp_mb() __asm__ __volatile__("dmb":::"memory")
-
-// gcc *will* optimize this away at -O1
-// wait, no, it looks like it optimizes it away at -O0...
-// but -O0 has enough other noise...
-
-static inline long dependent_zero(long val) {
-    __asm__ __volatile__ (
-        "eor %[val], %[val];"
-        "# bullshit eor"
-        : [val] "+r" (val)   /* Both read and written */
-        :
-        :
-        );
-    return val;
-}
-#define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
 
 
 // Note that writing the test in C++ is kind of bogus, since

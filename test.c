@@ -1,10 +1,12 @@
-#include <thread>
-#include <atomic>
-#include <cassert>
+#include <pthread.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
-const int kMaxThreads = 8;
+#include "atomic.h"
+
+#define MAX_THREADS 8
 
 // Things the test we link against should provide:
 
@@ -23,28 +25,25 @@ extern int thread_count;
 #define ITERATIONS 1000000
 
 
-std::atomic<int> go;
-std::atomic<bool> done[kMaxThreads];
-int results[kMaxThreads];
+int go;
+bool done[MAX_THREADS];
+int results[MAX_THREADS];
 
-#define bs_acquire std::memory_order_acquire
-#define bs_release std::memory_order_release
-//#define bs_acquire std::memory_order_seq_cst
-//#define bs_release std::memory_order_seq_cst
-
-void tester_thread(int thread)
+void *tester_thread(void *pthread)
 {
+    int thread = (int)(long)pthread;
     test_fn *f = test_fns[thread];
     int count = 0;
     while (1) {
-        while (go.load(bs_acquire) == count)
+        while (smp_load_acquire(&go) == count)
             ;
         int r = f();
         results[thread] = r;
-        done[thread].store(true, bs_release);
+        smp_store_release(&done[thread], true);
 
         count++;
     }
+    return NULL;
 }
 
 void run_test(int threads, int n)
@@ -52,13 +51,13 @@ void run_test(int threads, int n)
     reset();
     results[1] = 1;
     // Let my people go
-    go.store(n+1, bs_release);
+    smp_store_release(&go, n+1);
     // Wait for everyone
     for (int i = 0; i < threads; i++) {
-        while (!done[i].load(bs_acquire))
+        while (!smp_load_acquire(&done[i]))
             ;
 
-        done[i].store(false, bs_release);
+        smp_store_release(&done[i], false);
     }
 
     // Everyone done, process results.
@@ -78,8 +77,8 @@ int main(int argc, char **argv)
     int iterations = (argc == 2) ? atoi(argv[1]) : ITERATIONS;
 
     for (int i = 0; i < thread_count; i++) {
-        std::thread t(tester_thread, i);
-        t.detach();
+        pthread_t thread;
+        pthread_create(&thread, NULL, tester_thread, (void *)(long)i);
     }
 
     run_tests(thread_count, iterations);

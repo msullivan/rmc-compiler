@@ -3,7 +3,7 @@
 // Basically always just doesn't see the write at all.
 // Probably need to loop.
 
-#include <atomic>
+#include "atomic.h"
 #include <stdio.h>
 
 #define PADDED __attribute__ ((aligned (128)))

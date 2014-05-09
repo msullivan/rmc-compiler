@@ -1,29 +1,26 @@
 // Test for store buffering behavior
 
-#include <atomic>
-#include <cstdio>
+#include "atomic.h"
+#include <stdio.h>
 
-// Note that writing the test in C++ is kind of bogus, since
-// the *compiler* can reorder.
-std::atomic<long> x = {0};
-std::atomic<long> y = {0};
+volatile long x = 0;
+volatile long y = 0;
 
 int thread0()
 {
-    x.store(1, std::memory_order_relaxed);
-    return y.load(std::memory_order_relaxed);
+    x = 1;
+    return y;
 }
 
 int thread1()
 {
-    y.store(1, std::memory_order_relaxed);
-    return x.load(std::memory_order_relaxed);
+    y = 1;
+    return x;
 }
 
 void reset()
 {
-    x.store(0, std::memory_order_relaxed);
-    y.store(0, std::memory_order_relaxed);
+    x = y = 0;
 }
 
 // Formatting results

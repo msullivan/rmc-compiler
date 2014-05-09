@@ -1,3 +1,5 @@
+#include "atomic.h"
+
 
 /* Lockfree ringbuffers: works if there is at most one writer,
  * at most one reader at a time. */
@@ -7,69 +9,6 @@
 
 #define KBD_BUF_SIZE 1024
 
-/**** Linux style atomic primitives, adapted from linux header files. ****/
-/**** release/acquire/consume are like what C++ does */
-
-/* Keep the compiler honest */
-#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
-
-/* Optimization barrier */
-/* The "volatile" is due to gcc bugs */
-#define barrier() __asm__ __volatile__("":::"memory")
-
-#if defined(i386) || defined(__x86_64)
-
-#define smp_mb() __asm__ __volatile__("mfence":::"memory")
-#define smp_rmb() __asm__ __volatile__("lfence":::"memory")
-#define smp_wmb() __asm__ __volatile__("sfence" ::: "memory")
-
-/* These are for x86 */
-#define smp_store_release(p, v)                  \
-    do {                                         \
-        barrier();                               \
-        ACCESS_ONCE(*p) = v;                     \
-    } while (0)
-#define smp_load_acquire(p)                      \
-    ({                                           \
-    typeof(*p) __v = ACCESS_ONCE(*p);            \
-    barrier();                                   \
-    __v;                                         \
-    })
-#define smp_load_consume(p)                      \
-    ({                                           \
-    typeof(*p) __v = ACCESS_ONCE(*p);            \
-    barrier();                                   \
-    __v;                                         \
-    })
-
-#elif defined(__arm__)
-
-#define smp_mb() __asm__ __volatile__("dmb":::"memory")
-#define smp_rmb smp_mb
-#define smp_wmb smp_mb
-
-/* These are for ARM */
-#define smp_store_release(p, v)                  \
-    do {                                         \
-        smp_mb();                                \
-        ACCESS_ONCE(*p) = v;                     \
-    } while (0)
-#define smp_load_acquire(p)                      \
-    ({                                           \
-    typeof(*p) __v = ACCESS_ONCE(*p);            \
-    smp_mb();                                    \
-    __v;                                         \
-    })
-#define smp_load_consume(p)                      \
-    ({                                           \
-    typeof(*p) __v = ACCESS_ONCE(*p);            \
-    barrier();                                   \
-    __v;                                         \
-    })
-
-#else
-#error welp
-#endif
 
 
 /* Generic things */
@@ -255,13 +194,6 @@ int buf_dequeue_linux_mine(ring_buf_t *buf)
 /******* This is what I could do if I was a "thoroughly bad man" *********/
 /* Use consume without having an honest data dependency. */
 
-/* Given values v and bs, produce a copy of v that is technically
- * data dependent on bs.
- * v can be a pointer or an integer, bs should be an integer.
- * More might be done to keep this from actually being optimized out!
- */
-#define BULLSHIT_DEP(v, bs) ((v)+(bs^bs))
-
 int buf_enqueue_linux_badman(ring_buf_t *buf, unsigned char c)
 {
     unsigned back = buf->back;
@@ -269,7 +201,7 @@ int buf_enqueue_linux_badman(ring_buf_t *buf, unsigned char c)
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
-        ACCESS_ONCE(buf->buf[BULLSHIT_DEP(back, front)]) = c;
+        ACCESS_ONCE(buf->buf[bullshit_dep(back, front)]) = c;
         smp_store_release(&buf->back, ring_inc(back));
         enqueued = 1;
     }
@@ -284,7 +216,7 @@ int buf_dequeue_linux_badman(ring_buf_t *buf)
 
     int c = -1;
     if (front != back) {
-        c = ACCESS_ONCE(buf->buf[BULLSHIT_DEP(front, back)]);
+        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
         smp_store_release(&buf->front, ring_inc(front));
     }
 
