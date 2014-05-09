@@ -6,29 +6,30 @@
 #include <atomic>
 #include <stdio.h>
 
-// Note that writing the test in C++ is kind of bogus, since
-// the *compiler* can reorder.
-std::atomic<long> data = {0};
-std::atomic<long> ready = {0};
+#define PADDED __attribute__ ((aligned (128)))
+
+volatile long data PADDED = 1;
+volatile long ready PADDED = 1;
 
 int thread0()
 {
-    data.store(1, std::memory_order_relaxed);
-    ready.store(1, std::memory_order_relaxed);
+    data = 1;
+    ready = 1;
     return 0;
 }
 
 int thread1()
 {
-    int rready = ready.load(std::memory_order_relaxed);
-    int rdata = data.load(std::memory_order_relaxed);
+    int rready;
+    //rready = ready;
+    while (!(rready = ready));
+    int rdata = data;
     return (rdata<<1) | rready;
 }
 
 void reset()
 {
-    data.store(0, std::memory_order_relaxed);
-    ready.store(0, std::memory_order_relaxed);
+    data = ready = 0;
 }
 
 // Formatting results

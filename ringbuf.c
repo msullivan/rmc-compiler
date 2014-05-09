@@ -46,7 +46,7 @@
 
 #elif ARM
 
-#define smp_mb() __asm__ __volatile__("sync":::"memory")
+#define smp_mb() __asm__ __volatile__("dmb":::"memory")
 #define smp_rmb smp_mb
 #define smp_wmb smp_mb
 
@@ -82,7 +82,7 @@ typedef struct ring_buf_t {
 
 #define ring_inc(v) (((v) + 1) % KBD_BUF_SIZE)
 
-/***** Something like my original ringbuf code from my 15-410 kernel **********/
+/**** Something like my original ringbuf code from my 15-410 kernel **********/
 /* Doesn't bother with any memory model stuff and so is actually wrong. */
 int buf_enqueue_410(ring_buf_t *buf, unsigned char c)
 {
@@ -107,6 +107,34 @@ int buf_dequeue_410(ring_buf_t *buf)
     if (front != back) {
         c = buf->buf[front];
         buf->front = ring_inc(front);
+    }
+    return c;
+}
+
+/******** Something that is at least correct wrt the compiler  **********/
+int buf_enqueue_compiler_safe(ring_buf_t *buf, unsigned char c)
+{
+    unsigned back = buf->back;
+    unsigned front = ACCESS_ONCE(buf->front);
+
+    int enqueued = 0;
+    if (ring_inc(back) != front) {
+        ACCESS_ONCE(buf->buf[back]) = c;
+        ACCESS_ONCE(buf->back) = ring_inc(back);
+        enqueued = 1;
+    }
+    return enqueued;
+}
+
+int buf_dequeue_compiler_safe(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+
+    int c = -1;
+    if (front != back) {
+        c = ACCESS_ONCE(buf->buf[front]);
+        ACCESS_ONCE(buf->front) = ring_inc(front);
     }
     return c;
 }
