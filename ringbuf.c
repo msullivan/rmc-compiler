@@ -5,8 +5,6 @@
  * and https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/memory-barriers.txt
  * */
 
-#define X86 1
-
 #define KBD_BUF_SIZE 1024
 
 /**** Linux style atomic primitives, adapted from linux header files. ****/
@@ -19,7 +17,7 @@
 /* The "volatile" is due to gcc bugs */
 #define barrier() __asm__ __volatile__("":::"memory")
 
-#if X86
+#if defined(i386) || defined(__x86_64)
 
 #define smp_mb() __asm__ __volatile__("mfence":::"memory")
 #define smp_rmb() __asm__ __volatile__("lfence":::"memory")
@@ -44,7 +42,7 @@
     __v;                                         \
     })
 
-#elif ARM
+#elif defined(__arm__)
 
 #define smp_mb() __asm__ __volatile__("dmb":::"memory")
 #define smp_rmb smp_mb
