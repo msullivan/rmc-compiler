@@ -69,7 +69,7 @@
 #define dependent_zero(v)                                   \
     ({                                                      \
     __typeof__(v) __i = v;                                  \
-    __asm__ ("eor %[val], %[val];" : [val] "+r" (i) ::);    \
+    __asm__ ("eor %[val], %[val];" : [val] "+r" (__i) ::);  \
     __i;                                                    \
     })
 #else
@@ -82,5 +82,6 @@
  */
 #define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
 
+#define PADDED __attribute__ ((aligned (128)))
 
 #endif

@@ -6,7 +6,6 @@
 #include "atomic.h"
 #include <stdio.h>
 
-#define PADDED __attribute__ ((aligned (128)))
 
 volatile long data PADDED = 1;
 volatile long ready PADDED = 1;
@@ -21,7 +20,6 @@ int thread0()
 int thread1()
 {
     int rready;
-    //rready = ready;
     while (!(rready = ready));
     int rdata = data;
     return (rdata<<1) | rready;
@@ -49,6 +47,7 @@ void summarize_results()
             printf("ready=%d data=%d: %d\n", r0, r1, result_counts[idx]);
         }
     }
+    printf("&data = %p, &ready=%p\n", &data, &ready);
 }
 
 

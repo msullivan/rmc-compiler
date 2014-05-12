@@ -6,7 +6,7 @@
 // On ARM:
 // mp        - observed
 // mp+ctrl   - observed
-// mp+addr   - observed, but not often at all!
+// mp+addr   - not observed :( was hoping to
 // mp+sync+addr - not observed; good!
 
 
@@ -14,16 +14,20 @@
 #include <stdio.h>
 #include <assert.h>
 
+volatile long data PADDED = 1;
+volatile long ready PADDED = 0;
 
+volatile long *pdata;
 
-// Note that writing the test in C++ is kind of bogus, since
-// the *compiler* can reorder.
-volatile long data = 1;
-volatile long ready = 0;
+volatile int foo;
 
 int thread0()
 {
-    data = 1;
+    // Trying a bunch of things to see if I can get that ready write
+    // to happen before the data one, but I haven't managed.
+//    extern int go; /* durrrr */
+//    data = go * go + 1;
+    *pdata = 1;
 //    smp_mb();
     ready = 1;
     return 0;
@@ -32,16 +36,15 @@ int thread0()
 int thread1()
 {
     int rready;
-    //rready = ready;
     while (!(rready = ready));
-    //int rdata = *bullshit_dep(&data, rready);
-    int rdata = data;
-    return (rdata<<1) | rready;
+    int rdata = *bullshit_dep(&data, rready);
+    return ((!!rdata)<<1) | rready;
 }
 
 void reset()
 {
-    assert(data == 1);
+    pdata = &data;
+    assert(data != 0);
     ready = 0;
     data = 0;
 }
@@ -52,7 +55,6 @@ int result_counts[4];
 void process_results(int *r)
 {
     int idx = r[1];
-    if (idx != 3) printf("got one!\n");
     result_counts[idx]++;
 }
 
@@ -64,6 +66,7 @@ void summarize_results()
             printf("ready=%d data=%d: %d\n", r0, r1, result_counts[idx]);
         }
     }
+    printf("&data = %p, &ready=%p\n", &data, &ready);
 }
 
 
