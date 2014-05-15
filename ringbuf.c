@@ -7,7 +7,7 @@
  * and https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/memory-barriers.txt
  * */
 
-#define KBD_BUF_SIZE 1024
+#define KBD_BUF_SIZE (1024*1)
 
 
 
@@ -98,7 +98,10 @@ int buf_dequeue_compiler_safe(ring_buf_t *buf)
  * Maybe on Alpha? It seems generally pretty dubious.
  *
  * The "linux memory model" says that control dependencies can order
- * prior loads against later stores.
+ * prior loads against later stores. This might mean that the spin_lock
+ * and spin_unlock arne't actually needed under the "linux memory model".
+ * Although maybe it being cross function gets weird... Hm.
+ * Not really: ARM/POWER won't reorder reads *from the same address*.
  *
  * I think this is sort of equivalent to the queue without spinlocks except
  * that the write would need to get speculated before *two* conditions...
@@ -129,6 +132,7 @@ int buf_enqueue_linux(ring_buf_t *buf, unsigned char c)
     unsigned back = buf->back;
     /* Linux claims:
      * "The spin_unlock() and next spin_lock() provide needed ordering." */
+    /* I don't think it matters. */
     unsigned front = ACCESS_ONCE(buf->front);
 
     int enqueued = 0;
@@ -160,9 +164,9 @@ int buf_dequeue_linux(ring_buf_t *buf)
     return c;
 }
 
-/********************* Linux/C++ style ************************************/
-/* This is what I feel the linux thing should be?? */
-int buf_enqueue_linux_mine(ring_buf_t *buf, unsigned char c)
+/********************* Linux/C11 style ************************************/
+/* This is more or less what it would be in C11 land but in a Linux style*/
+int buf_enqueue_c11(ring_buf_t *buf, unsigned char c)
 {
     unsigned back = buf->back;
     unsigned front = smp_load_acquire(&buf->front);
@@ -177,7 +181,7 @@ int buf_enqueue_linux_mine(ring_buf_t *buf, unsigned char c)
     return enqueued;
 }
 
-int buf_dequeue_linux_mine(ring_buf_t *buf)
+int buf_dequeue_c11(ring_buf_t *buf)
 {
     unsigned front = buf->front;
     unsigned back = smp_load_acquire(&buf->back);
@@ -193,8 +197,11 @@ int buf_dequeue_linux_mine(ring_buf_t *buf)
 
 /******* This is what I could do if I was a "thoroughly bad man" *********/
 /* Use consume without having an honest data dependency. */
+/* If we were properly using C11 with a proper consume implementation,
+ * the compiler should preserve a bogus dependency. We don't, though
+ * so we implemented bullshit_dep() with inline assembly on ARM. */
 
-int buf_enqueue_linux_badman(ring_buf_t *buf, unsigned char c)
+int buf_enqueue_c11_badman(ring_buf_t *buf, unsigned char c)
 {
     unsigned back = buf->back;
     unsigned front = smp_load_consume(&buf->front);
@@ -209,7 +216,7 @@ int buf_enqueue_linux_badman(ring_buf_t *buf, unsigned char c)
     return enqueued;
 }
 
-int buf_dequeue_linux_badman(ring_buf_t *buf)
+int buf_dequeue_c11_badman(ring_buf_t *buf)
 {
     unsigned front = buf->front;
     unsigned back = smp_load_consume(&buf->back);
@@ -223,9 +230,46 @@ int buf_dequeue_linux_badman(ring_buf_t *buf)
     return c;
 }
 
+/******* Here we use deps for all of our xo edges *********/
+/* This actually seems to be *terribad* */
+/* Things were actually *faster* when I had a pointless dependency in
+ * enqueue */
 
-/******************* This is the old linux version using barriers *************/
-/* I dropped the locks but maybe they are needed? I haven't figured this out. */
+int buf_enqueue_deps(ring_buf_t *buf, unsigned char c)
+{
+    unsigned back = buf->back;
+    unsigned front = ACCESS_ONCE(buf->front);
+
+    int enqueued = 0;
+    if (ring_inc(back) != front) {
+        ACCESS_ONCE(buf->buf[back]) = c;
+        vis_barrier();
+        ACCESS_ONCE(buf->back) = ring_inc(back);
+        enqueued = 1;
+    }
+
+    return enqueued;
+}
+
+int buf_dequeue_deps(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+
+    int c = -1;
+    if (front != back) {
+        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
+        vis_barrier();
+        ACCESS_ONCE(*bullshit_dep(&buf->front, c)) = ring_inc(front);
+    }
+
+    return c;
+}
+
+
+
+/****************** This is the old linux version using barriers *************/
+/* I dropped the locks but maybe they are needed? I haven't figured this out */
 int buf_enqueue_linux_old(ring_buf_t *buf, unsigned char c)
 {
     unsigned back = buf->back;
@@ -272,7 +316,10 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
 /* Dummy things to let us write the code */
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
-#define L(label, stmt) stmt
+/* Just stick a visibility barrier after every label. This isn't good
+ * or anything, but it probably works. */
+/* This is unhygenicin a nasty way. */
+#define L(label, stmt) stmt; vis_barrier()
 
 #endif
 
@@ -316,20 +363,40 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
  * read0 -> d_update0 -> e_check0 -> insert1.
  * Having insert1 -rf-> read0 would cause a cycle in trace order.
  *
- */
+ * ----
+ *
+ * Now consider the (I suspect) optimal compilation for ARM:
+ * For the intra-call stuff:
+ * put a sync between insert and e_update, put addr dependencies between
+ * dcheck -> read, read -> d_update. insert is a store, so the
+ * ctrl dependency from e_check orders it. Cool.
+ *
+ * Now we need to consider how we get the edges to subsequent calls:
+ * The vo edge is obvious.
+ * If we assume buf is always the same...
+ * Then because of read/read coherence we get ?_check -xo-> ?_check,
+ * which gives us what we need for the edges out of both checks.
+ * We also need read0 -xo-> update1, which we get
+ * from noting that coherence gives us update0 -xo-> update1.
+ *
+ * Although actually maybe the coherence stuff does *not* line up
+ * properly with our notion of xo.
+ *
+ *
+*/
 
 int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
 {
-    XEDGE(check, insert);
-    VEDGE(insert, update);
+    XEDGE(e_check, insert);
+    VEDGE(insert, e_update);
 
     unsigned back = buf->back;
-    L(check, unsigned front = buf->front);
+    L(e_check, unsigned front = buf->front);
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
         L(insert, buf->buf[back] = c);
-        L(update, buf->back = ring_inc(back));
+        L(e_update, buf->back = ring_inc(back));
         enqueued = 1;
     }
     return enqueued;
@@ -337,16 +404,114 @@ int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
 
 int buf_dequeue_rmc(ring_buf_t *buf)
 {
-    XEDGE(check, read);
-    XEDGE(read, update);
+    XEDGE(d_check, read);
+    XEDGE(read, d_update);
 
     unsigned front = buf->front;
-    L(check, unsigned back = buf->back);
+    L(d_check, unsigned back = buf->back);
 
     int c = -1;
     if (front != back) {
         L(read, c = buf->buf[front]);
-        L(update, buf->front = ring_inc(front));
+        L(d_update, buf->front = ring_inc(front));
     }
     return c;
+}
+
+
+
+/*************************** Testing ***************************************/
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+ * linux (using ctrl+isb) is around 4.4s, tends to overflow
+ * linux_old 4.1s
+ * it looks like dmb is actually better performing than ctrl+isb!!
+ * c11 around 5.7s, tends to underflow
+ * c11_badman around 5.0s, tends to underflow
+ * deps around 6.1s
+ *
+ * All of the optimizations make it slower!
+ * Well, not totally true: taking advantage of the existing control
+ * dependency in enqueue is a win.
+ *
+ * There is a lot of weird.
+ */
+#ifndef TEST_NAME
+#define TEST_NAME rmc
+#endif
+
+/* C. */
+#define CAT(x,y)      x ## y
+#define XCAT(x,y)     CAT(x,y)
+
+#define buf_enqueue XCAT(buf_enqueue_, TEST_NAME)
+#define buf_dequeue XCAT(buf_dequeue_, TEST_NAME)
+
+ring_buf_t test_buf;
+
+#define MODULUS 251
+
+#define ITERATIONS 100000
+
+int PADDED empty_count;
+int PADDED full_count;
+
+void *enqueuer(void *p)
+{
+    long iterations = (long)p;
+    int i = 0;
+
+    while (i < iterations) {
+        unsigned char c = i % MODULUS;
+        int success = buf_enqueue(&test_buf, c);
+        if (!success) {
+            full_count++;
+        } else {
+            i++;
+        }
+    }
+
+    return NULL;
+}
+
+
+void *dequeuer(void *p)
+{
+    long iterations = (long)p;
+    int i = 0;
+
+    while (i < iterations) {
+        int c = buf_dequeue(&test_buf);
+        if (c < 0) {
+            empty_count++;
+        } else {
+            unsigned char expected = i % MODULUS;
+            if (c != expected) {
+                printf("wrong! expected=%d, got=%d\n", expected, c);
+            }
+            i++;
+        }
+    }
+
+    return NULL;
+}
+
+int main(int argc, char **argv)
+{
+    long iterations = (argc == 2) ? strtol(argv[1], NULL, 0) : ITERATIONS;
+    void *arg = (void *)(long)iterations;
+
+    pthread_t enqueue_thread, dequeue_thread;
+    pthread_create(&enqueue_thread, NULL, enqueuer, arg);
+    pthread_create(&dequeue_thread, NULL, dequeuer, arg);
+
+    pthread_join(enqueue_thread, NULL);
+    pthread_join(dequeue_thread, NULL);
+
+    printf("empty = %d, full = %d\n", empty_count, full_count);
+
+    return 0;
 }

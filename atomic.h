@@ -7,6 +7,8 @@
 /* Keep the compiler honest */
 #define ACCESS_ONCE(x) (*(volatile __typeof__(x) *)&(x))
 
+#define nop() do { } while(0)
+
 /* Optimization barrier */
 /* The "volatile" is due to gcc bugs */
 #define barrier() __asm__ __volatile__("":::"memory")
@@ -37,8 +39,9 @@
     })
 
 // On x86 we don't need this
-#define ctrl_isync(x) do { } while(0)
+#define ctrl_isync(x) nop()
 #define dependent_zero(x) 0
+#define vis_barrier() barrier()
 
 #elif defined(__arm__)
 
@@ -95,6 +98,8 @@
     __asm__ __volatile__("eor %[val], %[val];" : [val] "+r" (__i) ::);  \
     __i;                                                                \
     })
+
+#define vis_barrier() smp_mb()
 
 #else
 #error CPU not supported
