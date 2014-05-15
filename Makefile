@@ -4,7 +4,7 @@ CC=gcc
 all: tests
 
 tests: leapfrog-test leapfrog-2-test mp-dep-test mp-imb-test \
-       mp-test sb-test wrc-test
+       mp-test sb-test wrc-test lb-test
 
 %-test: %-test.c test.c atomic.h
 	$(CC) $(CFLAGS) $< test.c -o $@

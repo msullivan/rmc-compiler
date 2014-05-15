@@ -1,22 +1,24 @@
-// Test for store buffering behavior
-// This one actually shows up on x86.
+// Test for load buffering behavior
+// Can two CPUs read from subsequent writes on the other one?
 
 #include "atomic.h"
 #include <stdio.h>
 
-volatile long x = 0;
-volatile long y = 0;
+volatile long x PADDED = 0;
+volatile long y PADDED = 0;
 
 int thread0()
 {
+    int ry = y;
     x = 1;
-    return y;
+    return ry;
 }
 
 int thread1()
 {
+    int rx = x;
     y = 1;
-    return x;
+    return rx;
 }
 
 void reset()
@@ -30,6 +32,7 @@ int result_counts[4];
 void process_results(int *r)
 {
     int idx = (r[1]<<1) | r[0];
+    if (idx == 3) printf("got one!\n");
     result_counts[idx]++;
 }
 
