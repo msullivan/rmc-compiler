@@ -21,17 +21,62 @@ using namespace llvm;
 
 namespace {
 
+//// Some auxillary data structures
+enum RMCEdgeType {
+  VisbilityEdge,
+  ExecutionEdge
+};
+
+raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
+  switch (t) {
+    case VisbilityEdge:
+      os << "visibility";
+      break;
+    case ExecutionEdge:
+      os << "execution";
+      break;
+    default:
+      os << "BOGUS";
+      break;
+  }
+  return os;
+}
+
+
+struct RMCEdge {
+  RMCEdgeType edgeType;
+  BasicBlock *src;
+  BasicBlock *dst;
+
+  bool operator<(const RMCEdge& rhs) const {
+    return std::tie(edgeType, src, dst)
+      < std::tie(rhs.edgeType, rhs.src, rhs.dst);
+  }
+
+  void print(raw_ostream &os) const {
+    os << "Edge type: " << edgeType << ", src: "
+       << src->getName() << ", dest: " << dst->getName();
+  }
+};
+
+raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
+  e.print(os);
+  return os;
+}
+
+//// Actual code for the pass
 class RMCPass : public FunctionPass {
 private:
 public:
   static char ID;
   RMCPass() : FunctionPass(ID) {}
   ~RMCPass() { }
-  void findEdges(Function &F);
+  std::vector<RMCEdge> findEdges(Function &F);
   virtual bool runOnFunction(Function &F);
 };
 
-void RMCPass::findEdges(Function &F) {
+std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
+  std::vector<RMCEdge> edges;
   bool usesRMC = false;
 
   for (auto & block : F) {
@@ -55,14 +100,13 @@ void RMCPass::findEdges(Function &F) {
       // We just assert if something is wrong, which is not great UX.
       bool isVisibility = cast<ConstantInt>(load->getOperand(0))
         ->getValue().getBoolValue();
+      RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
       BasicBlock *src = cast<BlockAddress>(load->getOperand(1))
         ->getBasicBlock();
       BasicBlock *dst = cast<BlockAddress>(load->getOperand(2))
         ->getBasicBlock();
 
-      // TODO: actually collect this information
-      errs() << "Found one: " << isVisibility << " "
-             << src->back() << " " << dst->back() << "\n";
+      edges.push_back({edgeType, src, dst});
 
       // Delete the bogus call.
       i->eraseFromParent();
@@ -80,11 +124,18 @@ void RMCPass::findEdges(Function &F) {
       }
     }
   }
+
+  return edges;
 }
 
 bool RMCPass::runOnFunction(Function &F) {
-  findEdges(F);
-  return true;
+  auto edges = findEdges(F);
+
+  for (auto & edge : edges) {
+    errs() << "Found one: " << edge << "\n";
+  }
+
+  return !edges.empty();
 }
 
 char RMCPass::ID = 0;
