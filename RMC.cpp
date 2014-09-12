@@ -30,13 +30,13 @@ enum RMCEdgeType {
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   switch (t) {
     case VisbilityEdge:
-      os << "visibility";
+      os << "v";
       break;
     case ExecutionEdge:
-      os << "execution";
+      os << "e";
       break;
     default:
-      os << "BOGUS";
+      os << "?";
       break;
   }
   return os;
@@ -54,8 +54,9 @@ struct RMCEdge {
   }
 
   void print(raw_ostream &os) const {
-    os << "Edge type: " << edgeType << ", src: "
-       << src->getName() << ", dest: " << dst->getName();
+    // substr(5) is to drop "_rmc_" from the front
+    os << src->getName().substr(5) << " -" << edgeType <<
+      "-> " << dst->getName().substr(5);
   }
 };
 
@@ -132,7 +133,7 @@ bool RMCPass::runOnFunction(Function &F) {
   auto edges = findEdges(F);
 
   for (auto & edge : edges) {
-    errs() << "Found one: " << edge << "\n";
+    errs() << "Found an edge: " << edge << "\n";
   }
 
   return !edges.empty();
