@@ -313,12 +313,12 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
 #error "no you don't"
 #else
 
-/* Dummy things to let us write the code */
+/* Dummy version that should work. */
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
 /* Just stick a visibility barrier after every label. This isn't good
  * or anything, but it probably works. */
-/* This is unhygenicin a nasty way. */
+/* This is unhygenic in a nasty way. */
 #define L(label, stmt) stmt; vis_barrier()
 
 #endif
