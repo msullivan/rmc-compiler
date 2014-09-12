@@ -4,7 +4,31 @@
 #include "atomic.h"
 
 #ifdef HAS_RMC
-#error "no you don't"
+
+/* We signal our labels and edges to our LLVM pass in a *really* hacky
+ * way to avoid needing to modify the frontend.  Labelled statements
+ * are wrapped in two goto labels to force them into their own basic
+ * block (labelled statements don't fundamentally *need* to be in
+ * their own basic block, but it makes things convenient) and edges
+ * are specified by calling a dummy function __rmc_edge_register with
+ * the labels as arguments (using computed goto to get the labels).
+ *
+ * This is really quite fragile; optimization passes will easily
+ * destroy this information. The RMC pass should be run *before* any
+ * real optimization passes are run but *after* mem2reg. */
+
+extern void __rmc_edge_register(int is_vis, void *src, void *dst);
+#define RMC_EDGE(t, x, y) __rmc_edge_register(t, &&_rmc_##x, &&_rmc_##y)
+#define XEDGE(x, y) RMC_EDGE(0, x, y)
+#define VEDGE(x, y) RMC_EDGE(1, x, y)
+/* This is unhygenic in a nasty way. */
+/* The (void)0s are because declarations can't directly follow labels,
+ * apparently. */
+#define L(label, stmt)                                                  \
+    _rmc_##label: (void)0;                                              \
+    stmt;                                                               \
+    _rmc_end_##label: __attribute__((unused)) (void)0
+
 #else
 
 /* Dummy version that should work. */
@@ -15,7 +39,6 @@
 /* This is unhygenic in a nasty way. */
 #define L(label, stmt) stmt; vis_barrier()
 
-#endif
-
+#endif /* HAS_RMC */
 
 #endif
