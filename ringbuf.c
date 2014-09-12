@@ -1,4 +1,5 @@
 #include "atomic.h"
+#include "rmc.h"
 
 
 /* Lockfree ringbuffers: works if there is at most one writer,
@@ -309,21 +310,6 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
 
 
 /******************* try an rmc version..... ****************************/
-#ifdef HAS_RMC
-#error "no you don't"
-#else
-
-/* Dummy version that should work. */
-#define XEDGE(x, y) do { } while (0)
-#define VEDGE(x, y) do { } while (0)
-/* Just stick a visibility barrier after every label. This isn't good
- * or anything, but it probably works. */
-/* This is unhygenic in a nasty way. */
-#define L(label, stmt) stmt; vis_barrier()
-
-#endif
-
-
 
 /* The important things are:
  *
