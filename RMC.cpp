@@ -33,7 +33,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
       os << "v";
       break;
     case ExecutionEdge:
-      os << "e";
+      os << "x";
       break;
     default:
       os << "?";
