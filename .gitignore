@@ -21,6 +21,11 @@
 *.app
 *-test
 
+# LLVM output
+*.bc
+*.ll
+
+
 *.s
 *.S
 
