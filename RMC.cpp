@@ -27,11 +27,7 @@ namespace {
   instruction should look like (probably the constraints aren't
   right?):
 
-define i32 @foo(i32 %x) #0 {
-entry:
-  %0 = call i32 asm sideeffect "eor $0, $0;", "=r,0,~{dirflag},~{fpsr},~{flags}"(i32 %x) #3, !srcloc !17
-  ret i32 %0
-}
+  %2 = call i32 asm sideeffect "eor $0, $0;", "=r,0"(i32 %1) #2, !srcloc !11
 */
 
 
