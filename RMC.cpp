@@ -91,9 +91,11 @@ public:
 };
 
 bool nameMatches(StringRef blockName, StringRef target) {
-  StringRef name = "_rmc_" + target.str();
-  // This works for the current hack where we only allow one of each name.
-  return blockName == name;
+  StringRef name = "_rmc_" + target.str() + "_";
+  if (!blockName.startswith(name)) return false;
+  // Now make sure the rest is an int
+  APInt dummy;
+  return !blockName.drop_front(name.size()).getAsInteger(10, dummy);
 }
 
 StringRef getStringArg(Value *v) {
