@@ -17,15 +17,15 @@
  * destroy this information. The RMC pass should be run *before* any
  * real optimization passes are run but *after* mem2reg. */
 
-extern void __rmc_edge_register(int is_vis, void *src, void *dst);
-#define RMC_EDGE(t, x, y) __rmc_edge_register(t, &&_rmc_##x, &&_rmc_##y)
+extern void __rmc_edge_register(int is_vis, char *src, char *dst);
+#define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
 /* This is unhygenic in a nasty way. */
 /* The (void)0s are because declarations can't directly follow labels,
  * apparently. */
 #define L(label, stmt)                                                  \
-    _rmc_##label: (void)0;                                              \
+    _rmc_##label: __attribute__((unused)) (void)0;                      \
     stmt;                                                               \
     _rmc_end_##label: __attribute__((unused)) (void)0
 
