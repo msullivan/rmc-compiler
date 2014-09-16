@@ -17,6 +17,12 @@
  * destroy this information. The RMC pass should be run *before* any
  * real optimization passes are run but *after* mem2reg. */
 
+
+/* C. */
+#define RCAT(x,y)      x ## y
+#define XRCAT(x,y)     RCAT(x,y)
+
+
 extern void __rmc_edge_register(int is_vis, char *src, char *dst);
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
@@ -24,10 +30,10 @@ extern void __rmc_edge_register(int is_vis, char *src, char *dst);
 /* This is unhygenic in a nasty way. */
 /* The (void)0s are because declarations can't directly follow labels,
  * apparently. */
-#define L(label, stmt)                                                  \
-    _rmc_##label: __attribute__((unused)) (void)0;                      \
-    stmt;                                                               \
-    _rmc_end_##label: __attribute__((unused)) (void)0
+#define L(label, stmt)                                                    \
+    XRCAT(_rmc_##label##_, __COUNTER__): __attribute__((unused)) (void)0; \
+    stmt;                                                                 \
+    XRCAT(_rmc_end_##label##_, __COUNTER__): __attribute__((unused)) (void)0
 
 #else
 
