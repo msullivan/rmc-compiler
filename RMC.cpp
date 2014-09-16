@@ -90,9 +90,22 @@ public:
   virtual bool runOnFunction(Function &F);
 };
 
+bool nameMatches(StringRef blockName, StringRef target) {
+  StringRef name = "_rmc_" + target.str();
+  // This works for the current hack where we only allow one of each name.
+  return blockName == name;
+}
+
+StringRef getStringArg(Value *v) {
+  const Value *g = cast<Constant>(v)->stripPointerCasts();
+  const Constant *ptr = cast<GlobalVariable>(g)->getInitializer();
+  StringRef str = cast<ConstantDataSequential>(ptr)->getAsString();
+  // Drop the '\0' at the end
+  return str.drop_back();
+}
+
 std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
   std::vector<RMCEdge> edges;
-  bool usesRMC = false;
 
   for (auto & block : F) {
     for (BasicBlock::iterator is = block.begin(), ie = block.end(); is != ie;) {
@@ -109,34 +122,29 @@ std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
       // and delete the calls.
       if (!target || target->getName() != "__rmc_edge_register") continue;
 
-      usesRMC = true;
-
       // Pull out what the operands have to be.
       // We just assert if something is wrong, which is not great UX.
       bool isVisibility = cast<ConstantInt>(load->getOperand(0))
         ->getValue().getBoolValue();
       RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
-      BasicBlock *src = cast<BlockAddress>(load->getOperand(1))
-        ->getBasicBlock();
-      BasicBlock *dst = cast<BlockAddress>(load->getOperand(2))
-        ->getBasicBlock();
+      StringRef srcName = getStringArg(load->getOperand(1));
+      StringRef dstName = getStringArg(load->getOperand(2));
 
-      edges.push_back({edgeType, src, dst});
+      // Since multiple blocks can have the same tag, we search for
+      // them by name.
+      // We could make this more efficient by building maps but I don't think
+      // it is going to matter.
+      for (auto & src : F) {
+        if (!nameMatches(src.getName(), srcName)) continue;
+        for (auto & dst : F) {
+          if (!nameMatches(dst.getName(), dstName)) continue;
+
+          edges.push_back({edgeType, &src, &dst});
+        }
+      }
 
       // Delete the bogus call.
       i->eraseFromParent();
-    }
-  }
-
-  // If this function uses RMC, look for a bogus "indirectgoto" block
-  // and remove it.
-  if (usesRMC) {
-    for (auto & block : F) {
-      if (block.getName() == "indirectgoto" &&
-          pred_begin(&block) == pred_end(&block)) {
-        DeleteDeadBlock(&block);
-        break;
-      }
     }
   }
 
