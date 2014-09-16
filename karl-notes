@@ -1,0 +1,33 @@
+The general intuition is that pushes become syncs; visibility edges
+become lwsyncs; and execution edges become either control-isyncs, or
+data or address dependencies.  There are some subtleties though.
+Ignoring read-modify-writes, the algorithm is as follows:
+
+1. Take the transitive closure of the visibility edges, and take the
+    transitive closure of the execution edges.
+2. Discard any edges involving a nop.
+3. For all triples of the form i -vo-> push -xo/vo-> i', create a push
+    edge i -push-> i'.  (These exist in the algorithm only, not in the
+    theory.)
+4. Discard any edges involving a push.
+5. Insert synchronization into the code such that:
+
+    a. Every push edge is cut by a sync.
+    b. Every W->W and R->W visibility edge is cut by a sync or lwsync.
+    c. Every R->R visibility edge is cut by a sync, lwsync,
+       control-isync, or data/address dependency.
+    d. Every R->W and R->R execution edge is cut by a sync, lwsync,
+       control-isync, or data/address dependency.
+       (XXX: actually, R->W execution can be cut by a ctrl dep)
+
+    Doing so is interesting, particularly when edges cross from one
+    basic block to another.
+
+    Note that:
+
+    a. R->R visibility edges have no more force than execution (other
+       than transitive implications).
+    b. W->R visibility and execution edges, and W->W execution edges,
+       are discarded (after transitive closure).
+    c. Pushes without both a visibility predecessor and a
+       visibility/execution successor are discarded.

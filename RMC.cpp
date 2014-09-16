@@ -21,6 +21,20 @@ using namespace llvm;
 
 namespace {
 
+/* To do bogus data dependencies, we will emit inline assembly
+  instructions. This is sort of tasteless; we should add an intrinsic;
+  but it means we don't need to modify llvm. This is what the
+  instruction should look like (probably the constraints aren't
+  right?):
+
+define i32 @foo(i32 %x) #0 {
+entry:
+  %0 = call i32 asm sideeffect "eor $0, $0;", "=r,0,~{dirflag},~{fpsr},~{flags}"(i32 %x) #3, !srcloc !17
+  ret i32 %0
+}
+*/
+
+
 //// Some auxillary data structures
 enum RMCEdgeType {
   VisbilityEdge,
