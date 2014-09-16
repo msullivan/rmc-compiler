@@ -405,7 +405,7 @@ int buf_dequeue_rmc(ring_buf_t *buf)
 }
 
 
-
+#ifndef NO_TEST
 /*************************** Testing ***************************************/
 #include <pthread.h>
 #include <stdio.h>
@@ -501,3 +501,4 @@ int main(int argc, char **argv)
 
     return 0;
 }
+#endif
