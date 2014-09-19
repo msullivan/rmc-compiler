@@ -122,45 +122,43 @@ StringRef getStringArg(Value *v) {
 std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
   std::vector<RMCEdge> edges;
 
-  for (auto & block : F) {
-    for (BasicBlock::iterator is = block.begin(), ie = block.end(); is != ie;) {
-      // Grab the instruction and advance the iterator at the start, since
-      // we might delete the instruction.
-      Instruction *i = &*is;
-      is++;
+  for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
+    // Grab the instruction and advance the iterator at the start, since
+    // we might delete the instruction.
+    Instruction *i = &*is;
+    is++;
 
-      CallInst *load = dyn_cast<CallInst>(i);
-      if (!load) continue;
-      Function *target = load->getCalledFunction();
-      // We look for calls to the bogus function
-      // __rmc_edge_register, pull out the information about them,
-      // and delete the calls.
-      if (!target || target->getName() != "__rmc_edge_register") continue;
+    CallInst *load = dyn_cast<CallInst>(i);
+    if (!load) continue;
+    Function *target = load->getCalledFunction();
+    // We look for calls to the bogus function
+    // __rmc_edge_register, pull out the information about them,
+    // and delete the calls.
+    if (!target || target->getName() != "__rmc_edge_register") continue;
 
-      // Pull out what the operands have to be.
-      // We just assert if something is wrong, which is not great UX.
-      bool isVisibility = cast<ConstantInt>(load->getOperand(0))
-        ->getValue().getBoolValue();
-      RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
-      StringRef srcName = getStringArg(load->getOperand(1));
-      StringRef dstName = getStringArg(load->getOperand(2));
+    // Pull out what the operands have to be.
+    // We just assert if something is wrong, which is not great UX.
+    bool isVisibility = cast<ConstantInt>(load->getOperand(0))
+      ->getValue().getBoolValue();
+    RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
+    StringRef srcName = getStringArg(load->getOperand(1));
+    StringRef dstName = getStringArg(load->getOperand(2));
 
-      // Since multiple blocks can have the same tag, we search for
-      // them by name.
-      // We could make this more efficient by building maps but I don't think
-      // it is going to matter.
-      for (auto & src : F) {
-        if (!nameMatches(src.getName(), srcName)) continue;
-        for (auto & dst : F) {
-          if (!nameMatches(dst.getName(), dstName)) continue;
+    // Since multiple blocks can have the same tag, we search for
+    // them by name.
+    // We could make this more efficient by building maps but I don't think
+    // it is going to matter.
+    for (auto & src : F) {
+      if (!nameMatches(src.getName(), srcName)) continue;
+      for (auto & dst : F) {
+        if (!nameMatches(dst.getName(), dstName)) continue;
 
-          edges.push_back({edgeType, &src, &dst});
-        }
+        edges.push_back({edgeType, &src, &dst});
       }
-
-      // Delete the bogus call.
-      i->eraseFromParent();
     }
+
+    // Delete the bogus call.
+    i->eraseFromParent();
   }
 
   return edges;
