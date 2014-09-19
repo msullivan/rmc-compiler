@@ -39,7 +39,7 @@
     })
 
 // On x86 we don't need this
-#define ctrl_isync(x) nop()
+#define ctrl_isync(x) barrier()
 #define vis_barrier() barrier()
 
 #define bullshit_dep(v, bs) \
