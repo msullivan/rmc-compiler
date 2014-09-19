@@ -40,8 +40,15 @@
 
 // On x86 we don't need this
 #define ctrl_isync(x) nop()
-#define dependent_zero(x) 0
 #define vis_barrier() barrier()
+
+#define bullshit_dep(v, bs) \
+    ({                                           \
+    __typeof__(v) __v = v;                       \
+    __asm__ __volatile__("" : [val] "+r" (__v) : [bs] "r" (bs):);   \
+    __v;                                         \
+    })
+
 
 #elif defined(__arm__)
 
@@ -99,6 +106,8 @@
     __i;                                                                \
     })
 
+#define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
+
 #define vis_barrier() smp_mb()
 
 #else
@@ -109,8 +118,6 @@
  * data dependent on bs.
  * v can be a pointer or an integer, bs should be an integer.
  */
-#define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
-
 #define PADDED __attribute__ ((aligned (128)))
 
 #endif
