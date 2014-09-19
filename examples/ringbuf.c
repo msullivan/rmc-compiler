@@ -412,16 +412,14 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
  * ctrl dependency from e_check orders it. Cool.
  *
  * Now we need to consider how we get the edges to subsequent calls:
- * The vo edge is obvious.
- * If we assume buf is always the same...
- * Then because of read/read coherence we get ?_check -xo-> ?_check,
- * which gives us what we need for the edges out of both checks.
- * We also need read0 -xo-> update1, which we get
- * from noting that coherence gives us update0 -xo-> update1.
+ * The vo edge is obvious.  The dmb for the vo edge gets us an
+ * e_check0 -> insert1 edge also.  For dequeue, we discover that
+ * actually this doesn't work; we're going to need to put in a
+ * ctrlisb. (Well, the thing it trips is not actually a problem on
+ * actual hardware...)
  *
- * Although actually maybe the coherence stuff does *not* line up
- * properly with our notion of xo.
- *
+ * Also, this "optimal" compilation doesn't seem to be optimal: it is
+ * slower than putting in dmbs in dequeue!.
  *
 */
 
@@ -455,6 +453,7 @@ int buf_dequeue_rmc(ring_buf_t *buf)
         L(read, c = buf->buf[front]);
         L(d_update, buf->front = ring_inc(front));
     }
+
     return c;
 }
 

@@ -112,4 +112,23 @@ exists
 (0:r1=1 /\ 1:r3=1)
 
 
+ARM PPO002
+"DMBdWW Rfe DpAddrdR PosRR DpAddrdR Fre"
+Cycle=Rfe DpAddrdR PosRR DpAddrdR Fre DMBdWW
+{
+%x0=x; %y0=y;
+%y1=y; %z1=z; %x1=x;
+}
+ P0            | P1               ;
+ MOV R0, #1    | LDR R0, [%y1]    ;
+ STR R0, [%x0] | EOR R1,R0,R0     ;
+ DMB           | LDR R2, [R1,%z1] ;
+ MOV R1, #1    | LDR R3, [%z1]    ;
+ STR R1, [%y0] | EOR R4,R3,R3     ;
+               | LDR R5, [R4,%x1] ;
+exists
+(1:R0=1 /\ 1:R5=0)
+
+//Is I think what I want! - tragically, this does not work.
+
 #endif
