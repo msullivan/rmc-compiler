@@ -40,6 +40,7 @@
 
 // On x86 we don't need this
 #define ctrl_isync(x) barrier()
+#define isync() barrier()
 #define vis_barrier() barrier()
 
 #define bullshit_dep(v, bs) \
@@ -55,6 +56,9 @@
 #define smp_mb() __asm__ __volatile__("dmb":::"memory")
 #define smp_rmb smp_mb
 #define smp_wmb smp_mb
+
+// Make sure you are doing a ctrl yourself!
+#define isync() __asm__ __volatile__("isb":::"memory")
 
 #define ctrl_isync(v)                                   \
     __asm__ __volatile__("cmp %[val], %[val];"          \

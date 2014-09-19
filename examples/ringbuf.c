@@ -236,23 +236,9 @@ int buf_dequeue_c11_badman(ring_buf_t *buf)
 /* Things were actually *faster* when I had a pointless dependency in
  * enqueue */
 
-int buf_enqueue_deps(ring_buf_t *buf, unsigned char c)
-{
-    unsigned back = buf->back;
-    unsigned front = ACCESS_ONCE(buf->front);
+#define buf_enqueue_depsbad buf_enqueue_linux
 
-    int enqueued = 0;
-    if (ring_inc(back) != front) {
-        ACCESS_ONCE(buf->buf[back]) = c;
-        vis_barrier();
-        ACCESS_ONCE(buf->back) = ring_inc(back);
-        enqueued = 1;
-    }
-
-    return enqueued;
-}
-
-int buf_dequeue_deps(ring_buf_t *buf)
+int buf_dequeue_depsbad(ring_buf_t *buf)
 {
     unsigned front = buf->front;
     unsigned back = ACCESS_ONCE(buf->back);
@@ -267,6 +253,74 @@ int buf_dequeue_deps(ring_buf_t *buf)
     return c;
 }
 
+
+/* OK, actually, using deps for *all* the xo edges doesn't even work.
+ * (Well, not technically.)
+ * Using a dep for the first and a dmb for the second seems good.
+ * Using a ctrlisb for the second is bad. */
+
+/* I bet that it is important to have *some* dmbs if you are doing
+ * writes to make sure that the writes actually ever get flushed
+ * out! */
+
+#define buf_enqueue_deps buf_enqueue_linux
+
+int buf_dequeue_deps(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+
+    int c = -1;
+    if (front != back) {
+        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
+        vis_barrier();
+//        ctrl_isync(c);
+        ACCESS_ONCE(buf->front) = ring_inc(front);
+    }
+
+    return c;
+}
+
+// Slight variation. Which is slow! The ctrlisb variant is
+// actually faster this time.
+#define buf_enqueue_deps2 buf_enqueue_deps
+
+int buf_dequeue_deps2(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+//    vis_barrier();
+    ctrl_isync(back);
+
+    int c = -1;
+    if (front != back) {
+        c = ACCESS_ONCE(buf->buf[front]);
+        // The second version is lol slow.
+        //ACCESS_ONCE(*bullshit_dep(&buf->front, c)) = ring_inc(front);
+        ACCESS_ONCE(bullshit_dep(buf, c)->front) = ring_inc(front);
+    }
+
+    return c;
+}
+
+// Try sinking the isb. It doesn't seem to help.
+#define buf_enqueue_sunkisb buf_enqueue_linux
+
+
+int buf_dequeue_sunkisb(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+
+    int c = -1;
+    if (front != back) {
+        isync(); // we have a ctrl dep from back
+        c = ACCESS_ONCE(buf->buf[front]);
+        smp_store_release(&buf->front, ring_inc(front));
+    }
+
+    return c;
+}
 
 
 /****************** This is the old linux version using barriers *************/
@@ -417,11 +471,11 @@ int buf_dequeue_rmc(ring_buf_t *buf)
  * it looks like dmb is actually better performing than ctrl+isb!!
  * c11 around 5.7s, tends to underflow
  * c11_badman around 5.0s, tends to underflow
- * deps around 6.1s
+ * depsbad around 6.1s
  *
- * All of the optimizations make it slower!
- * Well, not totally true: taking advantage of the existing control
- * dependency in enqueue is a win.
+ * Ok, wait, when I run linux_old now I get like 6s!
+ *
+ * The new version of deps seems to slightly outperform linux.
  *
  * There is a lot of weird.
  */
