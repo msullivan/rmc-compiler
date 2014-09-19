@@ -260,8 +260,8 @@ int buf_dequeue_deps(ring_buf_t *buf)
     int c = -1;
     if (front != back) {
         c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
-        vis_barrier();
-        ACCESS_ONCE(*bullshit_dep(&buf->front, c)) = ring_inc(front);
+        ctrl_isync(c);
+        ACCESS_ONCE(buf->front) = ring_inc(front);
     }
 
     return c;
