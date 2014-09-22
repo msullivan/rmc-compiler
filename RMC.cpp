@@ -1,5 +1,11 @@
 // BUG: this whole thing depends on the specifics of how the clang version I
 // am using emits llvm bitcode for the hacky RMC protocol.
+// We rely on how basic blocks get named, on the labels forcing things
+// into their own basic blocks, and probably will rely on this block
+// having one predecessor and one successor. We could probably even
+// force those to be empty without too much work by adding more labels...
+
+
 
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>

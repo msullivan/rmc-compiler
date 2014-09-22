@@ -31,3 +31,9 @@ Ignoring read-modify-writes, the algorithm is as follows:
        are discarded (after transitive closure).
     c. Pushes without both a visibility predecessor and a
        visibility/execution successor are discarded.
+
+
+--
+pre and post edges we will just add the stuff and then try to notice it.
+
+honestly maybe that's what we should do for push also?
