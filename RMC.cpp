@@ -26,6 +26,9 @@
 using namespace llvm;
 
 namespace {
+#if 0 // I hate you, emacs. Is there a better way to work around this?
+}
+#endif
 
 /* To do bogus data dependencies, we will emit inline assembly
   instructions. This is sort of tasteless; we should add an intrinsic;
