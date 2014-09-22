@@ -54,6 +54,9 @@ namespace {
 
   Hm. Does this *actually* work?? What does "sideeffect" actually mean
   for asm and do we need it.
+
+  --
+  Should we emit dmb directly, or try to use llvm's fences?
 */
 
 
@@ -79,6 +82,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
 }
 
 
+// Info about an RMC edge
 struct RMCEdge {
   RMCEdgeType edgeType;
   BasicBlock *src;
@@ -101,14 +105,44 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
   return os;
 }
 
+// Information for a node in the RMC graph.
+struct Block {
+  Block(BasicBlock *p_bb) : bb(p_bb), stores(0), loads(0), RMWs(0), calls(0) {}
+  void operator=(const Block &) LLVM_DELETED_FUNCTION;
+  Block(const Block &) LLVM_DELETED_FUNCTION;
+  Block(Block &&) = default; // move constructor!
+
+  BasicBlock *bb;
+
+  // Some basic info about what sort of instructions live in the block
+  int stores;
+  int loads;
+  int RMWs;
+  int calls;
+
+  // Edges in the graph.
+  // XXX: Would we be better off storing this some other way?
+  // a <ptr, type> pair?
+  // And should we store v edges in x
+  SmallPtrSet<Block *, 2> execEdges;
+  SmallPtrSet<Block *, 2> visEdges;
+};
+
+
 //// Actual code for the pass
 class RMCPass : public FunctionPass {
 private:
+  std::vector<Block> blocks_;
+  DenseMap<BasicBlock *, Block *> bb2block_;
+
 public:
   static char ID;
-  RMCPass() : FunctionPass(ID) {}
+  RMCPass() : FunctionPass(ID) {
+
+  }
   ~RMCPass() { }
   std::vector<RMCEdge> findEdges(Function &F);
+  void buildGraph(std::vector<RMCEdge> &edges, Function &F);
   virtual bool runOnFunction(Function &F);
 };
 
@@ -173,6 +207,54 @@ std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
   return edges;
 }
 
+void analyzeBlock(Block &info) {
+  for (auto & i : *info.bb) {
+    if (isa<LoadInst>(i)) {
+      info.loads++;
+    } else if (isa<StoreInst>(i)) {
+      info.stores++;
+    // What else counts as a call? I'm counting fences I guess.
+    } else if (isa<CallInst>(i) || isa<FenceInst>(i)) {
+      info.calls++;
+    } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
+      info.RMWs++;
+    }
+  }
+}
+
+void RMCPass::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
+  // First, collect all the basic blocks with edges attached to them
+  SmallPtrSet<BasicBlock *, 8> basicBlocks;
+  for (auto & edge : edges) {
+    basicBlocks.insert(edge.src);
+    basicBlocks.insert(edge.dst);
+  }
+
+  // Now, make the vector of blocks and a mapping from BasicBlock *.
+  blocks_.reserve(basicBlocks.size());
+  for (auto bb : basicBlocks) {
+    blocks_.emplace_back(bb);
+    bb2block_[bb] = &blocks_.back();
+  }
+
+  // Analyze the instructions in blocks to see what sort of actions
+  // they peform.
+  for (auto & block : blocks_) {
+    analyzeBlock(block);
+  }
+
+  // Build our list of edges into a more explicit graph
+  for (auto & edge : edges) {
+    Block *src = bb2block_[edge.src];
+    Block *dst = bb2block_[edge.dst];
+    if (edge.edgeType == VisbilityEdge) {
+      src->visEdges.insert(dst);
+    } else {
+      src->execEdges.insert(dst);
+    }
+  }
+}
+
 bool RMCPass::runOnFunction(Function &F) {
   auto edges = findEdges(F);
 
@@ -180,7 +262,15 @@ bool RMCPass::runOnFunction(Function &F) {
     errs() << "Found an edge: " << edge << "\n";
   }
 
-  return !edges.empty();
+  buildGraph(edges, F);
+  bool changed = !edges.empty();
+
+  // Clear our data structures to save memory, make things clean for
+  // future runs.
+  blocks_.clear();
+  bb2block_.clear();
+
+  return changed;
 }
 
 char RMCPass::ID = 0;
