@@ -12,6 +12,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/CFG.h>
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/InstIterator.h>
@@ -128,6 +129,60 @@ struct Block {
   SmallPtrSet<Block *, 2> visEdges;
 };
 
+// Code to find all paths. Maybe we should optimize this some more,
+// but it's fundamentally exponential so whatever, really.
+// Finds all non-looping paths between two basic blocks.
+// Could generalize more to graphs if we wanted, but I don't right
+// now.
+typedef std::vector<BasicBlock *> Path;
+typedef SmallVector<Path, 2> PathList;
+typedef SmallPtrSet<BasicBlock *, 8> GreySet;
+
+PathList findAllPaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
+  PathList paths;
+  if (grey->count(src)) return paths;
+  if (src == dst) {
+    Path path;
+    path.push_back(dst);
+    paths.push_back(std::move(path));
+    return paths;
+  }
+
+  grey->insert(src);
+
+  // Go search all the successors
+  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
+    PathList subpaths = findAllPaths_(grey, *i, dst);
+    std::move(subpaths.begin(), subpaths.end(), back_inserter(paths));
+  }
+
+  // Add our step to all of the vectors
+  for (auto & path : paths) {
+    path.push_back(src);
+  }
+
+  // Remove it from the set of things we've seen. We might come
+  // through here again. Maybe we should memoize the results to avoid
+  // redoing the search, but I don't think that really saves us all
+  // that much.
+  grey->erase(src);
+
+  return paths;
+}
+
+PathList findAllPaths(BasicBlock *src, BasicBlock *dst) {
+  GreySet grey;
+  return findAllPaths_(&grey, src, dst);
+}
+
+void dumpPaths(const PathList &paths) {
+  for (auto & path : paths) {
+    for (auto block : path) {
+      errs() << block->getName() << " <- ";
+    }
+    errs() << "\n";
+  }
+}
 
 //// Actual code for the pass
 class RMCPass : public FunctionPass {
