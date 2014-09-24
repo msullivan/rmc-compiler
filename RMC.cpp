@@ -15,6 +15,7 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
+#include <llvm/Transforms/Scalar.h>
 
 #include <llvm/ADT/ArrayRef.h>
 
@@ -109,6 +110,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
   return os;
 }
 
+///////////////////////////////////////////////////////////////////////////
 // Information for a node in the RMC graph.
 struct Block {
   Block(BasicBlock *p_bb) : bb(p_bb), stores(0), loads(0), RMWs(0), calls(0) {}
@@ -146,6 +148,7 @@ struct EdgeCut {
 };
 
 
+///////////////////////////////////////////////////////////////////////////
 // Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
 // now.
@@ -200,6 +203,7 @@ void dumpPaths(const PathList &paths) {
   }
 }
 
+///////////////////////////////////////////////////////////////////////////
 // XXX: This is the wrong way to do this!
 bool targetARM = true;
 bool targetx86 = false;
@@ -248,7 +252,9 @@ Instruction *makeCtrlIsync(Value *v) {
 }
 // We also need to add a thing for fake data deps, which is more annoying.
 
+///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
+
 class RMCPass : public FunctionPass {
 private:
   std::vector<Block> blocks_;
@@ -264,6 +270,12 @@ public:
   std::vector<RMCEdge> findEdges(Function &F);
   void buildGraph(std::vector<RMCEdge> &edges, Function &F);
   virtual bool runOnFunction(Function &F);
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequiredID(BreakCriticalEdgesID);
+    AU.setPreservesCFG();
+  }
+
 };
 
 bool nameMatches(StringRef blockName, StringRef target) {
