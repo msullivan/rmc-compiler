@@ -12,10 +12,13 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/CFG.h>
+#include <llvm/IR/InstIterator.h>
+
+#include <llvm/ADT/ArrayRef.h>
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
-#include <llvm/IR/InstIterator.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <ostream>
@@ -182,6 +185,54 @@ void dumpPaths(const PathList &paths) {
     errs() << "\n";
   }
 }
+
+// XXX: This is the wrong way to do this!
+bool targetARM = true;
+bool targetx86 = false;
+
+// Some llvm nonsense. I should probably find a way to clean this up.
+// do we put ~{dirflag},~{fpsr},~{flags} for the x86 ones? don't think so.
+Instruction *makeSync(Value *dummy) {
+  LLVMContext &C = dummy->getContext();
+  FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a;
+  if (targetARM) {
+    a = InlineAsm::get(f_ty, "dmb", "~{memory}", true);
+  } else if (targetx86) {
+    a = InlineAsm::get(f_ty, "msync", "~{memory}", true);
+  } else {
+    assert(false && "invalid target");
+  }
+  return CallInst::Create(a, None, "sync");
+}
+Instruction *makeLwsync(Value *dummy) {
+  LLVMContext &C = dummy->getContext();
+  FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a;
+  if (targetARM) {
+    a = InlineAsm::get(f_ty, "dmb", "~{memory}", true);
+  } else if (targetx86) {
+    a = InlineAsm::get(f_ty, "", "~{memory}", true);
+  } else {
+    assert(false && "invalid target");
+  }
+  return CallInst::Create(a, None, "lwsync");
+}
+Instruction *makeCtrlIsync(Value *v) {
+  LLVMContext &C = v->getContext();
+  FunctionType *f_ty =
+    FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
+  InlineAsm *a;
+  if (targetARM) {
+    a = InlineAsm::get(f_ty, "cmp $0, $0;beq 1f;1: isb", "r,~{memory}", true);
+  } else if (targetx86) {
+    a = InlineAsm::get(f_ty, "", "r,~{memory}", true);
+  } else {
+    assert(false && "invalid target");
+  }
+  return CallInst::Create(a, None, "ctrlisync");
+}
+// We also need to add a thing for fake data deps, which is more annoying.
 
 //// Actual code for the pass
 class RMCPass : public FunctionPass {
