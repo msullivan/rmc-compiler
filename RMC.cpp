@@ -132,6 +132,20 @@ struct Block {
   SmallPtrSet<Block *, 2> visEdges;
 };
 
+enum CutType {
+  CutNone,
+  CutCtrlIsync, // needs to be paired with a dep
+  CutLwsync,
+  CutSync
+};
+struct EdgeCut {
+  EdgeCut() : type(CutNone), front(false), read(nullptr) {}
+  CutType type;
+  bool front;
+  Value *read;
+};
+
+
 // Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
 // now.
@@ -239,6 +253,7 @@ class RMCPass : public FunctionPass {
 private:
   std::vector<Block> blocks_;
   DenseMap<BasicBlock *, Block *> bb2block_;
+  DenseMap<BasicBlock *, EdgeCut> cuts_;
 
 public:
   static char ID;
@@ -374,6 +389,7 @@ bool RMCPass::runOnFunction(Function &F) {
   // future runs.
   blocks_.clear();
   bb2block_.clear();
+  cuts_.clear();
 
   return changed;
 }
