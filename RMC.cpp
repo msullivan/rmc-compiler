@@ -129,16 +129,14 @@ struct Block {
   SmallPtrSet<Block *, 2> visEdges;
 };
 
-// Code to find all paths. Maybe we should optimize this some more,
-// but it's fundamentally exponential so whatever, really.
-// Finds all non-looping paths between two basic blocks.
+// Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
 // now.
 typedef std::vector<BasicBlock *> Path;
 typedef SmallVector<Path, 2> PathList;
 typedef SmallPtrSet<BasicBlock *, 8> GreySet;
 
-PathList findAllPaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
+PathList findAllSimplePaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
   PathList paths;
   if (grey->count(src)) return paths;
   if (src == dst) {
@@ -152,7 +150,7 @@ PathList findAllPaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
 
   // Go search all the successors
   for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllPaths_(grey, *i, dst);
+    PathList subpaths = findAllSimplePaths_(grey, *i, dst);
     std::move(subpaths.begin(), subpaths.end(), back_inserter(paths));
   }
 
@@ -162,17 +160,18 @@ PathList findAllPaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
   }
 
   // Remove it from the set of things we've seen. We might come
-  // through here again. Maybe we should memoize the results to avoid
-  // redoing the search, but I don't think that really saves us all
-  // that much.
+  // through here again.
+  // We can't really do any sort of memoization, since in a cyclic
+  // graph the possible simple paths depend not just on what node we
+  // are on, but our previous path (to avoid looping).
   grey->erase(src);
 
   return paths;
 }
 
-PathList findAllPaths(BasicBlock *src, BasicBlock *dst) {
+PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst) {
   GreySet grey;
-  return findAllPaths_(&grey, src, dst);
+  return findAllSimplePaths_(&grey, src, dst);
 }
 
 void dumpPaths(const PathList &paths) {
