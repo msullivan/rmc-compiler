@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+NAME=$(basename $1 .c)
+PATH=../../build/Debug+Asserts/bin/:$PATH
+
+clang -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
+llvm-dis $NAME.pre.bc
+
+opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+llvm-dis $NAME.bc
+
+clang -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
+llvm-dis $NAME.opt.bc
