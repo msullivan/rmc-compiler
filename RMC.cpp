@@ -266,7 +266,7 @@ Instruction *makeCtrlIsync(Value *v) {
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
-class RMCPass : public FunctionPass {
+class RealizeRMC : public FunctionPass {
 private:
   std::vector<Action> actions_;
   DenseMap<BasicBlock *, Action *> bb2action_;
@@ -274,10 +274,10 @@ private:
 
 public:
   static char ID;
-  RMCPass() : FunctionPass(ID) {
+  RealizeRMC() : FunctionPass(ID) {
 
   }
-  ~RMCPass() { }
+  ~RealizeRMC() { }
   std::vector<RMCEdge> findEdges(Function &F);
   void buildGraph(std::vector<RMCEdge> &edges, Function &F);
   virtual bool runOnFunction(Function &F);
@@ -312,7 +312,7 @@ StringRef getStringArg(Value *v) {
   return str.drop_back();
 }
 
-std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
+std::vector<RMCEdge> RealizeRMC::findEdges(Function &F) {
   std::vector<RMCEdge> edges;
 
   for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
@@ -386,7 +386,7 @@ void analyzeAction(Action &info) {
   }
 }
 
-void RMCPass::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
+void RealizeRMC::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
   // First, collect all the basic blocks with edges attached to them
   SmallPtrSet<BasicBlock *, 8> basicBlocks;
   for (auto & edge : edges) {
@@ -418,7 +418,7 @@ void RMCPass::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
   }
 }
 
-bool RMCPass::runOnFunction(Function &F) {
+bool RealizeRMC::runOnFunction(Function &F) {
   auto edges = findEdges(F);
   if (edges.empty()) return false;
 
@@ -432,6 +432,6 @@ bool RMCPass::runOnFunction(Function &F) {
   return true;
 }
 
-char RMCPass::ID = 0;
-RegisterPass<RMCPass> X("rmc-pass", "RMC");
+char RealizeRMC::ID = 0;
+RegisterPass<RealizeRMC> X("realize-rmc", "Compile RMC annotations");
 }
