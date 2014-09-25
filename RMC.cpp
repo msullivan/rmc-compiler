@@ -89,29 +89,6 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
 }
 
 
-// Info about an RMC edge
-struct RMCEdge {
-  RMCEdgeType edgeType;
-  BasicBlock *src;
-  BasicBlock *dst;
-
-  bool operator<(const RMCEdge& rhs) const {
-    return std::tie(edgeType, src, dst)
-      < std::tie(rhs.edgeType, rhs.src, rhs.dst);
-  }
-
-  void print(raw_ostream &os) const {
-    // substr(5) is to drop "_rmc_" from the front
-    os << src->getName().substr(5) << " -" << edgeType <<
-      "-> " << dst->getName().substr(5);
-  }
-};
-
-raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
-  e.print(os);
-  return os;
-}
-
 ///////////////////////////////////////////////////////////////////////////
 // Information for a node in the RMC graph.
 enum ActionType {
@@ -147,6 +124,30 @@ struct Action {
   SmallPtrSet<Action *, 2> visEdges;
 };
 
+// Info about an RMC edge
+struct RMCEdge {
+  RMCEdgeType edgeType;
+  Action *src;
+  Action *dst;
+
+  bool operator<(const RMCEdge& rhs) const {
+    return std::tie(edgeType, src, dst)
+      < std::tie(rhs.edgeType, rhs.src, rhs.dst);
+  }
+
+  void print(raw_ostream &os) const {
+    // substr(5) is to drop "_rmc_" from the front
+    os << src->bb->getName().substr(5) << " -" << edgeType <<
+      "-> " << dst->bb->getName().substr(5);
+  }
+};
+
+raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
+  e.print(os);
+  return os;
+}
+
+// Cuts in the graph
 enum CutType {
   CutNone,
   CutCtrlIsync, // needs to be paired with a dep
@@ -277,10 +278,10 @@ private:
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
+  void findActions(Function &F);
   std::vector<RMCEdge> findEdges(Function &F);
-  void buildGraph(Function &F, std::vector<RMCEdge> &edges);
   void cutEdges(Function &F, std::vector<RMCEdge> &edges);
-  void cutEdge(Function &F, Action *src, Action *dst, RMCEdgeType type);
+  void cutEdge(Function &F, RMCEdge &edge);
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
@@ -351,12 +352,21 @@ std::vector<RMCEdge> RealizeRMC::findEdges(Function &F) {
     // them by name.
     // We could make this more efficient by building maps but I don't think
     // it is going to matter.
-    for (auto & src : F) {
-      if (!nameMatches(src.getName(), srcName)) continue;
-      for (auto & dst : F) {
-        if (!nameMatches(dst.getName(), dstName)) continue;
+    for (auto & srcBB : F) {
+      if (!nameMatches(srcBB.getName(), srcName)) continue;
+      for (auto & dstBB : F) {
+        if (!nameMatches(dstBB.getName(), dstName)) continue;
+        Action *src = bb2action_[&srcBB];
+        Action *dst = bb2action_[&dstBB];
 
-        edges.push_back({edgeType, &src, &dst});
+        // Insert into the graph and the list of edges
+        if (edgeType == VisbilityEdge) {
+          src->visEdges.insert(dst);
+        } else {
+          src->execEdges.insert(dst);
+        }
+
+        edges.push_back({edgeType, src, dst});
       }
     }
 
@@ -396,12 +406,13 @@ void analyzeAction(Action &info) {
   }
 }
 
-void RealizeRMC::buildGraph(Function &F, std::vector<RMCEdge> &edges) {
-  // First, collect all the basic blocks with edges attached to them
+void RealizeRMC::findActions(Function &F) {
+  // First, collect all the basic blocks that are actions
   SmallPtrSet<BasicBlock *, 8> basicBlocks;
-  for (auto & edge : edges) {
-    basicBlocks.insert(edge.src);
-    basicBlocks.insert(edge.dst);
+  for (auto & block : F) {
+    if (block.getName().startswith("_rmc_")) {
+      basicBlocks.insert(&block);
+    }
   }
 
   // Now, make the vector of actions and a mapping from BasicBlock *.
@@ -410,30 +421,11 @@ void RealizeRMC::buildGraph(Function &F, std::vector<RMCEdge> &edges) {
     actions_.emplace_back(bb);
     bb2action_[bb] = &actions_.back();
   }
-
-  // Analyze the instructions in actions to see what they do.
-  for (auto & action : actions_) {
-    analyzeAction(action);
-  }
-
-  // Build our list of edges into a more explicit graph
-  for (auto & edge : edges) {
-    Action *src = bb2action_[edge.src];
-    Action *dst = bb2action_[edge.dst];
-    if (edge.edgeType == VisbilityEdge) {
-      src->visEdges.insert(dst);
-    } else {
-      src->execEdges.insert(dst);
-    }
-  }
 }
 
-
-void RealizeRMC::cutEdge(Function &F,
-                         Action *src, Action *dst, RMCEdgeType type) {
-
+void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
   // As a first pass, we just insert lwsyncs at the start of the destination.
-  BasicBlock *bb = dst->bb;
+  BasicBlock *bb = edge.dst->bb;
   makeLwsync(&bb->front());
   cuts_[bb] = EdgeCut(CutLwsync, true);
 }
@@ -441,21 +433,27 @@ void RealizeRMC::cutEdge(Function &F,
 void RealizeRMC::cutEdges(Function &F, std::vector<RMCEdge> &edges) {
   // Maybe we should actually use the graph structure we built?
   for (auto & edge : edges) {
-    cutEdge(F, bb2action_[edge.src], bb2action_[edge.dst], edge.edgeType);
+    cutEdge(F, edge);
   }
 }
 
 bool RealizeRMC::runOnFunction(Function &F) {
+  //UnifyFunctionExitNodes &EN = getAnalysis<UnifyFunctionExitNodes>();
+
+  findActions(F);
 
   auto edges = findEdges(F);
-  if (edges.empty()) return false;
+  if (actions_.empty() && edges.empty()) return false;
 
   for (auto & edge : edges) {
     errs() << "Found an edge: " << edge << "\n";
   }
 
-  //UnifyFunctionExitNodes &EN = getAnalysis<UnifyFunctionExitNodes>();
-  buildGraph(F, edges);
+  // Analyze the instructions in actions to see what they do.
+  for (auto & action : actions_) {
+    analyzeAction(action);
+  }
+
   cutEdges(F, edges);
 
   clear();
