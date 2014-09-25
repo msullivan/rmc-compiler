@@ -112,8 +112,17 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 
 ///////////////////////////////////////////////////////////////////////////
 // Information for a node in the RMC graph.
+enum BlockType {
+  BlockComplex,
+  BlockSimpleRead,
+  BlockSimpleWrites, // needs to be paired with a dep
+  BlockSimpleRMW
+};
 struct Block {
-  Block(BasicBlock *p_bb) : bb(p_bb), stores(0), loads(0), RMWs(0), calls(0) {}
+  Block(BasicBlock *p_bb) :
+    bb(p_bb),
+    type(BlockComplex),
+    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr) {}
   void operator=(const Block &) LLVM_DELETED_FUNCTION;
   Block(const Block &) LLVM_DELETED_FUNCTION;
   Block(Block &&) = default; // move constructor!
@@ -121,10 +130,12 @@ struct Block {
   BasicBlock *bb;
 
   // Some basic info about what sort of instructions live in the block
+  BlockType type;
   int stores;
   int loads;
   int RMWs;
   int calls;
+  LoadInst *soleLoad;
 
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
@@ -340,9 +351,11 @@ std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
 }
 
 void analyzeBlock(Block &info) {
+  LoadInst *soleLoad = nullptr;
   for (auto & i : *info.bb) {
-    if (isa<LoadInst>(i)) {
+    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
       info.loads++;
+      soleLoad = load;
     } else if (isa<StoreInst>(i)) {
       info.stores++;
     // What else counts as a call? I'm counting fences I guess.
@@ -351,6 +364,18 @@ void analyzeBlock(Block &info) {
     } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
       info.RMWs++;
     }
+  }
+  // Try to characterize this block's actions
+  // These categories might not be the best.
+  if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
+    info.soleLoad = soleLoad;
+    info.type = BlockSimpleRead;
+  } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
+    info.type = BlockSimpleWrites;
+  } else if (info.RMWs == 1 && info.stores+info.loads+info.calls == 0) {
+    info.type = BlockSimpleRMW;
+  } else {
+    info.type = BlockComplex;
   }
 }
 
@@ -389,13 +414,13 @@ void RMCPass::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
 
 bool RMCPass::runOnFunction(Function &F) {
   auto edges = findEdges(F);
+  if (edges.empty()) return false;
 
   for (auto & edge : edges) {
     errs() << "Found an edge: " << edge << "\n";
   }
 
   buildGraph(edges, F);
-  bool changed = !edges.empty();
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
@@ -403,7 +428,7 @@ bool RMCPass::runOnFunction(Function &F) {
   bb2block_.clear();
   cuts_.clear();
 
-  return changed;
+  return true;
 }
 
 char RMCPass::ID = 0;
