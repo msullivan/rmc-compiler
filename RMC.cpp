@@ -25,6 +25,7 @@
 
 #include <ostream>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <map>
 #include <set>
@@ -235,29 +236,55 @@ void dumpPaths(const PathList &paths) {
 bool targetARM = true;
 bool targetx86 = false;
 
+// Generate a unique str that we add to comments in our inline
+// assembly to keep llvm from getting clever and merging them.
+// This is awful.
+std::string uniqueStr() {
+  // This isn't threadsafe but whatever
+  static int i = 0;
+  std::ostringstream buffer;
+  buffer << i++;
+  return buffer.str();
+}
+
+// We use this wrapper to make sure that llvm won't try to merge the
+// inline assembly operations.
+InlineAsm *makeAsm(FunctionType *Ty,
+                   const char *AsmString, StringRef Constraints,
+                   bool hasSideEffects) {
+  return InlineAsm::get(Ty, AsmString + (" #" + uniqueStr()),
+                        Constraints, hasSideEffects);
+}
+
 // Some llvm nonsense. I should probably find a way to clean this up.
 // do we put ~{dirflag},~{fpsr},~{flags} for the x86 ones? don't think so.
+Instruction *makeBarrier(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
+  FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a = makeAsm(f_ty, "# barrier", "~{memory}", true);
+  return CallInst::Create(a, None, "", to_precede);
+}
 Instruction *makeSync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "dmb #sync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb #sync", "~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "msync #sync", "~{memory}", true);
+    a = makeAsm(f_ty, "msync #sync", "~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
-  return CallInst::Create(a, None, "sync", to_precede);
+  return CallInst::Create(a, None, "", to_precede);
 }
 Instruction *makeLwsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "dmb #lwsync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb #lwsync", "~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "#lwsync", "~{memory}", true);
+    a = makeAsm(f_ty, "#lwsync", "~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
@@ -269,14 +296,19 @@ Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "cmp $0, $0;beq 1f;1: isb #ctrlisync",
-                       "r,~{memory}", true);
+    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: isb #ctrlisync",
+                "r,~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "#ctrlisync", "r,~{memory}", true);
+    a = makeAsm(f_ty, "#ctrlisync", "r,~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
-  return CallInst::Create(a, None, "", to_precede);
+  return CallInst::Create(a, v, "", to_precede);
+}
+Instruction *makeCopy(Value *v, Instruction *to_precede) {
+  FunctionType *f_ty = FunctionType::get(v->getType(), v->getType(), false);
+  InlineAsm *a = makeAsm(f_ty, "# copy", "=r,0", false); /* false?? */
+  return CallInst::Create(a, v, "__rmc_bs_copy", to_precede);
 }
 // We also need to add a thing for fake data deps, which is more annoying.
 
