@@ -422,7 +422,7 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
  * Also, this "optimal" compilation doesn't seem to be optimal: it is
  * slower than putting in dmbs in dequeue!.
  *
-*/
+ */
 
 int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
 {

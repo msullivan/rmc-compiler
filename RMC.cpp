@@ -443,6 +443,7 @@ CutStrength RealizeRMC::isPathCut(Function &F,
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
+  Instruction *soleLoad = edge.src->soleLoad;
 
   // Paths are backwards.
   for (auto i = path.rbegin(), e = path.rend(); i != e; i++) {
@@ -460,13 +461,51 @@ CutStrength RealizeRMC::isPathCut(Function &F,
       // ctrlisync cuts
       if (edge.edgeType == ExecutionEdge &&
           cut.type == CutCtrlIsync &&
-          cut.read == edge.src->soleLoad &&
+          cut.read == soleLoad &&
           cutHits) {
         return HardCut;
       }
     }
 
-    // TODO: soft cuts from control deps
+    if (isBack) continue;
+    // If the destination is a write, and this is an execution edge,
+    // and the source is a read, then we can just take advantage of
+    // a control dependency to get a soft cut.
+    if (edge.edgeType == VisbilityEdge || !soleLoad) continue;
+    if (!(edge.dst->type == ActionSimpleWrites ||
+          edge.dst->type == ActionSimpleRMW)) continue;
+    if (hasSoftCut) continue;
+
+    // Look for control dependencies on a read.
+    // TODO: we should be able to follow values through phi nodes,
+    // since we are path dependent anyways.
+    BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
+    if (!br || !br->isConditional()) continue;
+    // TODO: We only check one level of things. Check deeper?
+    if (br->getCondition() == soleLoad) {
+      hasSoftCut = true;
+      continue;
+    }
+    // We pretty heavily restrict what operations we handle here.
+    // Some would just be wrong (like call), but really icmp is
+    // the main one, so. Probably we should be able to also
+    // pick through casts and wideness changes.
+    ICmpInst *icmp = dyn_cast<ICmpInst>(br->getCondition());
+    if (!icmp) continue;
+    for (auto v : icmp->operand_values()) {
+      if (v == soleLoad) {
+        hasSoftCut = true;
+        break;
+      }
+    }
+
+    // TODO: we need to keep the compiler from optimizing this away!
+    // 1) We should probably introduce a compiler barrier in the
+    //    target branch.
+    // 2) We should make sure that the conditional can't get compiled away.
+    //    Is there any reasonable way to do that?
+    //    Maybe if we insert an inline asm passthrough and replace the use
+    //    in the conditional with it!
   }
 
   return hasSoftCut ? SoftCut : NoCut;
