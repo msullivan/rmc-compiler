@@ -287,6 +287,13 @@ public:
     AU.setPreservesCFG();
   }
 
+  // Clear our data structures to save memory, make things clean for
+  // future runs.
+  void clear() {
+    actions_.clear();
+    bb2action_.clear();
+    cuts_.clear();
+  }
 };
 
 bool nameMatches(StringRef blockName, StringRef target) {
@@ -421,12 +428,7 @@ bool RMCPass::runOnFunction(Function &F) {
 
   buildGraph(edges, F);
 
-  // Clear our data structures to save memory, make things clean for
-  // future runs.
-  actions_.clear();
-  bb2action_.clear();
-  cuts_.clear();
-
+  clear();
   return true;
 }
 
