@@ -15,11 +15,13 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
+
 #include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 
 #include <llvm/ADT/ArrayRef.h>
 
-#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <ostream>
@@ -284,6 +286,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
+    AU.addRequired<UnifyFunctionExitNodes>();
     AU.setPreservesCFG();
   }
 
@@ -419,6 +422,7 @@ void RealizeRMC::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
 }
 
 bool RealizeRMC::runOnFunction(Function &F) {
+
   auto edges = findEdges(F);
   if (edges.empty()) return false;
 
@@ -426,6 +430,7 @@ bool RealizeRMC::runOnFunction(Function &F) {
     errs() << "Found an edge: " << edge << "\n";
   }
 
+  //UnifyFunctionExitNodes &EN = getAnalysis<UnifyFunctionExitNodes>();
   buildGraph(edges, F);
 
   clear();
