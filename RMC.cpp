@@ -18,7 +18,6 @@
 
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
-#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 
 #include <llvm/ADT/ArrayRef.h>
 
@@ -172,21 +171,27 @@ typedef std::vector<BasicBlock *> Path;
 typedef SmallVector<Path, 2> PathList;
 typedef SmallPtrSet<BasicBlock *, 8> GreySet;
 
-PathList findAllSimplePaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
+PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
   PathList paths;
-  if (grey->count(src)) return paths;
   if (src == dst) {
     Path path;
     path.push_back(dst);
     paths.push_back(std::move(path));
     return paths;
   }
+  if (grey->count(src)) return paths;
 
   grey->insert(src);
 
-  // Go search all the successors
+  // We consider all exits from a function to loop back to the start
+  // edge, so we need to handle that unfortunate case.
+  if (isa<ReturnInst>(src->getTerminator())) {
+    BasicBlock *entry = &src->getParent()->getEntryBlock();
+    paths = findAllSimplePaths(grey, entry, dst);
+  }
+  // Go search all the normal successors
   for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllSimplePaths_(grey, *i, dst);
+    PathList subpaths = findAllSimplePaths(grey, *i, dst);
     std::move(subpaths.begin(), subpaths.end(), back_inserter(paths));
   }
 
@@ -207,7 +212,7 @@ PathList findAllSimplePaths_(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
 
 PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst) {
   GreySet grey;
-  return findAllSimplePaths_(&grey, src, dst);
+  return findAllSimplePaths(&grey, src, dst);
 }
 
 void dumpPaths(const PathList &paths) {
@@ -301,7 +306,6 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
-    AU.addRequired<UnifyFunctionExitNodes>();
     AU.setPreservesCFG();
   }
 
@@ -438,8 +442,6 @@ void RealizeRMC::cutEdges(Function &F, std::vector<RMCEdge> &edges) {
 }
 
 bool RealizeRMC::runOnFunction(Function &F) {
-  //UnifyFunctionExitNodes &EN = getAnalysis<UnifyFunctionExitNodes>();
-
   findActions(F);
 
   auto edges = findEdges(F);
