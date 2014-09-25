@@ -154,12 +154,18 @@ enum CutType {
   CutSync
 };
 struct EdgeCut {
-  EdgeCut() : type(CutNone), front(false), read(nullptr) {}
+  EdgeCut() : type(CutNone), isFront(false), read(nullptr) {}
   EdgeCut(CutType ptype, bool pfront, Value *pread = nullptr)
-    : type(ptype), front(pfront), read(pread) {}
+    : type(ptype), isFront(pfront), read(pread) {}
   CutType type;
-  bool front;
+  bool isFront;
   Value *read;
+};
+
+enum CutStrength {
+  NoCut,
+  SoftCut, // Is cut for one loop iteration
+  HardCut
 };
 
 
@@ -282,6 +288,10 @@ private:
   std::vector<Action> actions_;
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
+
+  CutStrength isPathCut(Function &F, const RMCEdge &edge, const Path &path);
+  CutStrength isEdgeCut(Function &F, const RMCEdge &edge);
+  bool isCut(Function &F, const RMCEdge &edge);
 
   void findActions(Function &F);
   std::vector<RMCEdge> findEdges(Function &F);
@@ -427,10 +437,64 @@ void RealizeRMC::findActions(Function &F) {
   }
 }
 
+CutStrength RealizeRMC::isPathCut(Function &F,
+                                  const RMCEdge &edge,
+                                  const Path &path) {
+  if (path.size() <= 1) return HardCut;
+
+  bool hasSoftCut = false;
+
+  // Paths are backwards.
+  for (auto i = path.rbegin(), e = path.rend(); i != e; i++) {
+    bool isFront = i == path.rbegin(), isBack = i == e-1;
+    BasicBlock *bb = *i;
+
+    auto cut_i = cuts_.find(bb);
+    if (cut_i != cuts_.end()) {
+      const EdgeCut &cut = cut_i->second;
+      // TODO ctrlisync
+      if (cut.type >= CutLwsync &&
+          !(isFront && cut.isFront) &&
+          !(isBack && !cut.isFront)) {
+        return HardCut;
+      }
+    }
+
+    // TODO: soft cuts from control deps
+  }
+
+  return hasSoftCut ? SoftCut : NoCut;
+}
+
+CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge) {
+  CutStrength strength = HardCut;
+  PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb);
+  for (auto & path : paths) {
+    CutStrength pathStrength = isPathCut(F, edge, path);
+    if (pathStrength < strength) strength = pathStrength;
+  }
+
+  return strength;
+}
+
+bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
+  switch (isEdgeCut(F, edge)) {
+    case HardCut: return true;
+    case NoCut: return false;
+    case SoftCut:
+      return isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}) > NoCut;
+    }
+}
+
+
 void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
+  if (isCut(F, edge)) return;
+
   // As a first pass, we just insert lwsyncs at the start of the destination.
   BasicBlock *bb = edge.dst->bb;
   makeLwsync(&bb->front());
+  // XXX: we need to make sure we can't ever fail to track a cut at one side
+  // of a block because we inserted one at the other! Argh!
   cuts_[bb] = EdgeCut(CutLwsync, true);
 }
 
