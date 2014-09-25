@@ -10,4 +10,4 @@ tests: leapfrog-test leapfrog-2-test mp-dep-test mp-imb-test \
 	$(CC) $(CFLAGS) $< test.c -o $@
 
 clean:
-	rm -rf *-test *.o *~
+	rm -rf *-test *.o *~ *.bc *.ll
