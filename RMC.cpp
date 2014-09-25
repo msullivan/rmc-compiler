@@ -112,25 +112,25 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 
 ///////////////////////////////////////////////////////////////////////////
 // Information for a node in the RMC graph.
-enum BlockType {
-  BlockComplex,
-  BlockSimpleRead,
-  BlockSimpleWrites, // needs to be paired with a dep
-  BlockSimpleRMW
+enum ActionType {
+  ActionComplex,
+  ActionSimpleRead,
+  ActionSimpleWrites, // needs to be paired with a dep
+  ActionSimpleRMW
 };
-struct Block {
-  Block(BasicBlock *p_bb) :
+struct Action {
+  Action(BasicBlock *p_bb) :
     bb(p_bb),
-    type(BlockComplex),
+    type(ActionComplex),
     stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr) {}
-  void operator=(const Block &) LLVM_DELETED_FUNCTION;
-  Block(const Block &) LLVM_DELETED_FUNCTION;
-  Block(Block &&) = default; // move constructor!
+  void operator=(const Action &) LLVM_DELETED_FUNCTION;
+  Action(const Action &) LLVM_DELETED_FUNCTION;
+  Action(Action &&) = default; // move constructor!
 
   BasicBlock *bb;
 
-  // Some basic info about what sort of instructions live in the block
-  BlockType type;
+  // Some basic info about what sort of instructions live in the action
+  ActionType type;
   int stores;
   int loads;
   int RMWs;
@@ -141,8 +141,8 @@ struct Block {
   // XXX: Would we be better off storing this some other way?
   // a <ptr, type> pair?
   // And should we store v edges in x
-  SmallPtrSet<Block *, 2> execEdges;
-  SmallPtrSet<Block *, 2> visEdges;
+  SmallPtrSet<Action *, 2> execEdges;
+  SmallPtrSet<Action *, 2> visEdges;
 };
 
 enum CutType {
@@ -268,8 +268,8 @@ Instruction *makeCtrlIsync(Value *v) {
 
 class RMCPass : public FunctionPass {
 private:
-  std::vector<Block> blocks_;
-  DenseMap<BasicBlock *, Block *> bb2block_;
+  std::vector<Action> actions_;
+  DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
 public:
@@ -350,7 +350,7 @@ std::vector<RMCEdge> RMCPass::findEdges(Function &F) {
   return edges;
 }
 
-void analyzeBlock(Block &info) {
+void analyzeAction(Action &info) {
   LoadInst *soleLoad = nullptr;
   for (auto & i : *info.bb) {
     if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
@@ -365,17 +365,17 @@ void analyzeBlock(Block &info) {
       info.RMWs++;
     }
   }
-  // Try to characterize this block's actions
+  // Try to characterize what this action does.
   // These categories might not be the best.
   if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;
-    info.type = BlockSimpleRead;
+    info.type = ActionSimpleRead;
   } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
-    info.type = BlockSimpleWrites;
+    info.type = ActionSimpleWrites;
   } else if (info.RMWs == 1 && info.stores+info.loads+info.calls == 0) {
-    info.type = BlockSimpleRMW;
+    info.type = ActionSimpleRMW;
   } else {
-    info.type = BlockComplex;
+    info.type = ActionComplex;
   }
 }
 
@@ -387,23 +387,22 @@ void RMCPass::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
     basicBlocks.insert(edge.dst);
   }
 
-  // Now, make the vector of blocks and a mapping from BasicBlock *.
-  blocks_.reserve(basicBlocks.size());
+  // Now, make the vector of actions and a mapping from BasicBlock *.
+  actions_.reserve(basicBlocks.size());
   for (auto bb : basicBlocks) {
-    blocks_.emplace_back(bb);
-    bb2block_[bb] = &blocks_.back();
+    actions_.emplace_back(bb);
+    bb2action_[bb] = &actions_.back();
   }
 
-  // Analyze the instructions in blocks to see what sort of actions
-  // they peform.
-  for (auto & block : blocks_) {
-    analyzeBlock(block);
+  // Analyze the instructions in actions to see what they do.
+  for (auto & action : actions_) {
+    analyzeAction(action);
   }
 
   // Build our list of edges into a more explicit graph
   for (auto & edge : edges) {
-    Block *src = bb2block_[edge.src];
-    Block *dst = bb2block_[edge.dst];
+    Action *src = bb2action_[edge.src];
+    Action *dst = bb2action_[edge.dst];
     if (edge.edgeType == VisbilityEdge) {
       src->visEdges.insert(dst);
     } else {
@@ -424,8 +423,8 @@ bool RMCPass::runOnFunction(Function &F) {
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
-  blocks_.clear();
-  bb2block_.clear();
+  actions_.clear();
+  bb2action_.clear();
   cuts_.clear();
 
   return true;
