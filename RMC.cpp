@@ -155,6 +155,8 @@ enum CutType {
 };
 struct EdgeCut {
   EdgeCut() : type(CutNone), front(false), read(nullptr) {}
+  EdgeCut(CutType ptype, bool pfront, Value *pread = nullptr)
+    : type(ptype), front(pfront), read(pread) {}
   CutType type;
   bool front;
   Value *read;
@@ -223,45 +225,46 @@ bool targetx86 = false;
 
 // Some llvm nonsense. I should probably find a way to clean this up.
 // do we put ~{dirflag},~{fpsr},~{flags} for the x86 ones? don't think so.
-Instruction *makeSync(Value *dummy) {
-  LLVMContext &C = dummy->getContext();
+Instruction *makeSync(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "dmb", "~{memory}", true);
+    a = InlineAsm::get(f_ty, "dmb #sync", "~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "msync", "~{memory}", true);
+    a = InlineAsm::get(f_ty, "msync #sync", "~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
-  return CallInst::Create(a, None, "sync");
+  return CallInst::Create(a, None, "sync", to_precede);
 }
-Instruction *makeLwsync(Value *dummy) {
-  LLVMContext &C = dummy->getContext();
+Instruction *makeLwsync(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "dmb", "~{memory}", true);
+    a = InlineAsm::get(f_ty, "dmb #lwsync", "~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "", "~{memory}", true);
+    a = InlineAsm::get(f_ty, "#lwsync", "~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
-  return CallInst::Create(a, None, "lwsync");
+  return CallInst::Create(a, None, "", to_precede);
 }
-Instruction *makeCtrlIsync(Value *v) {
+Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
   LLVMContext &C = v->getContext();
   FunctionType *f_ty =
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a;
   if (targetARM) {
-    a = InlineAsm::get(f_ty, "cmp $0, $0;beq 1f;1: isb", "r,~{memory}", true);
+    a = InlineAsm::get(f_ty, "cmp $0, $0;beq 1f;1: isb #ctrlisync",
+                       "r,~{memory}", true);
   } else if (targetx86) {
-    a = InlineAsm::get(f_ty, "", "r,~{memory}", true);
+    a = InlineAsm::get(f_ty, "#ctrlisync", "r,~{memory}", true);
   } else {
     assert(false && "invalid target");
   }
-  return CallInst::Create(a, None, "ctrlisync");
+  return CallInst::Create(a, None, "", to_precede);
 }
 // We also need to add a thing for fake data deps, which is more annoying.
 
@@ -274,21 +277,10 @@ private:
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
-public:
-  static char ID;
-  RealizeRMC() : FunctionPass(ID) {
-
-  }
-  ~RealizeRMC() { }
   std::vector<RMCEdge> findEdges(Function &F);
-  void buildGraph(std::vector<RMCEdge> &edges, Function &F);
-  virtual bool runOnFunction(Function &F);
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(BreakCriticalEdgesID);
-    AU.addRequired<UnifyFunctionExitNodes>();
-    AU.setPreservesCFG();
-  }
+  void buildGraph(Function &F, std::vector<RMCEdge> &edges);
+  void cutEdges(Function &F, std::vector<RMCEdge> &edges);
+  void cutEdge(Function &F, Action *src, Action *dst, RMCEdgeType type);
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
@@ -297,6 +289,21 @@ public:
     bb2action_.clear();
     cuts_.clear();
   }
+
+public:
+  static char ID;
+  RealizeRMC() : FunctionPass(ID) {
+
+  }
+  ~RealizeRMC() { }
+  virtual bool runOnFunction(Function &F);
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequiredID(BreakCriticalEdgesID);
+    AU.addRequired<UnifyFunctionExitNodes>();
+    AU.setPreservesCFG();
+  }
+
 };
 
 bool nameMatches(StringRef blockName, StringRef target) {
@@ -389,7 +396,7 @@ void analyzeAction(Action &info) {
   }
 }
 
-void RealizeRMC::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
+void RealizeRMC::buildGraph(Function &F, std::vector<RMCEdge> &edges) {
   // First, collect all the basic blocks with edges attached to them
   SmallPtrSet<BasicBlock *, 8> basicBlocks;
   for (auto & edge : edges) {
@@ -421,6 +428,23 @@ void RealizeRMC::buildGraph(std::vector<RMCEdge> &edges, Function &F) {
   }
 }
 
+
+void RealizeRMC::cutEdge(Function &F,
+                         Action *src, Action *dst, RMCEdgeType type) {
+
+  // As a first pass, we just insert lwsyncs at the start of the destination.
+  BasicBlock *bb = dst->bb;
+  makeLwsync(&bb->front());
+  cuts_[bb] = EdgeCut(CutLwsync, true);
+}
+
+void RealizeRMC::cutEdges(Function &F, std::vector<RMCEdge> &edges) {
+  // Maybe we should actually use the graph structure we built?
+  for (auto & edge : edges) {
+    cutEdge(F, bb2action_[edge.src], bb2action_[edge.dst], edge.edgeType);
+  }
+}
+
 bool RealizeRMC::runOnFunction(Function &F) {
 
   auto edges = findEdges(F);
@@ -431,7 +455,8 @@ bool RealizeRMC::runOnFunction(Function &F) {
   }
 
   //UnifyFunctionExitNodes &EN = getAnalysis<UnifyFunctionExitNodes>();
-  buildGraph(edges, F);
+  buildGraph(F, edges);
+  cutEdges(F, edges);
 
   clear();
   return true;
