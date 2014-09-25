@@ -10,8 +10,6 @@
 
 #define KBD_BUF_SIZE (1024*1)
 
-
-
 /* Generic things */
 typedef struct ring_buf_t {
     unsigned char buf[KBD_BUF_SIZE];
@@ -19,6 +17,8 @@ typedef struct ring_buf_t {
 } ring_buf_t;
 
 #define ring_inc(v) (((v) + 1) % KBD_BUF_SIZE)
+
+#ifndef ONLY_RMC
 
 /**** Something like my original ringbuf code from my 15-410 kernel **********/
 /* Doesn't bother with any memory model stuff and so is actually wrong. */
@@ -362,6 +362,7 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
     return c;
 }
 
+#endif /* ONLY_RMC */
 
 /******************* try an rmc version..... ****************************/
 
