@@ -452,10 +452,16 @@ CutStrength RealizeRMC::isPathCut(Function &F,
     auto cut_i = cuts_.find(bb);
     if (cut_i != cuts_.end()) {
       const EdgeCut &cut = cut_i->second;
-      // TODO ctrlisync
-      if (cut.type >= CutLwsync &&
-          !(isFront && cut.isFront) &&
-          !(isBack && !cut.isFront)) {
+      bool cutHits = !(isFront && cut.isFront) && !(isBack && !cut.isFront);
+      // sync and lwsync cuts
+      if (cut.type >= CutLwsync && cutHits) {
+        return HardCut;
+      }
+      // ctrlisync cuts
+      if (edge.edgeType == ExecutionEdge &&
+          cut.type == CutCtrlIsync &&
+          cut.read == edge.src->soleLoad &&
+          cutHits) {
         return HardCut;
       }
     }
