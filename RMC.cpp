@@ -321,8 +321,10 @@ private:
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
-  CutStrength isPathCut(Function &F, const RMCEdge &edge, const Path &path);
-  CutStrength isEdgeCut(Function &F, const RMCEdge &edge);
+  CutStrength isPathCut(Function &F, const RMCEdge &edge, const Path &path,
+                        bool enforceSoft = false);
+  CutStrength isEdgeCut(Function &F, const RMCEdge &edge,
+                        bool enforceSoft = false);
   bool isCut(Function &F, const RMCEdge &edge);
 
   void findActions(Function &F);
@@ -469,9 +471,21 @@ void RealizeRMC::findActions(Function &F) {
   }
 }
 
+// Check if v1 and v2 are the same where maybe v2 has been
+// passed to a bs copy inline asm routine.
+// We could make our checking a bit better
+bool isSameValueWithBS(Value *v1, Value *v2) {
+  if (v1 == v2) return true;
+  CallInst *call = dyn_cast<CallInst>(v2);
+  if (!call) return false;
+  return call->getName() == "__rmc_bs_copy" &&
+    call->getOperand(0) == v1;
+}
+
 CutStrength RealizeRMC::isPathCut(Function &F,
                                   const RMCEdge &edge,
-                                  const Path &path) {
+                                  const Path &path,
+                                  bool enforceSoft) {
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
@@ -514,40 +528,49 @@ CutStrength RealizeRMC::isPathCut(Function &F,
     BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
     if (!br || !br->isConditional()) continue;
     // TODO: We only check one level of things. Check deeper?
-    if (br->getCondition() == soleLoad) {
-      hasSoftCut = true;
-      continue;
-    }
+    //if (br->getCondition() == soleLoad) {hasSoftCut = true; continue;}
+
     // We pretty heavily restrict what operations we handle here.
     // Some would just be wrong (like call), but really icmp is
     // the main one, so. Probably we should be able to also
     // pick through casts and wideness changes.
     ICmpInst *icmp = dyn_cast<ICmpInst>(br->getCondition());
     if (!icmp) continue;
+    int idx = 0;
     for (auto v : icmp->operand_values()) {
-      if (v == soleLoad) {
+      if (isSameValueWithBS(soleLoad, v)) {
         hasSoftCut = true;
         break;
       }
+      idx++;
     }
 
-    // TODO: we need to keep the compiler from optimizing this away!
-    // 1) We should probably introduce a compiler barrier in the
-    //    target branch.
-    // 2) We should make sure that the conditional can't get compiled away.
-    //    Is there any reasonable way to do that?
-    //    Maybe if we insert an inline asm passthrough and replace the use
-    //    in the conditional with it!
+    if (!hasSoftCut || !enforceSoft) continue;
+
+    // In order to keep LLVM from optimizing our stuff away we
+    // insert a dummy copy of the load and a compiler barrier in the
+    // target.
+    if (icmp->getOperand(idx) == soleLoad) {
+      // Only put in the copy if we haven't done it already.
+      Instruction *dummyCopy = makeCopy(soleLoad, icmp);
+      icmp->setOperand(idx, dummyCopy);
+    }
+    // If we were clever we would avoid putting in multiple barriers,
+    // but really who cares.
+    BasicBlock *next = *(i+1);
+    makeBarrier(&next->front());
+
   }
 
   return hasSoftCut ? SoftCut : NoCut;
 }
 
-CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge) {
+CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
+                                  bool enforceSoft) {
   CutStrength strength = HardCut;
   PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb);
   for (auto & path : paths) {
-    CutStrength pathStrength = isPathCut(F, edge, path);
+    CutStrength pathStrength = isPathCut(F, edge, path, enforceSoft);
     if (pathStrength < strength) strength = pathStrength;
   }
 
@@ -559,8 +582,14 @@ bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
     case HardCut: return true;
     case NoCut: return false;
     case SoftCut:
-      return isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}) > NoCut;
-    }
+      if (isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}) > NoCut) {
+        isEdgeCut(F, edge, true);
+        isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, true);
+        return true;
+      } else {
+        return false;
+      }
+  }
 }
 
 

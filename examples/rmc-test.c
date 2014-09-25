@@ -1,6 +1,8 @@
 #include "rmc.h"
 
-// HMMMMM. All of these get optimized away and shouldn't.
+// Some test cases that required some bogosity to not have the branches get
+// optimized away.
+//
 // Also, if r doesn't get used usefully, that load gets optimized away.
 // I can't decide whether that is totally fucked or not.
 
