@@ -33,7 +33,7 @@ int bogus_ctrl_dep2() {
     return r;
 }
 
-// Have a bogus ctrl dep
+// Have a totally ignored ctrl dep
 int bogus_ctrl_dep3() {
     XEDGE(read, write);
 
@@ -41,6 +41,18 @@ int bogus_ctrl_dep3() {
     if (r) {};
 
     L(write, global_q = 1);
+
+    return r;
+}
+
+// Have a ctrl dep that is redundant
+int bogus_ctrl_dep4() {
+    XEDGE(read, write);
+
+    L(read, int r = global_p);
+    if (r || 1) {
+        L(write, global_q = 1);
+    }
 
     return r;
 }
