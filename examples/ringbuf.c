@@ -303,6 +303,27 @@ int buf_dequeue_deps2(ring_buf_t *buf)
     return c;
 }
 
+// Try two isbs, no data deps. This seems really bad.
+// Barrier, then isb is real bad.
+#define buf_enqueue_2isb buf_enqueue_deps
+
+int buf_dequeue_2isb(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = ACCESS_ONCE(buf->back);
+    ctrl_isync(back);
+
+    int c = -1;
+    if (front != back) {
+        c = ACCESS_ONCE(buf->buf[front]);
+        ctrl_isync(c);
+        ACCESS_ONCE(buf->front) = ring_inc(front);
+    }
+
+    return c;
+}
+
+
 // Try sinking the isb. It doesn't seem to help.
 #define buf_enqueue_sunkisb buf_enqueue_linux
 
