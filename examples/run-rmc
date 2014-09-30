@@ -1,14 +1,41 @@
 #!/bin/bash
 set -e
 
+case "$1" in
+	--x86)
+		shift
+		RMC_PLATFORM=x86
+		;;
+	--arm)
+		shift
+		RMC_PLATFORM=arm
+		;;
+	*)
+		RMC_PLATFORM=arm
+		;;
+esac
+export RMC_PLATFORM #export it so our pass will pick it up; ew.
+
+
 NAME=$(basename $1 .c)
 PATH=../../build/Debug+Asserts/bin/:$PATH
 
-clang -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
+case $RMC_PLATFORM in
+	arm)
+		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=soft"
+		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
+		;;
+	x86)
+		;;
+esac
+
+clang $PLATFORM_FLAGS $INCLUDE_FLAGS -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
 llvm-dis $NAME.pre.bc
 
 opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
 llvm-dis $NAME.bc
 
-clang -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
+clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
 llvm-dis $NAME.opt.bc
+
+clang $PLATFORM_FLAGS -O -S -o $NAME.s $NAME.opt.bc

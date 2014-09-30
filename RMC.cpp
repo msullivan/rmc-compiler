@@ -232,9 +232,13 @@ void dumpPaths(const PathList &paths) {
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// XXX: This is the wrong way to do this!
-bool targetARM = true;
-bool targetx86 = false;
+
+enum RMCTarget {
+  TargetX86,
+  TargetARM
+};
+// It is sort of bogus to make this global.
+RMCTarget target;
 
 // Generate a unique str that we add to comments in our inline
 // assembly to keep llvm from getting clever and merging them.
@@ -267,26 +271,22 @@ Instruction *makeBarrier(Instruction *to_precede) {
 Instruction *makeSync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
-  InlineAsm *a;
-  if (targetARM) {
-    a = makeAsm(f_ty, "dmb #sync", "~{memory}", true);
-  } else if (targetx86) {
-    a = makeAsm(f_ty, "msync #sync", "~{memory}", true);
-  } else {
-    assert(false && "invalid target");
+  InlineAsm *a = nullptr;
+  if (target == TargetARM) {
+    a = makeAsm(f_ty, "dmb @ sync", "~{memory}", true);
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "msync # sync", "~{memory}", true);
   }
   return CallInst::Create(a, None, "", to_precede);
 }
 Instruction *makeLwsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
-  InlineAsm *a;
-  if (targetARM) {
-    a = makeAsm(f_ty, "dmb #lwsync", "~{memory}", true);
-  } else if (targetx86) {
-    a = makeAsm(f_ty, "#lwsync", "~{memory}", true);
-  } else {
-    assert(false && "invalid target");
+  InlineAsm *a = nullptr;
+  if (target == TargetARM) {
+    a = makeAsm(f_ty, "dmb @ lwsync", "~{memory}", true);
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "# lwsync", "~{memory}", true);
   }
   return CallInst::Create(a, None, "", to_precede);
 }
@@ -294,14 +294,12 @@ Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
   LLVMContext &C = v->getContext();
   FunctionType *f_ty =
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
-  InlineAsm *a;
-  if (targetARM) {
-    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: isb #ctrlisync",
+  InlineAsm *a = nullptr;
+  if (target == TargetARM) {
+    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: isb @ ctrlisync",
                 "r,~{memory}", true);
-  } else if (targetx86) {
-    a = makeAsm(f_ty, "#ctrlisync", "r,~{memory}", true);
-  } else {
-    assert(false && "invalid target");
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "# ctrlisync", "r,~{memory}", true);
   }
   return CallInst::Create(a, v, "", to_precede);
 }
@@ -343,7 +341,16 @@ private:
 public:
   static char ID;
   RealizeRMC() : FunctionPass(ID) {
-
+    // This is definitely not the right way to do this.
+    char *target_cstr = getenv("RMC_PLATFORM");
+    std::string target_env = target_cstr ? target_cstr : "";
+    if (target_env == "x86") {
+      target = TargetX86;
+    } else if (target_env == "arm") {
+      target = TargetARM;
+    } else {
+      assert(false && "not given a supported target");
+    }
   }
   ~RealizeRMC() { }
   virtual bool runOnFunction(Function &F);
