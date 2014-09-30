@@ -56,3 +56,15 @@ int bogus_ctrl_dep4() {
 
     return r;
 }
+
+// How about something provably impossible
+int bogus_ctrl_dep4() {
+    XEDGE(read, write);
+
+    L(read, int r = global_p);
+    if (r || 1) {
+        L(write, global_q = 1);
+    }
+
+    return r;
+}
