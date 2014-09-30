@@ -18,6 +18,8 @@ int bogus_ctrl_dep1(int *p, int *q) {
 }
 
 // Do basically the same thing in each branch
+// Looks like llvm sinks the write out of the branches but preserves
+// the branches. That's fine.
 int bogus_ctrl_dep2(int *p, int *q) {
     XEDGE(read, write);
 
