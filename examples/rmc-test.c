@@ -6,52 +6,50 @@
 // Also, if r doesn't get used usefully, that load gets optimized away.
 // I can't decide whether that is totally fucked or not.
 
-int global_p, global_q;
-
-int bogus_ctrl_dep1() {
+int bogus_ctrl_dep1(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = global_p);
+    L(read, int r = *p);
     if (r == r) {
-        L(write, global_q = 1);
+        L(write, *q = 1);
     }
 
     return r;
 }
 
 // Do basically the same thing in each branch
-int bogus_ctrl_dep2() {
+int bogus_ctrl_dep2(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = global_p);
+    L(read, int r = *p);
     if (r) {
-        L(write, global_q = 1);
+        L(write, *q = 1);
     } else {
-        L(write, global_q = 1);
+        L(write, *q = 1);
     }
 
     return r;
 }
 
 // Have a totally ignored ctrl dep
-int bogus_ctrl_dep3() {
+int bogus_ctrl_dep3(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = global_p);
+    L(read, int r = *p);
     if (r) {};
 
-    L(write, global_q = 1);
+    L(write, *q = 1);
 
     return r;
 }
 
 // Have a ctrl dep that is redundant
-int bogus_ctrl_dep4() {
+int bogus_ctrl_dep4(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = global_p);
+    L(read, int r = *p);
     if (r || 1) {
-        L(write, global_q = 1);
+        L(write, *q = 1);
     }
 
     return r;
