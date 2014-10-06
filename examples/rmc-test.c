@@ -56,3 +56,15 @@ int bogus_ctrl_dep4(int *p, int *q) {
 
     return r;
 }
+
+//// Some push tests
+// Regular store buffering test
+int sb_test1(int *p, int *q) {
+    VEDGE(write, push); XEDGE(push, read);
+
+    L(write, *p = 1);
+    L(push, PUSH);
+    L(read, int x = *q);
+
+    return x;
+}

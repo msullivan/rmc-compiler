@@ -315,6 +315,22 @@ Instruction *makeCopy(Value *v, Instruction *to_precede) {
 // We also need to add a thing for fake data deps, which is more annoying.
 
 ///////////////////////////////////////////////////////////////////////////
+//// Code to pull random crap out of LLVM functions
+
+StringRef getStringArg(Value *v) {
+  const Value *g = cast<Constant>(v)->stripPointerCasts();
+  const Constant *ptr = cast<GlobalVariable>(g)->getInitializer();
+  StringRef str = cast<ConstantDataSequential>(ptr)->getAsString();
+  // Drop the '\0' at the end
+  return str.drop_back();
+}
+
+BasicBlock *getSingleSuccessor(BasicBlock *bb) {
+  assert(bb->getTerminator()->getNumSuccessors() == 1);
+  return bb->getTerminator()->getSuccessor(0);
+}
+
+///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
 class RealizeRMC : public FunctionPass {
@@ -333,6 +349,7 @@ private:
 
   void findActions(Function &F);
   void findEdges(Function &F);
+  void cutPushes(Function &F);
   void cutEdges(Function &F);
   void cutEdge(Function &F, RMCEdge &edge);
 
@@ -379,14 +396,6 @@ bool nameMatches(StringRef blockName, StringRef target) {
   // Now make sure the rest is an int
   APInt dummy;
   return !blockName.drop_front(name.size()).getAsInteger(10, dummy);
-}
-
-StringRef getStringArg(Value *v) {
-  const Value *g = cast<Constant>(v)->stripPointerCasts();
-  const Constant *ptr = cast<GlobalVariable>(g)->getInitializer();
-  StringRef str = cast<ConstantDataSequential>(ptr)->getAsString();
-  // Drop the '\0' at the end
-  return str.drop_back();
 }
 
 void RealizeRMC::processEdge(Function &F, CallInst *call) {
@@ -642,6 +651,23 @@ void RealizeRMC::cutEdges(Function &F) {
   }
 }
 
+void RealizeRMC::cutPushes(Function &F) {
+  // We just insert pushes wherever we see one, for now.
+  // We could also have a notion of push edges derived from
+  // the edges to and from a push action.
+  for (auto action : pushes_) {
+    assert(action->isPush);
+    BasicBlock *bb = action->bb;
+    makeSync(&bb->front());
+    cuts_[bb] = EdgeCut(CutSync, true);
+    // XXX: since we can't actually handle cuts on the front and the
+    // back and because the sync is the only thing in the block and so
+    // cuts at both the front and back, we insert a bogus EdgeCut in
+    // the next block.
+    cuts_[getSingleSuccessor(bb)] = EdgeCut(CutSync, true);
+  }
+}
+
 bool RealizeRMC::runOnFunction(Function &F) {
   findActions(F);
   findEdges(F);
@@ -657,6 +683,7 @@ bool RealizeRMC::runOnFunction(Function &F) {
     analyzeAction(action);
   }
 
+  cutPushes(F);
   cutEdges(F);
 
   clear();
