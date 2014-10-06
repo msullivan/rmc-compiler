@@ -331,6 +331,8 @@ private:
   void cutEdges(Function &F);
   void cutEdge(Function &F, RMCEdge &edge);
 
+  void processEdge(Function &F, CallInst *call);
+
   // Clear our data structures to save memory, make things clean for
   // future runs.
   void clear() {
@@ -380,6 +382,38 @@ StringRef getStringArg(Value *v) {
   return str.drop_back();
 }
 
+void RealizeRMC::processEdge(Function &F, CallInst *call) {
+  // Pull out what the operands have to be.
+  // We just assert if something is wrong, which is not great UX.
+  bool isVisibility = cast<ConstantInt>(call->getOperand(0))
+    ->getValue().getBoolValue();
+  RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
+  StringRef srcName = getStringArg(call->getOperand(1));
+  StringRef dstName = getStringArg(call->getOperand(2));
+
+  // Since multiple blocks can have the same tag, we search for
+  // them by name.
+  // We could make this more efficient by building maps but I don't think
+  // it is going to matter.
+  for (auto & srcBB : F) {
+    if (!nameMatches(srcBB.getName(), srcName)) continue;
+    for (auto & dstBB : F) {
+      if (!nameMatches(dstBB.getName(), dstName)) continue;
+      Action *src = bb2action_[&srcBB];
+      Action *dst = bb2action_[&dstBB];
+
+      // Insert into the graph and the list of edges
+      if (edgeType == VisbilityEdge) {
+        src->visEdges.insert(dst);
+      } else {
+        src->execEdges.insert(dst);
+      }
+
+      edges_.push_back({edgeType, src, dst});
+    }
+  }
+}
+
 void RealizeRMC::findEdges(Function &F) {
   for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
     // Grab the instruction and advance the iterator at the start, since
@@ -394,36 +428,7 @@ void RealizeRMC::findEdges(Function &F) {
     // __rmc_edge_register, pull out the information about them,
     // and delete the calls.
     if (!target || target->getName() != "__rmc_edge_register") continue;
-
-    // Pull out what the operands have to be.
-    // We just assert if something is wrong, which is not great UX.
-    bool isVisibility = cast<ConstantInt>(call->getOperand(0))
-      ->getValue().getBoolValue();
-    RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
-    StringRef srcName = getStringArg(call->getOperand(1));
-    StringRef dstName = getStringArg(call->getOperand(2));
-
-    // Since multiple blocks can have the same tag, we search for
-    // them by name.
-    // We could make this more efficient by building maps but I don't think
-    // it is going to matter.
-    for (auto & srcBB : F) {
-      if (!nameMatches(srcBB.getName(), srcName)) continue;
-      for (auto & dstBB : F) {
-        if (!nameMatches(dstBB.getName(), dstName)) continue;
-        Action *src = bb2action_[&srcBB];
-        Action *dst = bb2action_[&dstBB];
-
-        // Insert into the graph and the list of edges
-        if (edgeType == VisbilityEdge) {
-          src->visEdges.insert(dst);
-        } else {
-          src->execEdges.insert(dst);
-        }
-
-        edges_.push_back({edgeType, src, dst});
-      }
-    }
+    processEdge(F, call);
 
     // Delete the bogus call.
     i->eraseFromParent();
