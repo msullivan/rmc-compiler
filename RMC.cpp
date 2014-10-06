@@ -387,9 +387,9 @@ void RealizeRMC::findEdges(Function &F) {
     Instruction *i = &*is;
     is++;
 
-    CallInst *load = dyn_cast<CallInst>(i);
-    if (!load) continue;
-    Function *target = load->getCalledFunction();
+    CallInst *call = dyn_cast<CallInst>(i);
+    if (!call) continue;
+    Function *target = call->getCalledFunction();
     // We look for calls to the bogus function
     // __rmc_edge_register, pull out the information about them,
     // and delete the calls.
@@ -397,11 +397,11 @@ void RealizeRMC::findEdges(Function &F) {
 
     // Pull out what the operands have to be.
     // We just assert if something is wrong, which is not great UX.
-    bool isVisibility = cast<ConstantInt>(load->getOperand(0))
+    bool isVisibility = cast<ConstantInt>(call->getOperand(0))
       ->getValue().getBoolValue();
     RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
-    StringRef srcName = getStringArg(load->getOperand(1));
-    StringRef dstName = getStringArg(load->getOperand(2));
+    StringRef srcName = getStringArg(call->getOperand(1));
+    StringRef dstName = getStringArg(call->getOperand(2));
 
     // Since multiple blocks can have the same tag, we search for
     // them by name.
