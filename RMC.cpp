@@ -316,6 +316,7 @@ Instruction *makeCopy(Value *v, Instruction *to_precede) {
 class RealizeRMC : public FunctionPass {
 private:
   std::vector<Action> actions_;
+  std::vector<RMCEdge> edges_;
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
@@ -326,14 +327,15 @@ private:
   bool isCut(Function &F, const RMCEdge &edge);
 
   void findActions(Function &F);
-  std::vector<RMCEdge> findEdges(Function &F);
-  void cutEdges(Function &F, std::vector<RMCEdge> &edges);
+  void findEdges(Function &F);
+  void cutEdges(Function &F);
   void cutEdge(Function &F, RMCEdge &edge);
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
   void clear() {
     actions_.clear();
+    edges_.clear();
     bb2action_.clear();
     cuts_.clear();
   }
@@ -378,9 +380,7 @@ StringRef getStringArg(Value *v) {
   return str.drop_back();
 }
 
-std::vector<RMCEdge> RealizeRMC::findEdges(Function &F) {
-  std::vector<RMCEdge> edges;
-
+void RealizeRMC::findEdges(Function &F) {
   for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
     // Grab the instruction and advance the iterator at the start, since
     // we might delete the instruction.
@@ -421,15 +421,13 @@ std::vector<RMCEdge> RealizeRMC::findEdges(Function &F) {
           src->execEdges.insert(dst);
         }
 
-        edges.push_back({edgeType, src, dst});
+        edges_.push_back({edgeType, src, dst});
       }
     }
 
     // Delete the bogus call.
     i->eraseFromParent();
   }
-
-  return edges;
 }
 
 void analyzeAction(Action &info) {
@@ -611,20 +609,20 @@ void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
   cuts_[bb] = EdgeCut(CutLwsync, true);
 }
 
-void RealizeRMC::cutEdges(Function &F, std::vector<RMCEdge> &edges) {
+void RealizeRMC::cutEdges(Function &F) {
   // Maybe we should actually use the graph structure we built?
-  for (auto & edge : edges) {
+  for (auto & edge : edges_) {
     cutEdge(F, edge);
   }
 }
 
 bool RealizeRMC::runOnFunction(Function &F) {
   findActions(F);
+  findEdges(F);
 
-  auto edges = findEdges(F);
-  if (actions_.empty() && edges.empty()) return false;
+  if (actions_.empty() && edges_.empty()) return false;
 
-  for (auto & edge : edges) {
+  for (auto & edge : edges_) {
     errs() << "Found an edge: " << edge << "\n";
   }
 
@@ -633,7 +631,7 @@ bool RealizeRMC::runOnFunction(Function &F) {
     analyzeAction(action);
   }
 
-  cutEdges(F, edges);
+  cutEdges(F);
 
   clear();
   return true;
