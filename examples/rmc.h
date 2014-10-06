@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 extern void __rmc_edge_register(int is_vis, char *src, char *dst);
+extern void __rmc_push();
 
 #ifdef __cplusplus
 }
@@ -42,6 +43,8 @@ extern void __rmc_edge_register(int is_vis, char *src, char *dst);
     stmt;                                                                 \
     XRCAT(__rmc_end_##label##_, __COUNTER__): __attribute__((unused)) (void)0
 
+#define PUSH __rmc_push()
+
 #else
 
 #include "atomic.h"
@@ -53,6 +56,8 @@ extern void __rmc_edge_register(int is_vis, char *src, char *dst);
  * or anything, but it probably works. */
 /* This is unhygenic in a nasty way. */
 #define L(label, stmt) stmt; vis_barrier()
+
+#define PUSH smp_mb()
 
 #endif /* HAS_RMC */
 

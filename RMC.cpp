@@ -5,7 +5,8 @@
 // having one predecessor and one successor. We could probably even
 // force those to be empty without too much work by adding more labels...
 
-
+// BUG: we should have a check that the exit of action blocks is the
+// exit block
 
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
@@ -93,6 +94,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
 // Information for a node in the RMC graph.
 enum ActionType {
   ActionComplex,
+  ActionPush,
   ActionSimpleRead,
   ActionSimpleWrites, // needs to be paired with a dep
   ActionSimpleRMW
@@ -101,6 +103,7 @@ struct Action {
   Action(BasicBlock *p_bb) :
     bb(p_bb),
     type(ActionComplex),
+    isPush(false),
     stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr) {}
   void operator=(const Action &) LLVM_DELETED_FUNCTION;
   Action(const Action &) LLVM_DELETED_FUNCTION;
@@ -110,6 +113,7 @@ struct Action {
 
   // Some basic info about what sort of instructions live in the action
   ActionType type;
+  bool isPush;
   int stores;
   int loads;
   int RMWs;
@@ -317,6 +321,7 @@ class RealizeRMC : public FunctionPass {
 private:
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
+  SmallPtrSet<Action *, 4> pushes_;
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
@@ -332,12 +337,14 @@ private:
   void cutEdge(Function &F, RMCEdge &edge);
 
   void processEdge(Function &F, CallInst *call);
+  void processPush(Function &F, CallInst *call);
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
   void clear() {
     actions_.clear();
     edges_.clear();
+    pushes_.clear();
     bb2action_.clear();
     cuts_.clear();
   }
@@ -414,6 +421,12 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   }
 }
 
+void RealizeRMC::processPush(Function &F, CallInst *call) {
+  Action *a = bb2action_[call->getParent()];
+  pushes_.insert(a);
+  a->isPush = true;
+}
+
 void RealizeRMC::findEdges(Function &F) {
   for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
     // Grab the instruction and advance the iterator at the start, since
@@ -424,11 +437,17 @@ void RealizeRMC::findEdges(Function &F) {
     CallInst *call = dyn_cast<CallInst>(i);
     if (!call) continue;
     Function *target = call->getCalledFunction();
-    // We look for calls to the bogus function
-    // __rmc_edge_register, pull out the information about them,
-    // and delete the calls.
-    if (!target || target->getName() != "__rmc_edge_register") continue;
-    processEdge(F, call);
+    // We look for calls to the bogus functions __rmc_edge_register
+    // and __rmc_push, pull out the information about them, and delete
+    // the calls.
+    if (!target) continue;
+    if (target->getName() == "__rmc_edge_register") {
+      processEdge(F, call);
+    } else if (target->getName() == "__rmc_push") {
+      processPush(F, call);
+    } else {
+      continue;
+    }
 
     // Delete the bogus call.
     i->eraseFromParent();
@@ -452,7 +471,10 @@ void analyzeAction(Action &info) {
   }
   // Try to characterize what this action does.
   // These categories might not be the best.
-  if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
+  if (info.isPush) {
+    assert(info.loads+info.stores+info.calls+info.RMWs == 0);
+    info.type = ActionPush;
+  } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;
     info.type = ActionSimpleRead;
   } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
@@ -569,7 +591,6 @@ CutStrength RealizeRMC::isPathCut(Function &F,
     // but really who cares.
     BasicBlock *next = *(i+1);
     makeBarrier(&next->front());
-
   }
 
   return hasSoftCut ? SoftCut : NoCut;
