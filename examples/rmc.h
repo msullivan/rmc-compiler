@@ -1,8 +1,6 @@
 #ifndef RMC_CORE_H
 #define RMC_CORE_H
 
-#include "atomic.h"
-
 #ifdef HAS_RMC
 
 /* We signal our labels and edges to our LLVM pass in a *really* hacky
@@ -22,8 +20,17 @@
 #define RCAT(x,y)      x ## y
 #define XRCAT(x,y)     RCAT(x,y)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern void __rmc_edge_register(int is_vis, char *src, char *dst);
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
@@ -36,6 +43,8 @@ extern void __rmc_edge_register(int is_vis, char *src, char *dst);
     XRCAT(__rmc_end_##label##_, __COUNTER__): __attribute__((unused)) (void)0
 
 #else
+
+#include "atomic.h"
 
 /* Dummy version that should work. */
 #define XEDGE(x, y) do { } while (0)
