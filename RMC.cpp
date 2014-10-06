@@ -8,6 +8,10 @@
 // BUG: we should have a check that the exit of action blocks is the
 // exit block
 
+// BUG: the handling of of the edge cut map is bogus. Right now we are
+// working around this by only ever having syncs at the start of
+// blocks.
+
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -70,6 +74,7 @@ namespace {
 
 //// Some auxillary data structures
 enum RMCEdgeType {
+  NoEdge,
   VisbilityEdge,
   ExecutionEdge
 };
@@ -81,6 +86,9 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
       break;
     case ExecutionEdge:
       os << "x";
+      break;
+    case NoEdge:
+      os << "no";
       break;
     default:
       os << "?";
@@ -104,7 +112,9 @@ struct Action {
     bb(p_bb),
     type(ActionComplex),
     isPush(false),
-    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr) {}
+    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr),
+    preEdge(NoEdge), postEdge(NoEdge)
+    {}
   void operator=(const Action &) LLVM_DELETED_FUNCTION;
   Action(const Action &) LLVM_DELETED_FUNCTION;
   Action(Action &&) = default; // move constructor!
@@ -120,6 +130,10 @@ struct Action {
   int calls;
   LoadInst *soleLoad;
 
+  // Pre and post edges
+  RMCEdgeType preEdge;
+  RMCEdgeType postEdge;
+
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
   // a <ptr, type> pair?
@@ -131,6 +145,8 @@ struct Action {
 // Info about an RMC edge
 struct RMCEdge {
   RMCEdgeType edgeType;
+  // Null pointers for src and dst indicate pre and post edges, respectively.
+  // This is a little frumious.
   Action *src;
   Action *dst;
 
@@ -141,8 +157,9 @@ struct RMCEdge {
 
   void print(raw_ostream &os) const {
     // substr(5) is to drop "_rmc_" from the front
-    os << src->bb->getName().substr(5) << " -" << edgeType <<
-      "-> " << dst->bb->getName().substr(5);
+    auto srcName = src ? src->bb->getName().substr(5) : "pre";
+    auto dstName = dst ? dst->bb->getName().substr(5) : "post";
+    os << srcName << " -" << edgeType << "-> " << dstName;
   }
 };
 
@@ -350,6 +367,7 @@ private:
   void findActions(Function &F);
   void findEdges(Function &F);
   void cutPushes(Function &F);
+  void cutPrePostEdges(Function &F);
   void cutEdges(Function &F);
   void cutEdge(Function &F, RMCEdge &edge);
 
@@ -428,6 +446,25 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
       edges_.push_back({edgeType, src, dst});
     }
   }
+
+  // Handle pre and post edges now
+  if (srcName == "pre") {
+    for (auto & dstBB : F) {
+      if (!nameMatches(dstBB.getName(), dstName)) continue;
+      Action *dst = bb2action_[&dstBB];
+      dst->preEdge = edgeType;
+      edges_.push_back({edgeType, nullptr, dst});
+    }
+  }
+  if (dstName == "post") {
+    for (auto & srcBB : F) {
+      if (!nameMatches(srcBB.getName(), srcName)) continue;
+      Action *src = bb2action_[&srcBB];
+      src->postEdge = edgeType;
+      edges_.push_back({edgeType, src, nullptr});
+    }
+  }
+
 }
 
 void RealizeRMC::processPush(Function &F, CallInst *call) {
@@ -633,24 +670,6 @@ bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
 }
 
 
-void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
-  if (isCut(F, edge)) return;
-
-  // As a first pass, we just insert lwsyncs at the start of the destination.
-  BasicBlock *bb = edge.dst->bb;
-  makeLwsync(&bb->front());
-  // XXX: we need to make sure we can't ever fail to track a cut at one side
-  // of a block because we inserted one at the other! Argh!
-  cuts_[bb] = EdgeCut(CutLwsync, true);
-}
-
-void RealizeRMC::cutEdges(Function &F) {
-  // Maybe we should actually use the graph structure we built?
-  for (auto & edge : edges_) {
-    cutEdge(F, edge);
-  }
-}
-
 void RealizeRMC::cutPushes(Function &F) {
   // We just insert pushes wherever we see one, for now.
   // We could also have a notion of push edges derived from
@@ -668,6 +687,55 @@ void RealizeRMC::cutPushes(Function &F) {
   }
 }
 
+void RealizeRMC::cutPrePostEdges(Function &F) {
+  for (auto & edge : edges_) {
+    // TODO: be able to not do dumb shit when there is a push
+    if (!edge.src) { // pre
+      // Pre edges always need an lwsync
+      BasicBlock *bb = edge.dst->bb;
+      makeLwsync(&bb->front());
+      cuts_[bb] = EdgeCut(CutLwsync, true);
+    } else if (!edge.dst) { // post
+      Action *a = edge.src;
+      BasicBlock *bb = getSingleSuccessor(a->bb);
+
+      // We generate ctrlisync for simple reads and lwsync otherwise
+      if (a->soleLoad) {
+        makeCtrlIsync(a->soleLoad, &bb->front());
+        cuts_[bb] = EdgeCut(CutCtrlIsync, true, a->soleLoad);
+      } else {
+        makeLwsync(&bb->front());
+        cuts_[bb] = EdgeCut(CutLwsync, true);
+      }
+    } else {
+      assert(edge.dst || edge.src);
+    }
+  }
+}
+
+void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
+  if (isCut(F, edge)) return;
+
+  // As a first pass, we just insert lwsyncs at the start of the destination.
+  BasicBlock *bb = edge.dst->bb;
+  makeLwsync(&bb->front());
+  // XXX: we need to make sure we can't ever fail to track a cut at one side
+  // of a block because we inserted one at the other! Argh!
+  cuts_[bb] = EdgeCut(CutLwsync, true);
+}
+
+void RealizeRMC::cutEdges(Function &F) {
+  // Maybe we should actually use the graph structure we built?
+  for (auto & edge : edges_) {
+    // Drop pre/post edges, which we needed to handle earlier
+    if (!edge.src || !edge.dst) continue;
+    cutEdge(F, edge);
+  }
+}
+
+
+
+
 bool RealizeRMC::runOnFunction(Function &F) {
   findActions(F);
   findEdges(F);
@@ -684,6 +752,7 @@ bool RealizeRMC::runOnFunction(Function &F) {
   }
 
   cutPushes(F);
+  cutPrePostEdges(F);
   cutEdges(F);
 
   clear();

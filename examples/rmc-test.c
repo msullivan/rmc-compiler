@@ -68,3 +68,14 @@ int sb_test1(int *p, int *q) {
 
     return x;
 }
+
+// Some tests of pre and post. Really I should get some RW/RMW support...
+void store_release(int *ptr, int val) {
+    VEDGE(pre, store);
+    L(store, *ptr = val);
+}
+int load_acquire(int *ptr) {
+    XEDGE(load, post);
+    L(load, int val = *ptr);
+    return val;
+}
