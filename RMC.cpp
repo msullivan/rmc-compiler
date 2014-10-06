@@ -279,7 +279,7 @@ Instruction *makeSync(Instruction *to_precede) {
   if (target == TargetARM) {
     a = makeAsm(f_ty, "dmb @ sync", "~{memory}", true);
   } else if (target == TargetX86) {
-    a = makeAsm(f_ty, "msync # sync", "~{memory}", true);
+    a = makeAsm(f_ty, "mfence # sync", "~{memory}", true);
   }
   return CallInst::Create(a, None, "", to_precede);
 }
