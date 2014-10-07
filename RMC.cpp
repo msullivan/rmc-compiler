@@ -25,6 +25,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/DenseMap.h>
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -822,8 +823,15 @@ bool RealizeRMC::runOnFunction(Function &F) {
 // SMT stuff
 
 // Z3 utility functions
-z3::expr boolToInt(z3::context &c, z3::expr const &e) {
+z3::expr boolToInt(z3::expr const &e) {
+  z3::context &c = e.ctx();
   return ite(e, c.int_val(1), c.int_val(0));
+}
+
+bool extractBool(z3::expr const &e) {
+  auto b = Z3_get_bool_value(e.ctx(), e);
+  assert(b != Z3_L_UNDEF);
+  return b == Z3_L_TRUE;
 }
 
 
@@ -845,7 +853,7 @@ PathKey makePathKey(BasicBlock *src, BasicBlock *dst, int idx) {
   return std::make_pair(makeEdgeKey(src, dst), idx);
 }
 PathKey makePathKey(PathList &paths, Path &path) {
-  return std::make_pair(makeEdgeKey(path.front(), path.back()),
+  return std::make_pair(makeEdgeKey(path.back(), path.front()),
                         &path - paths.begin());
 }
 
@@ -905,10 +913,10 @@ z3::expr getPathFunc(DeclMap<PathKey> &map,
 struct VarMaps {
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
-  DeclMap<PathKey> path_vcut;
+  DeclMap<PathKey> pathVcut;
 
-  DeclMap<BasicBlock *> node_cap;
-  DeclMap<EdgeKey> edge_cap;
+  DeclMap<BasicBlock *> nodeCap;
+  DeclMap<EdgeKey> edgeCap;
 };
 
 // We maybe should precompute this instead of giving it to the SMT
@@ -917,49 +925,49 @@ void buildCapacities(z3::solver &s, VarMaps &m, Function &F) {
   z3::context &c = s.ctx();
 
   for (auto & block : F) {
-    z3::expr node_cap = getFunc(m.node_cap, &block);
+    z3::expr nodeCap = getFunc(m.nodeCap, &block);
 
     // Compute the node's incoming capacity
-    z3::expr incoming_cap = c.int_val(0);
+    z3::expr incomingCap = c.int_val(0);
     for (auto i = pred_begin(&block), e = pred_end(&block); i != e; i++) {
-      incoming_cap = incoming_cap + getEdgeFunc(m.edge_cap, *i, &block);
+      incomingCap = incomingCap + getEdgeFunc(m.edgeCap, *i, &block);
     }
     if (&block != &F.getEntryBlock()) {
-      s.add(node_cap == incoming_cap.simplify());
+      s.add(nodeCap == incomingCap.simplify());
     }
 
     // Setup equations for outgoing edges
     auto i = succ_begin(&block), e = succ_end(&block);
-    int child_count = e - i;
+    int childCount = e - i;
     for (; i != e; i++) {
       // For now, we assume even probabilities.
       // Would be an improvement to do better
-      z3::expr edge_cap = getEdgeFunc(m.edge_cap, &block, *i);
+      z3::expr edgeCap = getEdgeFunc(m.edgeCap, &block, *i);
       // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
       // n * c(v, u) == c(v)
-      s.add(edge_cap * child_count == node_cap);
+      s.add(edgeCap * childCount == nodeCap);
     }
   }
 
   // Keep all zeros from working:
-  s.add(getFunc(m.node_cap, &F.getEntryBlock()) > 0);
+  s.add(getFunc(m.nodeCap, &F.getEntryBlock()) > 0);
 }
 
 z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
   z3::context &c = s.ctx();
-  z3::expr is_cut = getPathFunc(m.path_vcut, paths, path);
+  z3::expr isCut = getPathFunc(m.pathVcut, paths, path);
 
-  z3::expr something_cut = c.bool_val(false);
+  z3::expr somethingCut = c.bool_val(false);
   BasicBlock *src = path.back(), *dst = nullptr;
   for (auto i = path.rbegin()+1, e = path.rend(); i != e; i++, src = dst) {
      dst = *i;
 
-     something_cut = something_cut || getEdgeFunc(m.lwsync, src, dst);
+     somethingCut = somethingCut || getEdgeFunc(m.lwsync, src, dst);
   }
 
-  s.add(something_cut.simplify(), is_cut);
+  s.add(somethingCut.simplify(), isCut);
 
-  return is_cut;
+  return isCut;
 }
 
 // Real stuff now.
@@ -975,23 +983,39 @@ void RealizeRMC::smtAnalyze(Function &F) {
     DeclMap<EdgeKey>(c.int_sort(), "edge_cap"),
   };
 
-  // HOK.
+  // HOK. Make sure everything is cut. Just lwsync for now.
   for (auto & src : actions_) {
     for (auto dst : src.execTransEdges) {
-      z3::expr is_cut = getEdgeFunc(m.vcut, src.bb, dst->bb);
-      s.add(is_cut);
+      z3::expr isCut = getEdgeFunc(m.vcut, src.bb, dst->bb);
+      s.add(isCut);
 
       // Now try all the paths
-      z3::expr all_paths_cut = c.bool_val(true);
+      z3::expr allPathsCut = c.bool_val(true);
       PathList paths = findAllSimplePaths(src.bb, dst->bb);
       for (auto & path : paths) {
-        all_paths_cut = all_paths_cut && makePathVcut(s, m, paths, path);
+        allPathsCut = allPathsCut && makePathVcut(s, m, paths, path);
       }
-      s.add(all_paths_cut.simplify(), is_cut);
+      s.add(allPathsCut.simplify(), isCut);
     }
   }
 
   buildCapacities(s, m, F);
+
+  // OK, now build a cost function. This will probably take a lot of
+  // tuning.
+
+  z3::expr costVar = c.int_const("cost");
+  z3::expr cost = c.int_val(0);
+  for (auto & block : F) {
+    BasicBlock *src = &block;
+    for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
+      BasicBlock *dst = *i;
+      cost = cost +
+        (boolToInt(getEdgeFunc(m.lwsync, src, dst)) *
+         getEdgeFunc(m.edgeCap, src, dst));
+    }
+  }
+  s.add(cost.simplify() == costVar);
 
   std::cout << "Built a thing: \n" << s << "\n\n";
 
@@ -1006,6 +1030,16 @@ void RealizeRMC::smtAnalyze(Function &F) {
     assert(v.arity() == 0);
     std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
   }
+
+  std::cout << "\nLwsyncs to insert:\n";
+  for (auto & entry : m.lwsync.map) {
+    z3::expr cst = entry.second;
+    bool val = extractBool(model.eval(cst));
+    if (val) {
+      std::cout << cst << "\n";
+    }
+  }
+
 }
 
 char RealizeRMC::ID = 0;
