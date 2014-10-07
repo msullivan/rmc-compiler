@@ -75,13 +75,13 @@ namespace {
 //// Some auxillary data structures
 enum RMCEdgeType {
   NoEdge,
-  VisbilityEdge,
+  VisibilityEdge,
   ExecutionEdge
 };
 
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   switch (t) {
-    case VisbilityEdge:
+    case VisibilityEdge:
       os << "v";
       break;
     case ExecutionEdge:
@@ -421,7 +421,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   // We just assert if something is wrong, which is not great UX.
   bool isVisibility = cast<ConstantInt>(call->getOperand(0))
     ->getValue().getBoolValue();
-  RMCEdgeType edgeType = isVisibility ? VisbilityEdge : ExecutionEdge;
+  RMCEdgeType edgeType = isVisibility ? VisibilityEdge : ExecutionEdge;
   StringRef srcName = getStringArg(call->getOperand(1));
   StringRef dstName = getStringArg(call->getOperand(2));
 
@@ -437,7 +437,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
       Action *dst = bb2action_[&dstBB];
 
       // Insert into the graph and the list of edges
-      if (edgeType == VisbilityEdge) {
+      if (edgeType == VisibilityEdge) {
         src->visEdges.insert(dst);
       } else {
         src->execEdges.insert(dst);
@@ -595,7 +595,7 @@ CutStrength RealizeRMC::isPathCut(Function &F,
     // If the destination is a write, and this is an execution edge,
     // and the source is a read, then we can just take advantage of
     // a control dependency to get a soft cut.
-    if (edge.edgeType == VisbilityEdge || !soleLoad) continue;
+    if (edge.edgeType == VisibilityEdge || !soleLoad) continue;
     if (!(edge.dst->type == ActionSimpleWrites ||
           edge.dst->type == ActionSimpleRMW)) continue;
     if (hasSoftCut) continue;
