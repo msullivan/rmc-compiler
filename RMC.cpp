@@ -862,6 +862,11 @@ std::string makeVarString(PathKey &key) {
          << ", " << key.second << ")";
   return buffer.str();
 }
+std::string makeVarString(BasicBlock *key) {
+  std::ostringstream buffer;
+  buffer << "(" << key->getName().str() << ")";
+  return buffer.str();
+}
 
 template<typename Key> struct DeclMap {
   DeclMap(z3::sort isort, const char *iname) : sort(isort), name(iname) {}
@@ -901,12 +906,48 @@ struct VarMaps {
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
   DeclMap<PathKey> path_vcut;
+
+  DeclMap<BasicBlock *> node_cap;
+  DeclMap<EdgeKey> edge_cap;
 };
+
+// We maybe should precompute this instead of giving it to the SMT
+// solver; it's just linear algebra
+void buildCapacities(z3::solver &s, VarMaps &m, Function &F) {
+  z3::context &c = s.ctx();
+
+  for (auto & block : F) {
+    z3::expr node_cap = getFunc(m.node_cap, &block);
+
+    // Compute the node's incoming capacity
+    z3::expr incoming_cap = c.int_val(0);
+    for (auto i = pred_begin(&block), e = pred_end(&block); i != e; i++) {
+      incoming_cap = incoming_cap + getEdgeFunc(m.edge_cap, *i, &block);
+    }
+    if (&block != &F.getEntryBlock()) {
+      s.add(node_cap == incoming_cap.simplify());
+    }
+
+    // Setup equations for outgoing edges
+    auto i = succ_begin(&block), e = succ_end(&block);
+    int child_count = e - i;
+    for (; i != e; i++) {
+      // For now, we assume even probabilities.
+      // Would be an improvement to do better
+      z3::expr edge_cap = getEdgeFunc(m.edge_cap, &block, *i);
+      // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
+      // n * c(v, u) == c(v)
+      s.add(edge_cap * child_count == node_cap);
+    }
+  }
+
+  // Keep all zeros from working:
+  s.add(getFunc(m.node_cap, &F.getEntryBlock()) > 0);
+}
 
 z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
   z3::context &c = s.ctx();
   z3::expr is_cut = getPathFunc(m.path_vcut, paths, path);
-
 
   z3::expr something_cut = c.bool_val(false);
   BasicBlock *src = path.back(), *dst = nullptr;
@@ -916,11 +957,10 @@ z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
      something_cut = something_cut || getEdgeFunc(m.lwsync, src, dst);
   }
 
-  s.add(something_cut, is_cut);
+  s.add(something_cut.simplify(), is_cut);
 
   return is_cut;
 }
-
 
 // Real stuff now.
 void RealizeRMC::smtAnalyze(Function &F) {
@@ -930,7 +970,9 @@ void RealizeRMC::smtAnalyze(Function &F) {
   VarMaps m = {
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
-    DeclMap<PathKey>(c.bool_sort(), "path_vcut")
+    DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
+    DeclMap<BasicBlock *>(c.int_sort(), "node_cap"),
+    DeclMap<EdgeKey>(c.int_sort(), "edge_cap"),
   };
 
   // HOK.
@@ -945,15 +987,16 @@ void RealizeRMC::smtAnalyze(Function &F) {
       for (auto & path : paths) {
         all_paths_cut = all_paths_cut && makePathVcut(s, m, paths, path);
       }
-      s.add(all_paths_cut, is_cut);
-
+      s.add(all_paths_cut.simplify(), is_cut);
     }
   }
+
+  buildCapacities(s, m, F);
 
   std::cout << "Built a thing: \n" << s << "\n\n";
 
   // OK, go solve it.
-  s.check();
+  std::cout << "Result of checking: " << s.check() << "\n\n";
 
   z3::model model = s.get_model();
   // traversing the model
