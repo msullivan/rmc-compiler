@@ -140,6 +140,10 @@ struct Action {
   // And should we store v edges in x
   SmallPtrSet<Action *, 2> execEdges;
   SmallPtrSet<Action *, 2> visEdges;
+
+  typedef SmallPtrSet<Action *, 8> TransEdges;
+  TransEdges execTransEdges;
+  TransEdges visTransEdges;
 };
 
 // Info about an RMC edge
@@ -192,6 +196,8 @@ enum CutStrength {
 
 
 ///////////////////////////////////////////////////////////////////////////
+// Graph algorithms
+
 // Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
 // now.
@@ -249,6 +255,23 @@ void dumpPaths(const PathList &paths) {
       errs() << block->getName() << " <- ";
     }
     errs() << "\n";
+  }
+}
+
+// Compute the transitive closure of the action graph
+void transitiveClosure(std::vector<Action> &actions,
+                       Action::TransEdges Action::* edgeset) {
+  // Use Warshall's algorithm to compute the transitive closure. More
+  // or less. I can probably be a little more clever since I have
+  // adjacency lists, right? But n is small and this is really easy.
+  for (auto & k : actions) {
+    for (auto & i : actions) {
+      for (auto & j : actions) {
+        if ((i.*edgeset).count(&k) && (k.*edgeset).count(&j)) {
+          (i.*edgeset).insert(&j);
+        }
+      }
+    }
   }
 }
 
@@ -733,7 +756,34 @@ void RealizeRMC::cutEdges(Function &F) {
   }
 }
 
+void dumpGraph(std::vector<Action> &actions) {
+  // Debug spew!!
+  for (auto & src : actions) {
+    for (auto dst : src.execTransEdges) {
+      errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
+    }
+    for (auto dst : src.visTransEdges) {
+      errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
+    }
+  }
+  errs() << "\n";
+}
 
+void buildActionGraph(Function &F, std::vector<Action> &actions) {
+  // Copy the initial edge specifications into the transitive graph
+  for (auto & a : actions) {
+    a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
+    // Visibility implies execution.
+    a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+  }
+
+  // Now compute the closures
+  transitiveClosure(actions, &Action::execTransEdges);
+  transitiveClosure(actions, &Action::visTransEdges);
+
+  dumpGraph(actions);
+}
 
 
 bool RealizeRMC::runOnFunction(Function &F) {
@@ -742,6 +792,7 @@ bool RealizeRMC::runOnFunction(Function &F) {
 
   if (actions_.empty() && edges_.empty()) return false;
 
+  errs() << "Stuff to do for: " << F.getName() << "\n";
   for (auto & edge : edges_) {
     errs() << "Found an edge: " << edge << "\n";
   }
@@ -750,6 +801,8 @@ bool RealizeRMC::runOnFunction(Function &F) {
   for (auto & action : actions_) {
     analyzeAction(action);
   }
+
+  buildActionGraph(F, actions_);
 
   cutPushes(F);
   cutPrePostEdges(F);
