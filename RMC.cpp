@@ -35,6 +35,8 @@
 #include <map>
 #include <set>
 
+#include <z3++.h>
+
 using namespace llvm;
 
 namespace {
@@ -396,6 +398,8 @@ private:
 
   void processEdge(Function &F, CallInst *call);
   void processPush(Function &F, CallInst *call);
+
+  void smtAnalyze(Function &F);
 
   // Clear our data structures to save memory, make things clean for
   // future runs.
@@ -808,8 +812,157 @@ bool RealizeRMC::runOnFunction(Function &F) {
   cutPrePostEdges(F);
   cutEdges(F);
 
+  smtAnalyze(F);
+
   clear();
   return true;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// SMT stuff
+
+// Z3 utility functions
+z3::expr boolToInt(z3::context &c, z3::expr const &e) {
+  return ite(e, c.int_val(1), c.int_val(0));
+}
+
+
+// DenseMap can use pairs of keys as keys, so we represent edges as a
+// pair of BasicBlock*s. We represent paths as a pair of basic blocks
+// representing its endpoints and its index into the vector of paths
+// returned by findAllSimplePaths.
+// This path representation might suck when we need to split paths...
+// Hm.
+
+// Is it worth having our own mapping? Is z3 going to be doing a bunch
+// of string lookups anyways? Dunno.
+typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
+typedef std::pair<EdgeKey, int> PathKey;
+EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
+  return std::make_pair(src, dst);
+}
+PathKey makePathKey(BasicBlock *src, BasicBlock *dst, int idx) {
+  return std::make_pair(makeEdgeKey(src, dst), idx);
+}
+PathKey makePathKey(PathList &paths, Path &path) {
+  return std::make_pair(makeEdgeKey(path.front(), path.back()),
+                        &path - paths.begin());
+}
+
+std::string makeVarString(EdgeKey &key) {
+  std::ostringstream buffer;
+  buffer << "(" << key.first->getName().str()
+         << ", " << key.second->getName().str() << ")";
+  return buffer.str();
+}
+std::string makeVarString(PathKey &key) {
+  std::ostringstream buffer;
+  buffer << "(" << key.first.first->getName().str() << ", "
+         << key.first.second->getName().str()
+         << ", " << key.second << ")";
+  return buffer.str();
+}
+
+template<typename Key> struct DeclMap {
+  DeclMap(z3::sort isort, const char *iname) : sort(isort), name(iname) {}
+  DenseMap<Key, z3::expr> map;
+  z3::sort sort;
+  const char *name;
+};
+
+template<typename Key>
+z3::expr getFunc(DeclMap<Key> &map, Key key) {
+  auto entry = map.map.find(key);
+  if (entry != map.map.end()) return entry->second;
+
+  z3::context &c = map.sort.ctx();
+  std::string name = map.name + makeVarString(key);
+  z3::expr e = c.constant(name.c_str(), map.sort);
+
+  map.map.insert(std::make_pair(key, e));
+
+  return e;
+}
+z3::expr getEdgeFunc(DeclMap<EdgeKey> &map,
+                     BasicBlock *src, BasicBlock *dst) {
+  return getFunc(map, makeEdgeKey(src, dst));
+}
+z3::expr getPathFunc(DeclMap<PathKey> &map,
+                     BasicBlock *src, BasicBlock *dst, int idx) {
+  return getFunc(map, makePathKey(src, dst, idx));
+}
+z3::expr getPathFunc(DeclMap<PathKey> &map,
+                     PathList &paths, Path &path) {
+  return getFunc(map, makePathKey(paths, path));
+}
+
+
+struct VarMaps {
+  DeclMap<EdgeKey> lwsync;
+  DeclMap<EdgeKey> vcut;
+  DeclMap<PathKey> path_vcut;
+};
+
+z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
+  z3::context &c = s.ctx();
+  z3::expr is_cut = getPathFunc(m.path_vcut, paths, path);
+
+
+  z3::expr something_cut = c.bool_val(false);
+  BasicBlock *src = path.back(), *dst = nullptr;
+  for (auto i = path.rbegin()+1, e = path.rend(); i != e; i++, src = dst) {
+     dst = *i;
+
+     something_cut = something_cut || getEdgeFunc(m.lwsync, src, dst);
+  }
+
+  s.add(something_cut, is_cut);
+
+  return is_cut;
+}
+
+
+// Real stuff now.
+void RealizeRMC::smtAnalyze(Function &F) {
+  z3::context c;
+  z3::solver s(c);
+
+  VarMaps m = {
+    DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
+    DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
+    DeclMap<PathKey>(c.bool_sort(), "path_vcut")
+  };
+
+  // HOK.
+  for (auto & src : actions_) {
+    for (auto dst : src.execTransEdges) {
+      z3::expr is_cut = getEdgeFunc(m.vcut, src.bb, dst->bb);
+      s.add(is_cut);
+
+      // Now try all the paths
+      z3::expr all_paths_cut = c.bool_val(true);
+      PathList paths = findAllSimplePaths(src.bb, dst->bb);
+      for (auto & path : paths) {
+        all_paths_cut = all_paths_cut && makePathVcut(s, m, paths, path);
+      }
+      s.add(all_paths_cut, is_cut);
+
+    }
+  }
+
+  std::cout << "Built a thing: \n" << s << "\n\n";
+
+  // OK, go solve it.
+  s.check();
+
+  z3::model model = s.get_model();
+  // traversing the model
+  for (unsigned i = 0; i < model.size(); i++) {
+    z3::func_decl v = model[i];
+    // this problem contains only constants
+    assert(v.arity() == 0);
+    std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
+  }
 }
 
 char RealizeRMC::ID = 0;

@@ -8,6 +8,6 @@ CXXFLAGS = -Wall -Werror -Wno-unused-function $(shell $(LLVM_LOC)/bin/llvm-confi
 # -rdynamic -dylib -flat_namespace
 
 %.so: %.o
-	$(CXX) -shared $^ -o $@
+	$(CXX) -shared $^ -o $@  -lz3
 clean:
 	rm -f *.o *~ *.so *.bc
