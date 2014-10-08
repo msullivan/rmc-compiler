@@ -1019,6 +1019,8 @@ void RealizeRMC::smtAnalyze(Function &F) {
 
   std::cout << "Built a thing: \n" << s << "\n\n";
 
+  // TODO: optimize for the cost
+
   // OK, go solve it.
   std::cout << "Result of checking: " << s.check() << "\n\n";
 
