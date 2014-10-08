@@ -80,11 +80,19 @@ int load_acquire(int *ptr) {
     return val;
 }
 
-
 // A test where we have some overlapping things but could just do one
 // cut
 void overlapping(int *ptr) {
     VEDGE(a, c); VEDGE(b, d);
+    L(a, *ptr = 1);
+    L(b, *ptr = 2);
+    L(c, *ptr = 3);
+    L(d, *ptr = 4);
+}
+
+// cost 3 - make sure we can binary search down for the costs
+void binarysearch_test(int *ptr) {
+    VEDGE(a, b); VEDGE(b, c); VEDGE(c, d);
     L(a, *ptr = 1);
     L(b, *ptr = 2);
     L(c, *ptr = 3);

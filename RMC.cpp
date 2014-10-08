@@ -834,6 +834,52 @@ bool extractBool(z3::expr const &e) {
   return b == Z3_L_TRUE;
 }
 
+// Code for optimizing
+// FIXME: should we try to use some sort of bigint?
+typedef __uint64 Cost;
+
+bool isCostUnder(z3::solver &s, z3::expr &costVar, Cost cost) {
+  s.push();
+  s.add(costVar <= s.ctx().int_val(cost));
+  z3::check_result result = s.check();
+  assert(result != z3::unknown);
+  s.pop();
+
+  bool isSat = result == z3::sat;
+  errs() << "Trying cost " << cost << ": " << isSat << "\n";
+  return isSat;
+}
+
+// Generic binary search over a monotonic predicate
+typedef std::function<bool (Cost)> CostPred;
+
+// Given a monotonic predicate, find the first value in [lo, hi]
+// for which it holds. It needs to hold for hi.
+Cost findFirstTrue(CostPred pred, Cost lo, Cost hi) {
+  if (lo >= hi) return hi;
+  Cost mid = lo + (hi - lo) / 2; // funny to avoid overflow
+
+  if (pred(mid)) {
+    return findFirstTrue(pred, lo, mid);
+  } else {
+    return findFirstTrue(pred, mid + 1, hi);
+  }
+}
+
+// Given a monotonic predicate pred that is not always false, find the
+// lowest value c for which pred(c) is true.
+Cost optimizeProblem(CostPred pred) {
+  Cost lo = 1, hi = 1;
+
+  // Search upwards to find some value for which pred(c) holds.
+  while (!pred(hi)) {
+    lo = hi;
+    hi *= 2;
+    assert(hi != 0); // fail if we overflow
+  }
+
+  return findFirstTrue(pred, lo+1, hi);
+}
 
 // DenseMap can use pairs of keys as keys, so we represent edges as a
 // pair of BasicBlock*s. We represent paths as a pair of basic blocks
@@ -891,6 +937,8 @@ z3::expr getFunc(DeclMap<Key> &map, Key key) {
   z3::context &c = map.sort.ctx();
   std::string name = map.name + makeVarString(key);
   z3::expr e = c.constant(name.c_str(), map.sort);
+  // Use inverted boolean variables to help test optimization.
+  if (map.sort.is_bool()) e = !e;
 
   map.map.insert(std::make_pair(key, e));
 
@@ -965,7 +1013,7 @@ z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
      somethingCut = somethingCut || getEdgeFunc(m.lwsync, src, dst);
   }
 
-  s.add(somethingCut.simplify(), isCut);
+  s.add(isCut == somethingCut.simplify());
 
   return isCut;
 }
@@ -983,6 +1031,10 @@ void RealizeRMC::smtAnalyze(Function &F) {
     DeclMap<EdgeKey>(c.int_sort(), "edge_cap"),
   };
 
+  // Compute the capacity function
+  buildCapacities(s, m, F);
+
+  //////////
   // HOK. Make sure everything is cut. Just lwsync for now.
   for (auto & src : actions_) {
     for (auto dst : src.execTransEdges) {
@@ -995,15 +1047,13 @@ void RealizeRMC::smtAnalyze(Function &F) {
       for (auto & path : paths) {
         allPathsCut = allPathsCut && makePathVcut(s, m, paths, path);
       }
-      s.add(allPathsCut.simplify(), isCut);
+      s.add(isCut == allPathsCut.simplify());
     }
   }
 
-  buildCapacities(s, m, F);
-
+  //////////
   // OK, now build a cost function. This will probably take a lot of
   // tuning.
-
   z3::expr costVar = c.int_const("cost");
   z3::expr cost = c.int_val(0);
   for (auto & block : F) {
@@ -1015,15 +1065,22 @@ void RealizeRMC::smtAnalyze(Function &F) {
          getEdgeFunc(m.edgeCap, src, dst));
     }
   }
-  s.add(cost.simplify() == costVar);
+  s.add(costVar == cost.simplify());
 
+  //////////
+  // Print out the model for debugging
   std::cout << "Built a thing: \n" << s << "\n\n";
 
-  // TODO: optimize for the cost
+  // Optimize the cost.
+  Cost minCost = optimizeProblem(
+    [&] (Cost cost) { return isCostUnder(s, costVar, cost); });
 
   // OK, go solve it.
-  std::cout << "Result of checking: " << s.check() << "\n\n";
+  s.add(costVar == c.int_val(minCost));
+  s.check();
 
+  //////////
+  // Output the model
   z3::model model = s.get_model();
   // traversing the model
   for (unsigned i = 0; i < model.size(); i++) {
@@ -1033,15 +1090,18 @@ void RealizeRMC::smtAnalyze(Function &F) {
     std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
   }
 
-  std::cout << "\nLwsyncs to insert:\n";
+  // Find the lwsyncs we are inserting
+  errs() << "\nLwsyncs to insert:\n";
   for (auto & entry : m.lwsync.map) {
+    EdgeKey edge = entry.first;
     z3::expr cst = entry.second;
     bool val = extractBool(model.eval(cst));
     if (val) {
-      std::cout << cst << "\n";
+      errs() << edge.first->getName() << " -> "
+             << edge.second->getName() << "\n";
     }
   }
-
+  errs() << "\n";
 }
 
 char RealizeRMC::ID = 0;
