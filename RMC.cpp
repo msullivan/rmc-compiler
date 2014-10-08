@@ -45,6 +45,11 @@ namespace {
 }
 #endif
 
+// Some tuning parameters
+const bool kGuessUpperBound = false;
+const bool kInvertBools = false;
+
+
 /* To do bogus data dependencies, we will emit inline assembly
   instructions. This is sort of tasteless; we should add an intrinsic;
   but it means we don't need to modify llvm. This is what the
@@ -943,8 +948,8 @@ z3::expr getFunc(DeclMap<Key> &map, Key key) {
   z3::context &c = map.sort.ctx();
   std::string name = map.name + makeVarString(key);
   z3::expr e = c.constant(name.c_str(), map.sort);
-  // Use inverted boolean variables to help test optimization.
-  if (map.sort.is_bool()) e = !e;
+  // Can use inverted boolean variables to help test optimization.
+  if (kInvertBools && map.sort.is_bool()) e = !e;
 
   map.map.insert(std::make_pair(key, e));
 
@@ -1095,9 +1100,21 @@ void RealizeRMC::smtAnalyze(Function &F) {
   // Print out the model for debugging
   std::cout << "Built a thing: \n" << s << "\n\n";
 
-  // Optimize the cost.
-  Cost minCost = optimizeProblem(
-    [&] (Cost cost) { return isCostUnder(s, costVar, cost); });
+  // Optimize the cost. There are two possible approaches to this that we
+  // configure with a constant.
+  auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
+  Cost minCost;
+  if (kGuessUpperBound) {
+    // This is in theory arbitrarily worse but might be better in
+    // practice. Although the cost is bounded by the number of things
+    // we could do, so...
+    s.check();
+    Cost upperBound = extractInt(s.get_model().eval(costVar));
+    errs() << "Upper bound: " << upperBound << "\n";
+    minCost = findFirstTrue(costPred, 1, upperBound);
+  } else {
+    minCost = optimizeProblem(costPred);
+  }
 
   // OK, go solve it.
   s.add(costVar == c.int_val(minCost));

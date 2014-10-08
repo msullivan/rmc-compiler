@@ -32,7 +32,7 @@ esac
 clang $PLATFORM_FLAGS $INCLUDE_FLAGS -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
 llvm-dis $NAME.pre.bc
 
-opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+time opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
 llvm-dis $NAME.bc
 
 clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
