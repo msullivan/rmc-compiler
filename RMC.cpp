@@ -46,7 +46,14 @@ namespace {
 #endif
 
 // Some tuning parameters
+
+// Should we pick the initial upper bound by seeing what the solver
+// produces without constraints instead of by binary searching up?
 const bool kGuessUpperBound = false;
+// If we guess an upper bound, should we hope that it is optimal and
+// check the bound - 1 before we binary search?
+const bool kCheckFirstGuess = false;
+// Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
 
@@ -1111,7 +1118,13 @@ void RealizeRMC::smtAnalyze(Function &F) {
     s.check();
     Cost upperBound = extractInt(s.get_model().eval(costVar));
     errs() << "Upper bound: " << upperBound << "\n";
-    minCost = findFirstTrue(costPred, 1, upperBound);
+    // The solver seems to often "just happen" to find the optimal
+    // solution, so maybe do a quick check on upperBound-1
+    if (kCheckFirstGuess && upperBound > 0 && !costPred(--upperBound)) {
+      minCost = upperBound + 1;
+    } else {
+      minCost = findFirstTrue(costPred, 1, upperBound);
+    }
   } else {
     minCost = optimizeProblem(costPred);
   }
