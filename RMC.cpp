@@ -833,6 +833,12 @@ bool extractBool(z3::expr const &e) {
   assert(b != Z3_L_UNDEF);
   return b == Z3_L_TRUE;
 }
+int extractInt(z3::expr const &e) {
+  int i;
+  auto b = Z3_get_numeral_int(e.ctx(), e, &i);
+  assert(b == Z3_TRUE);
+  return i;
+}
 
 // Code for optimizing
 // FIXME: should we try to use some sort of bigint?
@@ -956,29 +962,27 @@ z3::expr getPathFunc(DeclMap<PathKey> &map,
                      PathList &paths, Path &path) {
   return getFunc(map, makePathKey(paths, path));
 }
+///////////////
 
+// We precompute this so that the solver doesn't need to consider
+// these values while trying to optimize the problems.
+// We should maybe compute these with normal linear algebra instead of
+// giving it to the SMT solver, though.
+DenseMap<EdgeKey, int> computeCapacities(Function &F) {
+  z3::context c;
+  z3::solver s(c);
 
-struct VarMaps {
-  DeclMap<EdgeKey> lwsync;
-  DeclMap<EdgeKey> vcut;
-  DeclMap<PathKey> pathVcut;
+  DeclMap<BasicBlock *> nodeCapM(c.int_sort(), "node_cap");
+  DeclMap<EdgeKey> edgeCapM(c.int_sort(), "edge_cap");
 
-  DeclMap<BasicBlock *> nodeCap;
-  DeclMap<EdgeKey> edgeCap;
-};
-
-// We maybe should precompute this instead of giving it to the SMT
-// solver; it's just linear algebra
-void buildCapacities(z3::solver &s, VarMaps &m, Function &F) {
-  z3::context &c = s.ctx();
-
+  //// Build the equations.
   for (auto & block : F) {
-    z3::expr nodeCap = getFunc(m.nodeCap, &block);
+    z3::expr nodeCap = getFunc(nodeCapM, &block);
 
     // Compute the node's incoming capacity
     z3::expr incomingCap = c.int_val(0);
     for (auto i = pred_begin(&block), e = pred_end(&block); i != e; i++) {
-      incomingCap = incomingCap + getEdgeFunc(m.edgeCap, *i, &block);
+      incomingCap = incomingCap + getEdgeFunc(edgeCapM, *i, &block);
     }
     if (&block != &F.getEntryBlock()) {
       s.add(nodeCap == incomingCap.simplify());
@@ -990,7 +994,7 @@ void buildCapacities(z3::solver &s, VarMaps &m, Function &F) {
     for (; i != e; i++) {
       // For now, we assume even probabilities.
       // Would be an improvement to do better
-      z3::expr edgeCap = getEdgeFunc(m.edgeCap, &block, *i);
+      z3::expr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
       // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
       // n * c(v, u) == c(v)
       s.add(edgeCap * childCount == nodeCap);
@@ -998,8 +1002,30 @@ void buildCapacities(z3::solver &s, VarMaps &m, Function &F) {
   }
 
   // Keep all zeros from working:
-  s.add(getFunc(m.nodeCap, &F.getEntryBlock()) > 0);
+  s.add(getFunc(nodeCapM, &F.getEntryBlock()) > 0);
+
+  //// Extract a solution.
+  // XXX: will this get returned efficiently?
+  DenseMap<EdgeKey, int> caps;
+
+  s.check();
+  z3::model model = s.get_model();
+  for (auto & entry : edgeCapM.map) {
+    EdgeKey edge = entry.first;
+    z3::expr cst = entry.second;
+    int cap = extractInt(model.eval(cst));
+    caps.insert(std::make_pair(edge, cap));
+  }
+
+  return caps;
 }
+
+struct VarMaps {
+  DeclMap<EdgeKey> lwsync;
+  DeclMap<EdgeKey> vcut;
+  DeclMap<PathKey> pathVcut;
+};
+
 
 z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
   z3::context &c = s.ctx();
@@ -1027,12 +1053,10 @@ void RealizeRMC::smtAnalyze(Function &F) {
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
-    DeclMap<BasicBlock *>(c.int_sort(), "node_cap"),
-    DeclMap<EdgeKey>(c.int_sort(), "edge_cap"),
   };
 
   // Compute the capacity function
-  buildCapacities(s, m, F);
+  DenseMap<EdgeKey, int> edgeCap = computeCapacities(F);
 
   //////////
   // HOK. Make sure everything is cut. Just lwsync for now.
@@ -1062,7 +1086,7 @@ void RealizeRMC::smtAnalyze(Function &F) {
       BasicBlock *dst = *i;
       cost = cost +
         (boolToInt(getEdgeFunc(m.lwsync, src, dst)) *
-         getEdgeFunc(m.edgeCap, src, dst));
+         edgeCap[makeEdgeKey(src, dst)]);
     }
   }
   s.add(costVar == cost.simplify());
