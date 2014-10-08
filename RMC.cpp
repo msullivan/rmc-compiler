@@ -56,36 +56,7 @@ const bool kCheckFirstGuess = false;
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
-
-/* To do bogus data dependencies, we will emit inline assembly
-  instructions. This is sort of tasteless; we should add an intrinsic;
-  but it means we don't need to modify llvm. This is what the
-  instruction should look like (probably the constraints aren't
-  right?):
-
-  %2 = call i32 asm sideeffect "eor $0, $0;", "=r,0"(i32 %1) #2, !srcloc !11
-
-  Also for ctrlisb we do:
-  call void asm sideeffect "cmp $0, $0;beq 1f;1: isb", "r,~{memory}"(i32 %1) #2, !srcloc !4
-
-  And for dmb:
-  call void asm sideeffect "dmb", "~{memory}"() #2, !srcloc !5
-
-
-  We can probably do a bogus inline asm on x86 to prevent reordering:
-  %2 = call i32 asm sideeffect "", "=r,r,0,~{dirflag},~{fpsr},~{flags}"(i32 %1, i32 %0) #3, !srcloc !9
-
-  What about this makes the right value come out:
-    =r specifies an output parameter and the 0 says that that input parameter
-    is paired with param 0.
-
-  Hm. Does this *actually* work?? What does "sideeffect" actually mean
-  for asm and do we need it.
-
-  --
-  Should we emit dmb directly, or try to use llvm's fences?
-*/
-
+///////
 
 //// Some auxillary data structures
 enum RMCEdgeType {
