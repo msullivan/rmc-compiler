@@ -191,9 +191,10 @@ typedef std::vector<BasicBlock *> Path;
 typedef SmallVector<Path, 2> PathList;
 typedef SmallPtrSet<BasicBlock *, 8> GreySet;
 
-PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
+PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
+                            bool allowSelfCycle = false) {
   PathList paths;
-  if (src == dst) {
+  if (src == dst && !allowSelfCycle) {
     Path path;
     path.push_back(dst);
     paths.push_back(std::move(path));
@@ -230,9 +231,10 @@ PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst) {
   return paths;
 }
 
-PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst) {
+PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
+                            bool allowSelfCycle = false) {
   GreySet grey;
-  return findAllSimplePaths(&grey, src, dst);
+  return findAllSimplePaths(&grey, src, dst, allowSelfCycle);
 }
 
 void dumpPaths(const PathList &paths) {
@@ -656,7 +658,7 @@ CutStrength RealizeRMC::isPathCut(Function &F,
 CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
                                   bool enforceSoft) {
   CutStrength strength = HardCut;
-  PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb);
+  PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(F, edge, path, enforceSoft);
     if (pathStrength < strength) strength = pathStrength;
@@ -670,6 +672,8 @@ bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
     case HardCut: return true;
     case NoCut: return false;
     case SoftCut:
+      // XXX: this is too strict: we need a better understanding of
+      // control dependencies
       if (isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}) > NoCut) {
         isEdgeCut(F, edge, true);
         isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, true);
