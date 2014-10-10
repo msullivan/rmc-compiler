@@ -979,9 +979,13 @@ template<typename Key> struct DeclMap {
 };
 
 template<typename Key>
-z3::expr getFunc(DeclMap<Key> &map, Key key) {
+z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
   auto entry = map.map.find(key);
-  if (entry != map.map.end()) return entry->second;
+  if (entry != map.map.end()) {
+    if (alreadyThere) *alreadyThere = true;
+    return entry->second;
+  }
+  if (alreadyThere) *alreadyThere = false;
 
   z3::context &c = map.sort.ctx();
   std::string name = map.name + makeVarString(key);
@@ -994,12 +998,14 @@ z3::expr getFunc(DeclMap<Key> &map, Key key) {
   return e;
 }
 z3::expr getEdgeFunc(DeclMap<EdgeKey> &map,
-                     BasicBlock *src, BasicBlock *dst) {
-  return getFunc(map, makeEdgeKey(src, dst));
+                     BasicBlock *src, BasicBlock *dst,
+                     bool *alreadyThere = nullptr) {
+  return getFunc(map, makeEdgeKey(src, dst), alreadyThere);
 }
 z3::expr getPathFunc(DeclMap<PathKey> &map,
-                     PathID path) {
-  return getFunc(map, makePathKey(path));
+                     PathID path,
+                     bool *alreadyThere = nullptr) {
+  return getFunc(map, makePathKey(path), alreadyThere);
 }
 ///////////////
 
@@ -1059,6 +1065,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   return caps;
 }
 
+//// Core things
 struct VarMaps {
   PathCache &pc;
   DeclMap<EdgeKey> lwsync;
