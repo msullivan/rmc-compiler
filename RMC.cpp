@@ -80,7 +80,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
       os << "?";
       break;
   }
-  return os;
+   return os;
 }
 
 
@@ -187,17 +187,73 @@ enum CutStrength {
 // Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
 // now.
-typedef std::vector<BasicBlock *> Path;
-typedef SmallVector<Path, 2> PathList;
-typedef SmallPtrSet<BasicBlock *, 8> GreySet;
 
-PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
-                            bool allowSelfCycle = false) {
+typedef int PathID;
+typedef SmallVector<PathID, 2> PathList;
+typedef std::vector<BasicBlock *> Path;
+
+// Structure to manage path information, which we do in order to
+// provide small unique path identifiers.
+class PathCache {
+public:
+  void clear() { entries_.clear(); cache_.clear(); }
+  PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
+                              bool allowSelfCycle = false);
+  Path extractPath(PathID k) const;
+
+  const PathID kEmptyPath = -1;
+  typedef std::pair<BasicBlock *, PathID> PathCacheEntry;
+
+  PathCacheEntry const &getEntry(PathID k) const { return entries_[k]; }
+  BasicBlock *getHead(PathID k) const { return entries_[k].first; }
+  PathID getTail(PathID k) const { return entries_[k].second; }
+
+private:
+
+  std::vector<PathCacheEntry> entries_;
+  DenseMap<PathCacheEntry, PathID> cache_;
+
+  PathID addToPath(BasicBlock *b, PathID id);
+
+  typedef SmallPtrSet<BasicBlock *, 8> GreySet;
+  PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
+                              bool allowSelfCycle = false);
+};
+
+
+PathID PathCache::addToPath(BasicBlock *b, PathID id) {
+  PathCacheEntry key = std::make_pair(b, id);
+
+  auto entry = cache_.find(key);
+  if (entry != cache_.end()) {
+    //errs() << "Found (" << b->getName() << ", " << id << ") as " << entry->second << "\n";
+    return entry->second;
+  }
+
+  PathID newID = entries_.size();
+  entries_.push_back(key);
+
+  cache_.insert(std::make_pair(key, newID));
+  //errs() << "Added (" << b->getName() << ", " << id << ") as " << newID << "\n";
+  return newID;
+}
+
+Path PathCache::extractPath(PathID k) const {
+  Path path;
+  while (k != kEmptyPath) {
+    path.push_back(getHead(k));
+    k = getTail(k);
+  }
+  return path;
+}
+
+PathList PathCache::findAllSimplePaths(GreySet *grey,
+                                       BasicBlock *src, BasicBlock *dst,
+                                       bool allowSelfCycle) {
   PathList paths;
   if (src == dst && !allowSelfCycle) {
-    Path path;
-    path.push_back(dst);
-    paths.push_back(std::move(path));
+    PathID path = addToPath(dst, kEmptyPath);
+    paths.push_back(path);
     return paths;
   }
   if (grey->count(src)) return paths;
@@ -213,12 +269,12 @@ PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
   // Go search all the normal successors
   for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
     PathList subpaths = findAllSimplePaths(grey, *i, dst);
-    std::move(subpaths.begin(), subpaths.end(), back_inserter(paths));
+    std::move(subpaths.begin(), subpaths.end(), std::back_inserter(paths));
   }
 
   // Add our step to all of the vectors
   for (auto & path : paths) {
-    path.push_back(src);
+    path = addToPath(src, path);
   }
 
   // Remove it from the set of things we've seen. We might come
@@ -231,16 +287,18 @@ PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
   return paths;
 }
 
-PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                            bool allowSelfCycle = false) {
+PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
+                                       bool allowSelfCycle) {
   GreySet grey;
   return findAllSimplePaths(&grey, src, dst, allowSelfCycle);
 }
 
-void dumpPaths(const PathList &paths) {
-  for (auto & path : paths) {
+////
+void dumpPaths(const PathCache &pc, const PathList &paths) {
+  for (auto & pathid : paths) {
+    Path path = pc.extractPath(pathid);
     for (auto block : path) {
-      errs() << block->getName() << " <- ";
+      errs() << block->getName() << " -> ";
     }
     errs() << "\n";
   }
@@ -368,8 +426,9 @@ private:
   SmallPtrSet<Action *, 4> pushes_;
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, EdgeCut> cuts_;
+  PathCache pc_;
 
-  CutStrength isPathCut(Function &F, const RMCEdge &edge, const Path &path,
+  CutStrength isPathCut(Function &F, const RMCEdge &edge, PathID path,
                         bool enforceSoft, bool justCheckCtrl);
   CutStrength isEdgeCut(Function &F, const RMCEdge &edge,
                         bool enforceSoft = false, bool justCheckCtrl = false);
@@ -395,6 +454,7 @@ private:
     pushes_.clear();
     bb2action_.clear();
     cuts_.clear();
+    pc_.clear();
   }
 
 public:
@@ -575,17 +635,18 @@ bool isSameValueWithBS(Value *v1, Value *v2) {
 
 CutStrength RealizeRMC::isPathCut(Function &F,
                                   const RMCEdge &edge,
-                                  const Path &path,
+                                  PathID pathid,
                                   bool enforceSoft,
                                   bool justCheckCtrl) {
+  Path path = pc_.extractPath(pathid);
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
   Instruction *soleLoad = edge.src->soleLoad;
 
   // Paths are backwards.
-  for (auto i = path.rbegin(), e = path.rend(); i != e; i++) {
-    bool isFront = i == path.rbegin(), isBack = i == e-1;
+  for (auto i = path.begin(), e = path.end(); i != e; i++) {
+    bool isFront = i == path.begin(), isBack = i == e-1;
     BasicBlock *bb = *i;
 
     auto cut_i = cuts_.find(bb);
@@ -662,7 +723,8 @@ CutStrength RealizeRMC::isPathCut(Function &F,
 CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
-  PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
+  PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
+  dumpPaths(pc_, paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(F, edge, path,
                                          enforceSoft, justCheckCtrl);
@@ -879,25 +941,17 @@ Cost optimizeProblem(CostPred pred) {
 }
 
 // DenseMap can use pairs of keys as keys, so we represent edges as a
-// pair of BasicBlock*s. We represent paths as a pair of basic blocks
-// representing its endpoints and its index into the vector of paths
-// returned by findAllSimplePaths.
-// This path representation might suck when we need to split paths...
-// Hm.
+// pair of BasicBlock*s. We represent paths as PathIDs.
 
 // Is it worth having our own mapping? Is z3 going to be doing a bunch
 // of string lookups anyways? Dunno.
 typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
-typedef std::pair<EdgeKey, int> PathKey;
+typedef PathID PathKey;
 EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
   return std::make_pair(src, dst);
 }
-PathKey makePathKey(BasicBlock *src, BasicBlock *dst, int idx) {
-  return std::make_pair(makeEdgeKey(src, dst), idx);
-}
-PathKey makePathKey(PathList &paths, Path &path) {
-  return std::make_pair(makeEdgeKey(path.back(), path.front()),
-                        &path - paths.begin());
+PathKey makePathKey(PathID path) {
+  return path;
 }
 
 std::string makeVarString(EdgeKey &key) {
@@ -908,9 +962,7 @@ std::string makeVarString(EdgeKey &key) {
 }
 std::string makeVarString(PathKey &key) {
   std::ostringstream buffer;
-  buffer << "(" << key.first.first->getName().str() << ", "
-         << key.first.second->getName().str()
-         << ", " << key.second << ")";
+  buffer << "(path #" << key << ")";
   return buffer.str();
 }
 std::string makeVarString(BasicBlock *key) {
@@ -946,12 +998,8 @@ z3::expr getEdgeFunc(DeclMap<EdgeKey> &map,
   return getFunc(map, makeEdgeKey(src, dst));
 }
 z3::expr getPathFunc(DeclMap<PathKey> &map,
-                     BasicBlock *src, BasicBlock *dst, int idx) {
-  return getFunc(map, makePathKey(src, dst, idx));
-}
-z3::expr getPathFunc(DeclMap<PathKey> &map,
-                     PathList &paths, Path &path) {
-  return getFunc(map, makePathKey(paths, path));
+                     PathID path) {
+  return getFunc(map, makePathKey(path));
 }
 ///////////////
 
@@ -1012,19 +1060,23 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
 }
 
 struct VarMaps {
+  PathCache &pc;
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
   DeclMap<PathKey> pathVcut;
 };
 
 
-z3::expr makePathVcut(z3::solver &s, VarMaps &m, PathList &paths, Path &path) {
+z3::expr makePathVcut(z3::solver &s, VarMaps &m,
+                      PathID pathid) {
   z3::context &c = s.ctx();
-  z3::expr isCut = getPathFunc(m.pathVcut, paths, path);
+  z3::expr isCut = getPathFunc(m.pathVcut, pathid);
+
+  Path path = m.pc.extractPath(pathid);
 
   z3::expr somethingCut = c.bool_val(false);
-  BasicBlock *src = path.back(), *dst = nullptr;
-  for (auto i = path.rbegin()+1, e = path.rend(); i != e; i++, src = dst) {
+  BasicBlock *src = path.front(), *dst = nullptr;
+  for (auto i = path.begin()+1, e = path.end(); i != e; i++, src = dst) {
      dst = *i;
 
      somethingCut = somethingCut || getEdgeFunc(m.lwsync, src, dst);
@@ -1041,6 +1093,7 @@ void RealizeRMC::smtAnalyze(Function &F) {
   z3::solver s(c);
 
   VarMaps m = {
+    pc_,
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
@@ -1058,9 +1111,9 @@ void RealizeRMC::smtAnalyze(Function &F) {
 
       // Now try all the paths
       z3::expr allPathsCut = c.bool_val(true);
-      PathList paths = findAllSimplePaths(src.bb, dst->bb);
+      PathList paths = pc_.findAllSimplePaths(src.bb, dst->bb);
       for (auto & path : paths) {
-        allPathsCut = allPathsCut && makePathVcut(s, m, paths, path);
+        allPathsCut = allPathsCut && makePathVcut(s, m, path);
       }
       s.add(isCut == allPathsCut.simplify());
     }
