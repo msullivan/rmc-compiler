@@ -204,6 +204,8 @@ public:
   const PathID kEmptyPath = -1;
   typedef std::pair<BasicBlock *, PathID> PathCacheEntry;
 
+  bool isEmpty(PathID k) const { return k == kEmptyPath; }
+
   PathCacheEntry const &getEntry(PathID k) const { return entries_[k]; }
   BasicBlock *getHead(PathID k) const { return entries_[k].first; }
   PathID getTail(PathID k) const { return entries_[k].second; }
@@ -240,7 +242,7 @@ PathID PathCache::addToPath(BasicBlock *b, PathID id) {
 
 Path PathCache::extractPath(PathID k) const {
   Path path;
-  while (k != kEmptyPath) {
+  while (!isEmpty(k)) {
     path.push_back(getHead(k));
     k = getTail(k);
   }
@@ -1075,20 +1077,21 @@ struct VarMaps {
 
 
 z3::expr makePathVcut(z3::solver &s, VarMaps &m,
-                      PathID pathid) {
+                      PathID path) {
   z3::context &c = s.ctx();
-  z3::expr isCut = getPathFunc(m.pathVcut, pathid);
 
-  Path path = m.pc.extractPath(pathid);
-
-  z3::expr somethingCut = c.bool_val(false);
-  BasicBlock *src = path.front(), *dst = nullptr;
-  for (auto i = path.begin()+1, e = path.end(); i != e; i++, src = dst) {
-     dst = *i;
-
-     somethingCut = somethingCut || getEdgeFunc(m.lwsync, src, dst);
+  PathID rest;
+  if (m.pc.isEmpty(path) || m.pc.isEmpty(rest = m.pc.getTail(path))) {
+    return c.bool_val(false);
   }
 
+  bool alreadyMade;
+  z3::expr isCut = getPathFunc(m.pathVcut, path, &alreadyMade);
+  if (alreadyMade) return isCut;
+
+  BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
+  z3::expr somethingCut = getEdgeFunc(m.lwsync, src, dst) ||
+    makePathVcut(s, m, rest);
   s.add(isCut == somethingCut.simplify());
 
   return isCut;
