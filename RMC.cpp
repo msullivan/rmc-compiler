@@ -1067,7 +1067,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   return caps;
 }
 
-//// Core things
+
 struct VarMaps {
   PathCache &pc;
   DeclMap<EdgeKey> lwsync;
@@ -1075,9 +1075,28 @@ struct VarMaps {
   DeclMap<PathKey> pathVcut;
 };
 
+// Generalized it.
+typedef std::function<z3::expr (PathID path)> PathFunc;
 
-z3::expr makePathVcut(z3::solver &s, VarMaps &m,
-                      PathID path) {
+typedef std::function<z3::expr (PathID path, bool *already)> GetPathVarFunc;
+typedef std::function<z3::expr (BasicBlock *src, BasicBlock *dst, PathID rest)>
+  EdgeFunc;
+
+z3::expr forAllPaths(z3::solver &s, VarMaps &m,
+                     BasicBlock *src, BasicBlock *dst, PathFunc func) {
+  // Now try all the paths
+  z3::expr allPaths = s.ctx().bool_val(true);
+  PathList paths = m.pc.findAllSimplePaths(src, dst);
+  for (auto & path : paths) {
+    allPaths = allPaths && func(path);
+  }
+  return allPaths.simplify();
+}
+
+z3::expr forAllPathEdges(z3::solver &s, VarMaps &m,
+                         PathID path,
+                         GetPathVarFunc getVar,
+                         EdgeFunc func) {
   z3::context &c = s.ctx();
 
   PathID rest;
@@ -1086,18 +1105,30 @@ z3::expr makePathVcut(z3::solver &s, VarMaps &m,
   }
 
   bool alreadyMade;
-  z3::expr isCut = getPathFunc(m.pathVcut, path, &alreadyMade);
+  z3::expr isCut = getVar(path, &alreadyMade);
   if (alreadyMade) return isCut;
 
   BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
   z3::expr somethingCut = getEdgeFunc(m.lwsync, src, dst) ||
-    makePathVcut(s, m, rest);
+    forAllPathEdges(s, m, rest, getVar, func);
   s.add(isCut == somethingCut.simplify());
 
   return isCut;
 }
 
-// Real stuff now.
+
+//// Real stuff now.
+z3::expr makePathVcut(z3::solver &s, VarMaps &m,
+                      PathID path) {
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) { return getPathFunc(m.pathVcut, path, b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      return getEdgeFunc(m.lwsync, src, dst);
+    });
+}
+
+
 void RealizeRMC::smtAnalyze(Function &F) {
   z3::context c;
   z3::solver s(c);
@@ -1119,13 +1150,10 @@ void RealizeRMC::smtAnalyze(Function &F) {
       z3::expr isCut = getEdgeFunc(m.vcut, src.bb, dst->bb);
       s.add(isCut);
 
-      // Now try all the paths
-      z3::expr allPathsCut = c.bool_val(true);
-      PathList paths = pc_.findAllSimplePaths(src.bb, dst->bb);
-      for (auto & path : paths) {
-        allPathsCut = allPathsCut && makePathVcut(s, m, path);
-      }
-      s.add(isCut == allPathsCut.simplify());
+      z3::expr allPathsCut = forAllPaths(
+        s, m, src.bb, dst->bb,
+        [&] (PathID path) { return makePathVcut(s, m, path); });
+      s.add(isCut == allPathsCut);
     }
   }
 
