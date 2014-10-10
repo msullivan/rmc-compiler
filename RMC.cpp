@@ -370,9 +370,9 @@ private:
   DenseMap<BasicBlock *, EdgeCut> cuts_;
 
   CutStrength isPathCut(Function &F, const RMCEdge &edge, const Path &path,
-                        bool enforceSoft = false);
+                        bool enforceSoft, bool justCheckCtrl);
   CutStrength isEdgeCut(Function &F, const RMCEdge &edge,
-                        bool enforceSoft = false);
+                        bool enforceSoft = false, bool justCheckCtrl = false);
   bool isCut(Function &F, const RMCEdge &edge);
 
   void findActions(Function &F);
@@ -576,7 +576,8 @@ bool isSameValueWithBS(Value *v1, Value *v2) {
 CutStrength RealizeRMC::isPathCut(Function &F,
                                   const RMCEdge &edge,
                                   const Path &path,
-                                  bool enforceSoft) {
+                                  bool enforceSoft,
+                                  bool justCheckCtrl) {
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
@@ -600,17 +601,20 @@ CutStrength RealizeRMC::isPathCut(Function &F,
           cut.type == CutCtrlIsync &&
           cut.read == soleLoad &&
           cutHits) {
-        return HardCut;
+        return SoftCut;
       }
     }
 
     if (isBack) continue;
     // If the destination is a write, and this is an execution edge,
-    // and the source is a read, then we can just take advantage of
-    // a control dependency to get a soft cut.
+    // and the source is a read, then we can just take advantage of a
+    // control dependency to get a soft cut.  Also, if we are just
+    // checking to make sure there is a control dep, we don't care
+    // about what the dest does..
     if (edge.edgeType == VisibilityEdge || !soleLoad) continue;
     if (!(edge.dst->type == ActionSimpleWrites ||
-          edge.dst->type == ActionSimpleRMW)) continue;
+          edge.dst->type == ActionSimpleRMW ||
+          justCheckCtrl)) continue;
     if (hasSoftCut) continue;
 
     // Look for control dependencies on a read.
@@ -656,11 +660,12 @@ CutStrength RealizeRMC::isPathCut(Function &F,
 }
 
 CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
-                                  bool enforceSoft) {
+                                  bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
   PathList paths = findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
   for (auto & path : paths) {
-    CutStrength pathStrength = isPathCut(F, edge, path, enforceSoft);
+    CutStrength pathStrength = isPathCut(F, edge, path,
+                                         enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
   }
 
@@ -672,11 +677,10 @@ bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
     case HardCut: return true;
     case NoCut: return false;
     case SoftCut:
-      // XXX: this is too strict: we need a better understanding of
-      // control dependencies
-      if (isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}) > NoCut) {
-        isEdgeCut(F, edge, true);
-        isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, true);
+      if (isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
+          > NoCut) {
+        isEdgeCut(F, edge, true, true);
+        isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
         return true;
       } else {
         return false;
