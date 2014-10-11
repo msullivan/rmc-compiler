@@ -47,12 +47,19 @@ namespace {
 
 // Some tuning parameters
 
+// Should we use Z3's optimizer; this is a #define because it tunes
+// what interface we use. Maybe should be defined by Makefile or
+// whatever.
+#define USE_Z3_OPTIMIZER 1
+
+#if not(USE_Z3_OPTIMIZER)
 // Should we pick the initial upper bound by seeing what the solver
 // produces without constraints instead of by binary searching up?
 const bool kGuessUpperBound = false;
 // If we guess an upper bound, should we hope that it is optimal and
 // check the bound - 1 before we binary search?
 const bool kCheckFirstGuess = false;
+#endif
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
@@ -877,7 +884,11 @@ bool RealizeRMC::runOnFunction(Function &F) {
 ///////////////////////////////////////////////////////////////////////////
 // SMT stuff
 
+#if USE_Z3_OPTIMIZER
+typedef z3::optimize solver;
+#else
 typedef z3::solver solver;
+#endif
 
 // Z3 utility functions
 z3::expr boolToInt(z3::expr const &e) {
@@ -1179,8 +1190,11 @@ void RealizeRMC::smtAnalyze(Function &F) {
   // Print out the model for debugging
   std::cout << "Built a thing: \n" << s << "\n\n";
 
-  // Optimize the cost. There are two possible approaches to this that we
-  // configure with a constant.
+  // Optimize the cost. There are a number of possible approaches to
+  // this.
+#if USE_Z3_OPTIMIZER
+  s.minimize(costVar);
+#else
   auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
   Cost minCost;
   if (kGuessUpperBound) {
@@ -1200,9 +1214,10 @@ void RealizeRMC::smtAnalyze(Function &F) {
   } else {
     minCost = optimizeProblem(costPred);
   }
+  s.add(costVar == c.int_val(minCost));
+#endif
 
   // OK, go solve it.
-  s.add(costVar == c.int_val(minCost));
   s.check();
 
   //////////
