@@ -877,6 +877,8 @@ bool RealizeRMC::runOnFunction(Function &F) {
 ///////////////////////////////////////////////////////////////////////////
 // SMT stuff
 
+typedef z3::solver solver;
+
 // Z3 utility functions
 z3::expr boolToInt(z3::expr const &e) {
   z3::context &c = e.ctx();
@@ -899,7 +901,7 @@ int extractInt(z3::expr const &e) {
 // FIXME: should we try to use some sort of bigint?
 typedef __uint64 Cost;
 
-bool isCostUnder(z3::solver &s, z3::expr &costVar, Cost cost) {
+bool isCostUnder(solver &s, z3::expr &costVar, Cost cost) {
   s.push();
   s.add(costVar <= s.ctx().int_val(cost));
   z3::check_result result = s.check();
@@ -1017,7 +1019,7 @@ z3::expr getPathFunc(DeclMap<PathKey> &map,
 // giving it to the SMT solver, though.
 DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   z3::context c;
-  z3::solver s(c);
+  solver s(c);
 
   DeclMap<BasicBlock *> nodeCapM(c.int_sort(), "node_cap");
   DeclMap<EdgeKey> edgeCapM(c.int_sort(), "edge_cap");
@@ -1082,7 +1084,7 @@ typedef std::function<z3::expr (PathID path, bool *already)> GetPathVarFunc;
 typedef std::function<z3::expr (BasicBlock *src, BasicBlock *dst, PathID rest)>
   EdgeFunc;
 
-z3::expr forAllPaths(z3::solver &s, VarMaps &m,
+z3::expr forAllPaths(solver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
   z3::expr allPaths = s.ctx().bool_val(true);
@@ -1093,7 +1095,7 @@ z3::expr forAllPaths(z3::solver &s, VarMaps &m,
   return allPaths.simplify();
 }
 
-z3::expr forAllPathEdges(z3::solver &s, VarMaps &m,
+z3::expr forAllPathEdges(solver &s, VarMaps &m,
                          PathID path,
                          GetPathVarFunc getVar,
                          EdgeFunc func) {
@@ -1118,7 +1120,7 @@ z3::expr forAllPathEdges(z3::solver &s, VarMaps &m,
 
 
 //// Real stuff now.
-z3::expr makePathVcut(z3::solver &s, VarMaps &m,
+z3::expr makePathVcut(solver &s, VarMaps &m,
                       PathID path) {
   return forAllPathEdges(
     s, m, path,
@@ -1131,7 +1133,7 @@ z3::expr makePathVcut(z3::solver &s, VarMaps &m,
 
 void RealizeRMC::smtAnalyze(Function &F) {
   z3::context c;
-  z3::solver s(c);
+  solver s(c);
 
   VarMaps m = {
     pc_,
