@@ -69,6 +69,18 @@ int sb_test1(int *p, int *q) {
     return x;
 }
 
+// Store buffering test using pre/post
+int sb_test2(int *p, int *q) {
+    VEDGE(pre, push); XEDGE(post, read);
+
+    *p = 1;
+    L(push, PUSH);
+    int x = *q;
+
+    return x;
+}
+
+
 // Some tests of pre and post. Really I should get some RW/RMW support...
 void store_release(int *ptr, int val) {
     VEDGE(pre, store);
