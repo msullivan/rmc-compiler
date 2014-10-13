@@ -62,6 +62,8 @@ const bool kInvertBools = false;
 
 ///////
 // Printing functions I wish didn't have to be here
+namespace llvm {
+
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   switch (t) {
     case VisibilityEdge:
@@ -85,6 +87,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
   return os;
 }
 
+}
 
 // Compute the transitive closure of the action graph
 void transitiveClosure(std::vector<Action> &actions,

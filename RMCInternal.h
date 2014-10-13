@@ -17,6 +17,7 @@ enum RMCEdgeType {
   VisibilityEdge,
   ExecutionEdge
 };
+raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
 //// Information for a node in the RMC graph.
 enum ActionType {
@@ -85,6 +86,7 @@ struct RMCEdge {
     os << srcName << " -" << edgeType << "-> " << dstName;
   }
 };
+raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e);
 
 //// Cuts in the graph
 enum CutType {
