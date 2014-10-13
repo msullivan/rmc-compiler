@@ -801,16 +801,14 @@ void RealizeRMC::cutPrePostEdges(Function &F) {
       Action *a = edge.src;
       BasicBlock *bb = getSingleSuccessor(a->bb);
 
-      // We generate ctrlisync for simple reads and lwsync otherwise
-      if (a->soleLoad) {
+      // We generate ctrlisync for simple xo reads and lwsync otherwise
+      if (edge.edgeType == ExecutionEdge && a->soleLoad) {
         makeCtrlIsync(a->soleLoad, &bb->front());
         cuts_[bb] = EdgeCut(CutCtrlIsync, true, a->soleLoad);
       } else {
         makeLwsync(&bb->front());
         cuts_[bb] = EdgeCut(CutLwsync, true);
       }
-    } else {
-      assert(edge.dst || edge.src);
     }
   }
 }
