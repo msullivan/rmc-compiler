@@ -95,9 +95,9 @@ enum CutType {
   CutLwsync,
   CutSync
 };
-struct EdgeCut {
-  EdgeCut() : type(CutNone), isFront(false), read(nullptr) {}
-  EdgeCut(CutType ptype, bool pfront, Value *pread = nullptr)
+struct BlockCut {
+  BlockCut() : type(CutNone), isFront(false), read(nullptr) {}
+  BlockCut(CutType ptype, bool pfront, Value *pread = nullptr)
     : type(ptype), isFront(pfront), read(pread) {}
   CutType type;
   bool isFront;
@@ -119,7 +119,7 @@ private:
   std::vector<RMCEdge> edges_;
   SmallPtrSet<Action *, 4> pushes_;
   DenseMap<BasicBlock *, Action *> bb2action_;
-  DenseMap<BasicBlock *, EdgeCut> cuts_;
+  DenseMap<BasicBlock *, BlockCut> cuts_;
   PathCache pc_;
 
   // Functions

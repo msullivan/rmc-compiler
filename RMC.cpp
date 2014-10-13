@@ -386,7 +386,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 
     auto cut_i = cuts_.find(bb);
     if (cut_i != cuts_.end()) {
-      const EdgeCut &cut = cut_i->second;
+      const BlockCut &cut = cut_i->second;
       bool cutHits = !(isFront && cut.isFront) && !(isBack && !cut.isFront);
       // sync and lwsync cuts
       if (cut.type >= CutLwsync && cutHits) {
@@ -494,12 +494,12 @@ void RealizeRMC::cutPushes() {
     assert(action->isPush);
     BasicBlock *bb = action->bb;
     makeSync(&bb->front());
-    cuts_[bb] = EdgeCut(CutSync, true);
+    cuts_[bb] = BlockCut(CutSync, true);
     // XXX: since we can't actually handle cuts on the front and the
     // back and because the sync is the only thing in the block and so
-    // cuts at both the front and back, we insert a bogus EdgeCut in
+    // cuts at both the front and back, we insert a bogus BlockCut in
     // the next block.
-    cuts_[getSingleSuccessor(bb)] = EdgeCut(CutSync, true);
+    cuts_[getSingleSuccessor(bb)] = BlockCut(CutSync, true);
   }
 }
 
@@ -510,7 +510,7 @@ void RealizeRMC::cutPrePostEdges() {
       // Pre edges always need an lwsync
       BasicBlock *bb = edge.dst->bb;
       makeLwsync(&bb->front());
-      cuts_[bb] = EdgeCut(CutLwsync, true);
+      cuts_[bb] = BlockCut(CutLwsync, true);
     } else if (!edge.dst) { // post
       Action *a = edge.src;
       BasicBlock *bb = getSingleSuccessor(a->bb);
@@ -518,10 +518,10 @@ void RealizeRMC::cutPrePostEdges() {
       // We generate ctrlisync for simple xo reads and lwsync otherwise
       if (edge.edgeType == ExecutionEdge && a->soleLoad) {
         makeCtrlIsync(a->soleLoad, &bb->front());
-        cuts_[bb] = EdgeCut(CutCtrlIsync, true, a->soleLoad);
+        cuts_[bb] = BlockCut(CutCtrlIsync, true, a->soleLoad);
       } else {
         makeLwsync(&bb->front());
-        cuts_[bb] = EdgeCut(CutLwsync, true);
+        cuts_[bb] = BlockCut(CutLwsync, true);
       }
     }
   }
@@ -535,7 +535,7 @@ void RealizeRMC::cutEdge(RMCEdge &edge) {
   makeLwsync(&bb->front());
   // XXX: we need to make sure we can't ever fail to track a cut at one side
   // of a block because we inserted one at the other! Argh!
-  cuts_[bb] = EdgeCut(CutLwsync, true);
+  cuts_[bb] = BlockCut(CutLwsync, true);
 }
 
 void RealizeRMC::cutEdges() {
