@@ -104,6 +104,17 @@ struct BlockCut {
   Value *read;
 };
 
+struct EdgeCut {
+  EdgeCut() : type(CutNone), src(nullptr), dst(nullptr), read(nullptr) {}
+  EdgeCut(CutType ptype, BasicBlock *psrc, BasicBlock *pdst,
+          Value *pread = nullptr)
+    : type(ptype), src(psrc), dst(pdst), read(pread) {}
+  CutType type;
+  BasicBlock *src;
+  BasicBlock *dst;
+  Value *read;
+};
+
 enum CutStrength {
   NoCut,
   SoftCut, // Is cut for one loop iteration
@@ -139,7 +150,9 @@ private:
   void processEdge(CallInst *call);
   void processPush(CallInst *call);
 
-  void smtAnalyze();
+  void insertCut(const EdgeCut &cut);
+
+  std::vector<EdgeCut> smtAnalyze();
 
 public:
   RealizeRMC(Function &F) : func_(F) { }

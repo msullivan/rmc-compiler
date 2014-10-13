@@ -311,7 +311,7 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     });
 }
 
-void RealizeRMC::smtAnalyze() {
+std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
   solver s(c);
 
@@ -381,6 +381,8 @@ void RealizeRMC::smtAnalyze() {
     std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
   }
 
+  std::vector<EdgeCut> cuts;
+
   // Find the lwsyncs we are inserting
   errs() << "\nLwsyncs to insert:\n";
   for (auto & entry : m.lwsync.map) {
@@ -388,9 +390,12 @@ void RealizeRMC::smtAnalyze() {
     z3::expr cst = entry.second;
     bool val = extractBool(model.eval(cst));
     if (val) {
+      cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
       errs() << edge.first->getName() << " -> "
              << edge.second->getName() << "\n";
     }
   }
   errs() << "\n";
+
+  return cuts;
 }

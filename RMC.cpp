@@ -41,6 +41,8 @@
 
 using namespace llvm;
 
+const bool kUseSMT = true;
+
 ///////
 // Printing functions I wish didn't have to be here
 namespace llvm {
@@ -576,6 +578,24 @@ void buildActionGraph(Function &F, std::vector<Action> &actions) {
   dumpGraph(actions);
 }
 
+// Find the instruction to insert a cut in front of.
+// This is either the last instruction of the source or the first
+// instruction of the destination, depending on whether the source has
+// multiple outgoing edges. Because we broke critical edges, we can
+// not have that there are multiple incoming to dst and multiple
+// outgoing from source.
+Instruction *getCutInstr(const EdgeCut &cut) {
+  TerminatorInst *term = cut.src->getTerminator();
+  return term->getNumSuccessors() == 1 ? term : &cut.dst->front();
+}
+
+void RealizeRMC::insertCut(const EdgeCut &cut) {
+  // For now we only have lwsync
+  assert(cut.type == CutLwsync);
+  // FIXME: it would be nice if we were clever enough to notice when
+  // every edge out of a block as the same cut and merge them.
+  makeLwsync(getCutInstr(cut));
+}
 
 bool RealizeRMC::run() {
   findActions();
@@ -597,14 +617,20 @@ bool RealizeRMC::run() {
 
   cutPushes();
   cutPrePostEdges();
-  cutEdges();
 
-  smtAnalyze();
+  if (!kUseSMT) {
+    cutEdges();
+  } else {
+    auto cuts = smtAnalyze();
+    for (auto & cut : cuts) {
+      insertCut(cut);
+    }
+  }
 
   return true;
 }
 
-// The actual pass. It has a bogus setup return and otherwise
+// The actual pass. It has a bogus setup routine and otherwise
 // calls out to RealizeRMC.
 class RealizeRMCPass : public FunctionPass {
 public:
