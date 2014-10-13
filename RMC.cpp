@@ -5,9 +5,6 @@
 // having one predecessor and one successor. We could probably even
 // force those to be empty without too much work by adding more labels...
 
-// BUG: we should have a check that the exit of action blocks is the
-// exit block
-
 // BUG: the handling of of the edge cut map is bogus. Right now we are
 // working around this by only ever having syncs at the start of
 // blocks.
@@ -420,8 +417,9 @@ StringRef getStringArg(Value *v) {
   return str.drop_back();
 }
 
-BasicBlock *getSingleSuccessor(BasicBlock *bb) {
-  assert(bb->getTerminator()->getNumSuccessors() == 1);
+BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
+  assert(bb->getTerminator()->getNumSuccessors() == 1 &&
+         "ERROR: Actions must not contain control flow!");
   return bb->getTerminator()->getSuccessor(0);
 }
 
@@ -490,13 +488,27 @@ public:
 
 };
 
-bool nameMatches(StringRef blockName, StringRef target) {
-  StringRef name = "_rmc_" + target.str() + "_";
+bool nameMatches(StringRef blockName, StringRef target,
+                 const char *prefix) {
+  StringRef name = prefix + target.str() + "_";
   if (!blockName.startswith(name)) return false;
   // Now make sure the rest is an int
   APInt dummy;
   return !blockName.drop_front(name.size()).getAsInteger(10, dummy);
 }
+
+bool blockMatches(const BasicBlock &block, StringRef target) {
+  if (!nameMatches(block.getName(), target, "_rmc_")) return false;
+  // Make sure that the block exit node is all in order: one exit, to the
+  // end block.
+  // We should maybe have a real error message at some point.
+  // We could also maybe do better than this?
+  assert(nameMatches(getSingleSuccessor(&block)->getName(),
+                     target, "__rmc_end_") &&
+         "ERROR: Actions must not contain control flow!");
+  return true;
+}
+
 
 void RealizeRMC::processEdge(Function &F, CallInst *call) {
   // Pull out what the operands have to be.
@@ -512,9 +524,9 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   // We could make this more efficient by building maps but I don't think
   // it is going to matter.
   for (auto & srcBB : F) {
-    if (!nameMatches(srcBB.getName(), srcName)) continue;
+    if (!blockMatches(srcBB, srcName)) continue;
     for (auto & dstBB : F) {
-      if (!nameMatches(dstBB.getName(), dstName)) continue;
+      if (!blockMatches(dstBB, dstName)) continue;
       Action *src = bb2action_[&srcBB];
       Action *dst = bb2action_[&dstBB];
 
@@ -532,7 +544,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   // Handle pre and post edges now
   if (srcName == "pre") {
     for (auto & dstBB : F) {
-      if (!nameMatches(dstBB.getName(), dstName)) continue;
+      if (!blockMatches(dstBB, dstName)) continue;
       Action *dst = bb2action_[&dstBB];
       dst->preEdge = edgeType;
       edges_.push_back({edgeType, nullptr, dst});
@@ -540,7 +552,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   }
   if (dstName == "post") {
     for (auto & srcBB : F) {
-      if (!nameMatches(srcBB.getName(), srcName)) continue;
+      if (!blockMatches(srcBB, srcName)) continue;
       Action *src = bb2action_[&srcBB];
       src->postEdge = edgeType;
       edges_.push_back({edgeType, src, nullptr});
