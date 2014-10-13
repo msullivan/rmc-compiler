@@ -9,6 +9,10 @@
 // working around this by only ever having syncs at the start of
 // blocks.
 
+#include "RMCInternal.h"
+
+#include "PathCache.h"
+
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -22,7 +26,9 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/SmallPtrSet.h>
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -35,12 +41,8 @@
 
 #include <z3++.h>
 
-using namespace llvm;
 
-namespace {
-#if 0 // I hate you, emacs. Is there a better way to work around this?
-}
-#endif
+using namespace llvm;
 
 // Some tuning parameters
 
@@ -59,14 +61,7 @@ const bool kCheckFirstGuess = false;
 const bool kInvertBools = false;
 
 ///////
-
-//// Some auxillary data structures
-enum RMCEdgeType {
-  NoEdge,
-  VisibilityEdge,
-  ExecutionEdge
-};
-
+// Printing functions I wish didn't have to be here
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   switch (t) {
     case VisibilityEdge:
@@ -85,228 +80,11 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
    return os;
 }
 
-
-///////////////////////////////////////////////////////////////////////////
-// Information for a node in the RMC graph.
-enum ActionType {
-  ActionComplex,
-  ActionPush,
-  ActionSimpleRead,
-  ActionSimpleWrites, // needs to be paired with a dep
-  ActionSimpleRMW
-};
-struct Action {
-  Action(BasicBlock *p_bb) :
-    bb(p_bb),
-    type(ActionComplex),
-    isPush(false),
-    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr),
-    preEdge(NoEdge), postEdge(NoEdge)
-    {}
-  void operator=(const Action &) LLVM_DELETED_FUNCTION;
-  Action(const Action &) LLVM_DELETED_FUNCTION;
-  Action(Action &&) = default; // move constructor!
-
-  BasicBlock *bb;
-
-  // Some basic info about what sort of instructions live in the action
-  ActionType type;
-  bool isPush;
-  int stores;
-  int loads;
-  int RMWs;
-  int calls;
-  LoadInst *soleLoad;
-
-  // Pre and post edges
-  RMCEdgeType preEdge;
-  RMCEdgeType postEdge;
-
-  // Edges in the graph.
-  // XXX: Would we be better off storing this some other way?
-  // a <ptr, type> pair?
-  // And should we store v edges in x
-  SmallPtrSet<Action *, 2> execEdges;
-  SmallPtrSet<Action *, 2> visEdges;
-
-  typedef SmallPtrSet<Action *, 8> TransEdges;
-  TransEdges execTransEdges;
-  TransEdges visTransEdges;
-};
-
-// Info about an RMC edge
-struct RMCEdge {
-  RMCEdgeType edgeType;
-  // Null pointers for src and dst indicate pre and post edges, respectively.
-  // This is a little frumious.
-  Action *src;
-  Action *dst;
-
-  bool operator<(const RMCEdge& rhs) const {
-    return std::tie(edgeType, src, dst)
-      < std::tie(rhs.edgeType, rhs.src, rhs.dst);
-  }
-
-  void print(raw_ostream &os) const {
-    // substr(5) is to drop "_rmc_" from the front
-    auto srcName = src ? src->bb->getName().substr(5) : "pre";
-    auto dstName = dst ? dst->bb->getName().substr(5) : "post";
-    os << srcName << " -" << edgeType << "-> " << dstName;
-  }
-};
-
 raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
   e.print(os);
   return os;
 }
 
-// Cuts in the graph
-enum CutType {
-  CutNone,
-  CutCtrlIsync, // needs to be paired with a dep
-  CutLwsync,
-  CutSync
-};
-struct EdgeCut {
-  EdgeCut() : type(CutNone), isFront(false), read(nullptr) {}
-  EdgeCut(CutType ptype, bool pfront, Value *pread = nullptr)
-    : type(ptype), isFront(pfront), read(pread) {}
-  CutType type;
-  bool isFront;
-  Value *read;
-};
-
-enum CutStrength {
-  NoCut,
-  SoftCut, // Is cut for one loop iteration
-  HardCut
-};
-
-
-///////////////////////////////////////////////////////////////////////////
-// Graph algorithms
-
-// Code to find all simple paths between two basic blocks.
-// Could generalize more to graphs if we wanted, but I don't right
-// now.
-
-typedef int PathID;
-typedef SmallVector<PathID, 2> PathList;
-typedef std::vector<BasicBlock *> Path;
-
-// Structure to manage path information, which we do in order to
-// provide small unique path identifiers.
-class PathCache {
-public:
-  void clear() { entries_.clear(); cache_.clear(); }
-  PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                              bool allowSelfCycle = false);
-  Path extractPath(PathID k) const;
-
-  const PathID kEmptyPath = -1;
-  typedef std::pair<BasicBlock *, PathID> PathCacheEntry;
-
-  bool isEmpty(PathID k) const { return k == kEmptyPath; }
-
-  PathCacheEntry const &getEntry(PathID k) const { return entries_[k]; }
-  BasicBlock *getHead(PathID k) const { return entries_[k].first; }
-  PathID getTail(PathID k) const { return entries_[k].second; }
-
-private:
-
-  std::vector<PathCacheEntry> entries_;
-  DenseMap<PathCacheEntry, PathID> cache_;
-
-  PathID addToPath(BasicBlock *b, PathID id);
-
-  typedef SmallPtrSet<BasicBlock *, 8> GreySet;
-  PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
-                              bool allowSelfCycle = false);
-};
-
-
-PathID PathCache::addToPath(BasicBlock *b, PathID id) {
-  PathCacheEntry key = std::make_pair(b, id);
-
-  auto entry = cache_.find(key);
-  if (entry != cache_.end()) {
-    //errs() << "Found (" << b->getName() << ", " << id << ") as " << entry->second << "\n";
-    return entry->second;
-  }
-
-  PathID newID = entries_.size();
-  entries_.push_back(key);
-
-  cache_.insert(std::make_pair(key, newID));
-  //errs() << "Added (" << b->getName() << ", " << id << ") as " << newID << "\n";
-  return newID;
-}
-
-Path PathCache::extractPath(PathID k) const {
-  Path path;
-  while (!isEmpty(k)) {
-    path.push_back(getHead(k));
-    k = getTail(k);
-  }
-  return path;
-}
-
-PathList PathCache::findAllSimplePaths(GreySet *grey,
-                                       BasicBlock *src, BasicBlock *dst,
-                                       bool allowSelfCycle) {
-  PathList paths;
-  if (src == dst && !allowSelfCycle) {
-    PathID path = addToPath(dst, kEmptyPath);
-    paths.push_back(path);
-    return paths;
-  }
-  if (grey->count(src)) return paths;
-
-  grey->insert(src);
-
-  // We consider all exits from a function to loop back to the start
-  // edge, so we need to handle that unfortunate case.
-  if (isa<ReturnInst>(src->getTerminator())) {
-    BasicBlock *entry = &src->getParent()->getEntryBlock();
-    paths = findAllSimplePaths(grey, entry, dst);
-  }
-  // Go search all the normal successors
-  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllSimplePaths(grey, *i, dst);
-    std::move(subpaths.begin(), subpaths.end(), std::back_inserter(paths));
-  }
-
-  // Add our step to all of the vectors
-  for (auto & path : paths) {
-    path = addToPath(src, path);
-  }
-
-  // Remove it from the set of things we've seen. We might come
-  // through here again.
-  // We can't really do any sort of memoization, since in a cyclic
-  // graph the possible simple paths depend not just on what node we
-  // are on, but our previous path (to avoid looping).
-  grey->erase(src);
-
-  return paths;
-}
-
-PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                                       bool allowSelfCycle) {
-  GreySet grey;
-  return findAllSimplePaths(&grey, src, dst, allowSelfCycle);
-}
-
-////
-void dumpPaths(const PathCache &pc, const PathList &paths) {
-  for (auto & pathid : paths) {
-    Path path = pc.extractPath(pathid);
-    for (auto block : path) {
-      errs() << block->getName() << " -> ";
-    }
-    errs() << "\n";
-  }
-}
 
 // Compute the transitive closure of the action graph
 void transitiveClosure(std::vector<Action> &actions,
@@ -760,7 +538,7 @@ CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
   PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
-  dumpPaths(pc_, paths);
+  pc_.dumpPaths(paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(F, edge, path,
                                          enforceSoft, justCheckCtrl);
@@ -1278,4 +1056,3 @@ void RealizeRMC::smtAnalyze(Function &F) {
 
 char RealizeRMC::ID = 0;
 RegisterPass<RealizeRMC> X("realize-rmc", "Compile RMC annotations");
-}
