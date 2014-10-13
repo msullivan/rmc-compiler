@@ -339,7 +339,7 @@ void RealizeRMC::findEdges() {
     // Grab the instruction and advance the iterator at the start, since
     // we might delete the instruction.
     Instruction *i = &*is;
-    is++;
+    ++is;
 
     CallInst *call = dyn_cast<CallInst>(i);
     if (!call) continue;
@@ -365,15 +365,15 @@ void analyzeAction(Action &info) {
   LoadInst *soleLoad = nullptr;
   for (auto & i : *info.bb) {
     if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
-      info.loads++;
+      ++info.loads;
       soleLoad = load;
     } else if (isa<StoreInst>(i)) {
-      info.stores++;
+      ++info.stores;
     // What else counts as a call? I'm counting fences I guess.
     } else if (isa<CallInst>(i) || isa<FenceInst>(i)) {
-      info.calls++;
+      ++info.calls;
     } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
-      info.RMWs++;
+      ++info.RMWs;
     }
   }
   // Try to characterize what this action does.
@@ -432,7 +432,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   Instruction *soleLoad = edge.src->soleLoad;
 
   // Paths are backwards.
-  for (auto i = path.begin(), e = path.end(); i != e; i++) {
+  for (auto i = path.begin(), e = path.end(); i != e; ++i) {
     bool isFront = i == path.begin(), isBack = i == e-1;
     BasicBlock *bb = *i;
 
@@ -485,7 +485,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
         hasSoftCut = true;
         break;
       }
-      idx++;
+      ++idx;
     }
 
     if (!hasSoftCut || !enforceSoft) continue;
@@ -872,7 +872,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
 
     // Compute the node's incoming capacity
     z3::expr incomingCap = c.int_val(0);
-    for (auto i = pred_begin(&block), e = pred_end(&block); i != e; i++) {
+    for (auto i = pred_begin(&block), e = pred_end(&block); i != e; ++i) {
       incomingCap = incomingCap + getEdgeFunc(edgeCapM, *i, &block);
     }
     if (&block != &F.getEntryBlock()) {
@@ -882,7 +882,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     // Setup equations for outgoing edges
     auto i = succ_begin(&block), e = succ_end(&block);
     int childCount = e - i;
-    for (; i != e; i++) {
+    for (; i != e; ++i) {
       // For now, we assume even probabilities.
       // Would be an improvement to do better
       z3::expr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
@@ -1007,7 +1007,7 @@ void RealizeRMC::smtAnalyze() {
   z3::expr cost = c.int_val(0);
   for (auto & block : func_) {
     BasicBlock *src = &block;
-    for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
+    for (auto i = succ_begin(src), e = succ_end(src); i != e; ++i) {
       BasicBlock *dst = *i;
       cost = cost +
         (boolToInt(getEdgeFunc(m.lwsync, src, dst)) *
@@ -1035,7 +1035,7 @@ void RealizeRMC::smtAnalyze() {
   // Output the model
   z3::model model = s.get_model();
   // traversing the model
-  for (unsigned i = 0; i < model.size(); i++) {
+  for (unsigned i = 0; i < model.size(); ++i) {
     z3::func_decl v = model[i];
     // this problem contains only constants
     assert(v.arity() == 0);
