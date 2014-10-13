@@ -49,14 +49,12 @@ namespace {
 // whatever.
 #define USE_Z3_OPTIMIZER 1
 
-#if not(USE_Z3_OPTIMIZER)
 // Should we pick the initial upper bound by seeing what the solver
 // produces without constraints instead of by binary searching up?
 const bool kGuessUpperBound = false;
 // If we guess an upper bound, should we hope that it is optimal and
 // check the bound - 1 before we binary search?
 const bool kCheckFirstGuess = false;
-#endif
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
@@ -969,7 +967,7 @@ Cost findFirstTrue(CostPred pred, Cost lo, Cost hi) {
 
 // Given a monotonic predicate pred that is not always false, find the
 // lowest value c for which pred(c) is true.
-Cost optimizeProblem(CostPred pred) {
+Cost findFirstTrue(CostPred pred) {
   Cost lo = 1, hi = 1;
 
   // Search upwards to find some value for which pred(c) holds.
@@ -981,6 +979,32 @@ Cost optimizeProblem(CostPred pred) {
 
   return findFirstTrue(pred, lo+1, hi);
 }
+
+// Given a solver and an expression, find a solution that minimizes
+// the expression..
+void handMinimize(solver &s, z3::expr &costVar) {
+  auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
+  Cost minCost;
+  if (kGuessUpperBound) {
+    // This is in theory arbitrarily worse but might be better in
+    // practice. Although the cost is bounded by the number of things
+    // we could do, so...
+    s.check();
+    Cost upperBound = extractInt(s.get_model().eval(costVar));
+    errs() << "Upper bound: " << upperBound << "\n";
+    // The solver seems to often "just happen" to find the optimal
+    // solution, so maybe do a quick check on upperBound-1
+    if (kCheckFirstGuess && upperBound > 0 && !costPred(--upperBound)) {
+      minCost = upperBound + 1;
+    } else {
+      minCost = findFirstTrue(costPred, 1, upperBound);
+    }
+  } else {
+    minCost = findFirstTrue(costPred);
+  }
+  s.add(costVar == s.ctx().int_val(minCost));
+}
+
 
 // DenseMap can use pairs of keys as keys, so we represent edges as a
 // pair of BasicBlock*s. We represent paths as PathIDs.
@@ -1168,7 +1192,6 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     });
 }
 
-
 void RealizeRMC::smtAnalyze(Function &F) {
   z3::context c;
   solver s(c);
@@ -1222,26 +1245,7 @@ void RealizeRMC::smtAnalyze(Function &F) {
 #if USE_Z3_OPTIMIZER
   s.minimize(costVar);
 #else
-  auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
-  Cost minCost;
-  if (kGuessUpperBound) {
-    // This is in theory arbitrarily worse but might be better in
-    // practice. Although the cost is bounded by the number of things
-    // we could do, so...
-    s.check();
-    Cost upperBound = extractInt(s.get_model().eval(costVar));
-    errs() << "Upper bound: " << upperBound << "\n";
-    // The solver seems to often "just happen" to find the optimal
-    // solution, so maybe do a quick check on upperBound-1
-    if (kCheckFirstGuess && upperBound > 0 && !costPred(--upperBound)) {
-      minCost = upperBound + 1;
-    } else {
-      minCost = findFirstTrue(costPred, 1, upperBound);
-    }
-  } else {
-    minCost = optimizeProblem(costPred);
-  }
-  s.add(costVar == c.int_val(minCost));
+  handMinimize(s, costVar);
 #endif
 
   // OK, go solve it.
