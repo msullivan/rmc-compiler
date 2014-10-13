@@ -21,6 +21,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
 //// Information for a node in the RMC graph.
 enum ActionType {
+  ActionPrePost,
   ActionComplex,
   ActionPush,
   ActionSimpleRead,
@@ -32,8 +33,7 @@ struct Action {
     bb(p_bb),
     type(ActionComplex),
     isPush(false),
-    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr),
-    preEdge(NoEdge), postEdge(NoEdge)
+    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr)
     {}
   void operator=(const Action &) LLVM_DELETED_FUNCTION;
   Action(const Action &) LLVM_DELETED_FUNCTION;
@@ -49,10 +49,6 @@ struct Action {
   int RMWs;
   int calls;
   LoadInst *soleLoad;
-
-  // Pre and post edges
-  RMCEdgeType preEdge;
-  RMCEdgeType postEdge;
 
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
@@ -143,10 +139,10 @@ private:
   void findActions();
   void findEdges();
   void cutPushes();
-  void cutPrePostEdges();
   void cutEdges();
   void cutEdge(RMCEdge &edge);
 
+  Action *makePrePostAction(BasicBlock *bb);
   void processEdge(CallInst *call);
   void processPush(CallInst *call);
 

@@ -226,6 +226,25 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
   return true;
 }
 
+Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
+  actions_.emplace_back(bb);
+  Action *a = &actions_.back();
+  bb2action_[bb] = a;
+  a->type = ActionPrePost;
+  return a;
+}
+
+void registerEdge(std::vector<RMCEdge> &edges,
+                  RMCEdgeType edgeType,
+                  Action *src, Action *dst) {
+  // Insert into the graph and the list of edges
+  if (edgeType == VisibilityEdge) {
+    src->visEdges.insert(dst);
+  } else {
+    src->execEdges.insert(dst);
+  }
+  edges.push_back({edgeType, src, dst});
+}
 
 void RealizeRMC::processEdge(CallInst *call) {
   // Pull out what the operands have to be.
@@ -246,33 +265,28 @@ void RealizeRMC::processEdge(CallInst *call) {
       if (!blockMatches(dstBB, dstName)) continue;
       Action *src = bb2action_[&srcBB];
       Action *dst = bb2action_[&dstBB];
-
-      // Insert into the graph and the list of edges
-      if (edgeType == VisibilityEdge) {
-        src->visEdges.insert(dst);
-      } else {
-        src->execEdges.insert(dst);
-      }
-
-      edges_.push_back({edgeType, src, dst});
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
 
   // Handle pre and post edges now
+  // FIXME: we'll can run into trouble if the same blocks get
+  // pre/post'd multiple times and the array resizes. There is no
+  // reason to do this, but we should handle it.
   if (srcName == "pre") {
     for (auto & dstBB : func_) {
       if (!blockMatches(dstBB, dstName)) continue;
+      Action *src = makePrePostAction(dstBB.getSinglePredecessor());
       Action *dst = bb2action_[&dstBB];
-      dst->preEdge = edgeType;
-      edges_.push_back({edgeType, nullptr, dst});
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
   if (dstName == "post") {
     for (auto & srcBB : func_) {
       if (!blockMatches(srcBB, srcName)) continue;
       Action *src = bb2action_[&srcBB];
-      src->postEdge = edgeType;
-      edges_.push_back({edgeType, src, nullptr});
+      Action *dst = makePrePostAction(getSingleSuccessor(&srcBB));
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
 
@@ -312,6 +326,9 @@ void RealizeRMC::findEdges() {
 }
 
 void analyzeAction(Action &info) {
+  // Don't analyze the dummy pre/post actions!
+  if (info.type == ActionPrePost) return;
+
   LoadInst *soleLoad = nullptr;
   for (auto & i : *info.bb) {
     if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
@@ -353,7 +370,12 @@ void RealizeRMC::findActions() {
   }
 
   // Now, make the vector of actions and a mapping from BasicBlock *.
-  actions_.reserve(basicBlocks.size());
+  // We, somewhat tastelessly, reserve space for 3x the number of
+  // actions we actually have so that we have space for new pre/post
+  // actions that we might need to dummy up.
+  // We need to have all the space reserved in advance so that our
+  // pointers don't get invalidated when a resize happens.
+  actions_.reserve(3 * basicBlocks.size());
   for (auto bb : basicBlocks) {
     actions_.emplace_back(bb);
     bb2action_[bb] = &actions_.back();
@@ -505,30 +527,6 @@ void RealizeRMC::cutPushes() {
   }
 }
 
-void RealizeRMC::cutPrePostEdges() {
-  for (auto & edge : edges_) {
-    // TODO: be able to not do dumb shit when there is a push
-    if (!edge.src) { // pre
-      // Pre edges always need an lwsync
-      BasicBlock *bb = edge.dst->bb;
-      makeLwsync(&bb->front());
-      cuts_[bb] = BlockCut(CutLwsync, true);
-    } else if (!edge.dst) { // post
-      Action *a = edge.src;
-      BasicBlock *bb = getSingleSuccessor(a->bb);
-
-      // We generate ctrlisync for simple xo reads and lwsync otherwise
-      if (edge.edgeType == ExecutionEdge && a->soleLoad) {
-        makeCtrlIsync(a->soleLoad, &bb->front());
-        cuts_[bb] = BlockCut(CutCtrlIsync, true, a->soleLoad);
-      } else {
-        makeLwsync(&bb->front());
-        cuts_[bb] = BlockCut(CutLwsync, true);
-      }
-    }
-  }
-}
-
 void RealizeRMC::cutEdge(RMCEdge &edge) {
   if (isCut(edge)) return;
 
@@ -616,7 +614,6 @@ bool RealizeRMC::run() {
   buildActionGraph(func_, actions_);
 
   cutPushes();
-  cutPrePostEdges();
 
   if (!kUseSMT) {
     cutEdges();
