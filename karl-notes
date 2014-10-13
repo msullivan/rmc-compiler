@@ -14,14 +14,17 @@ Ignoring read-modify-writes, the algorithm is as follows:
 
     a. Every push edge is cut by a sync.
     b. Every W->W and R->W visibility edge is cut by a sync or lwsync.
-    c. Every R->R visibility edge is cut by a sync, lwsync,
+    c. Every R->R edge is cut by a sync, lwsync,
        control-isync, or data/address dependency.
-    d. Every R->W and R->R execution edge is cut by a sync, lwsync,
-       control-isync, or data/address dependency.
-       (XXX: actually, R->W execution can be cut by a ctrl dep)
+    d. Every R->W and execution edge is cut by a sync, lwsync,
+       control-isync, data/address dependency, or control dependency.
 
     Doing so is interesting, particularly when edges cross from one
     basic block to another.
+
+    Also, the execution stuff is a good deal trickier than that
+    because of edges across loops. (And there are /always/ edges
+    across loops, because the function will get called again!)
 
     Note that:
 
@@ -36,10 +39,21 @@ Ignoring read-modify-writes, the algorithm is as follows:
 --
 pre and post edges we will just add the stuff and then try to notice it.
 
-honestly maybe that's what we should do for push also?
+honestly maybe that's what we should do for push also? although, won't
+actually be hard to do push right, but maybe not worth the state space
+blowup.
 
 Should be a little careful because probably a common idiom will be:
   L(push, PUSH); VEDGE(pre, push); XEDGE(push, post);
 and we should just generate a single sync in place and not do dumb things.
 
 It will be common because I'll probably write a macro for it, so...
+
+Will actually need special handling of pre/push to posts even just for
+correctness!
+
+
+
+--
+I sort of dislike inserting all these barriers so early. I feel like
+it might inhibit llvm more than we want.
