@@ -576,6 +576,39 @@ void buildActionGraph(Function &F, std::vector<Action> &actions) {
   dumpGraph(actions);
 }
 
+void removeUselessEdges(std::vector<Action> &actions) {
+  for (auto & src : actions) {
+    ActionType st = src.type;
+
+    // Move the set out and filter by building a new one to avoid
+    // iterator invalidation woes.
+    auto newExec = std::move(src.execTransEdges);
+    for (Action *dst : newExec) {
+      errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
+      ActionType dt = dst->type;
+      if (!(st == ActionPush || dt == ActionPush ||
+            (st == ActionSimpleWrites && dt == ActionSimpleRead) ||
+            (st == ActionSimpleWrites && dt == ActionSimpleWrites))) {
+        src.execTransEdges.insert(dst);
+      }
+    }
+
+    auto newVis = std::move(src.visTransEdges);
+    for (Action *dst : src.visTransEdges) {
+      errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
+      ActionType dt = dst->type;
+      if (!(st == ActionPush || dt == ActionPush ||
+            /* R->R has same force as execution, and we made execution
+             * versions of all the vis edges. */
+            (st == ActionSimpleRead && dt == ActionSimpleRead) ||
+            (st == ActionSimpleWrites && dt == ActionSimpleWrites))) {
+        src.visTransEdges.insert(dst);
+      }
+    }
+  }
+}
+
+
 // Find the instruction to insert a cut in front of.
 // This is either the last instruction of the source or the first
 // instruction of the destination, depending on whether the source has
@@ -618,6 +651,7 @@ bool RealizeRMC::run() {
   if (!kUseSMT) {
     cutEdges();
   } else {
+    removeUselessEdges(actions_);
     auto cuts = smtAnalyze();
     for (auto & cut : cuts) {
       insertCut(cut);
