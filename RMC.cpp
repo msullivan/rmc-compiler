@@ -221,6 +221,8 @@ BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
 
 class RealizeRMC {
 private:
+  Function &func_;
+
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
   SmallPtrSet<Action *, 4> pushes_;
@@ -229,28 +231,28 @@ private:
   PathCache pc_;
 
   // Functions
-  CutStrength isPathCut(Function &F, const RMCEdge &edge, PathID path,
+  CutStrength isPathCut(const RMCEdge &edge, PathID path,
                         bool enforceSoft, bool justCheckCtrl);
-  CutStrength isEdgeCut(Function &F, const RMCEdge &edge,
+  CutStrength isEdgeCut(const RMCEdge &edge,
                         bool enforceSoft = false, bool justCheckCtrl = false);
-  bool isCut(Function &F, const RMCEdge &edge);
+  bool isCut(const RMCEdge &edge);
 
-  void findActions(Function &F);
-  void findEdges(Function &F);
-  void cutPushes(Function &F);
-  void cutPrePostEdges(Function &F);
-  void cutEdges(Function &F);
-  void cutEdge(Function &F, RMCEdge &edge);
+  void findActions();
+  void findEdges();
+  void cutPushes();
+  void cutPrePostEdges();
+  void cutEdges();
+  void cutEdge(RMCEdge &edge);
 
-  void processEdge(Function &F, CallInst *call);
-  void processPush(Function &F, CallInst *call);
+  void processEdge(CallInst *call);
+  void processPush(CallInst *call);
 
-  void smtAnalyze(Function &F);
+  void smtAnalyze();
 
 public:
-  RealizeRMC() { }
+  RealizeRMC(Function &F) : func_(F) { }
   ~RealizeRMC() { }
-  bool run(Function &F);
+  bool run();
 };
 
 bool nameMatches(StringRef blockName, StringRef target,
@@ -275,7 +277,7 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
 }
 
 
-void RealizeRMC::processEdge(Function &F, CallInst *call) {
+void RealizeRMC::processEdge(CallInst *call) {
   // Pull out what the operands have to be.
   // We just assert if something is wrong, which is not great UX.
   bool isVisibility = cast<ConstantInt>(call->getOperand(0))
@@ -288,9 +290,9 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
   // them by name.
   // We could make this more efficient by building maps but I don't think
   // it is going to matter.
-  for (auto & srcBB : F) {
+  for (auto & srcBB : func_) {
     if (!blockMatches(srcBB, srcName)) continue;
-    for (auto & dstBB : F) {
+    for (auto & dstBB : func_) {
       if (!blockMatches(dstBB, dstName)) continue;
       Action *src = bb2action_[&srcBB];
       Action *dst = bb2action_[&dstBB];
@@ -308,7 +310,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
 
   // Handle pre and post edges now
   if (srcName == "pre") {
-    for (auto & dstBB : F) {
+    for (auto & dstBB : func_) {
       if (!blockMatches(dstBB, dstName)) continue;
       Action *dst = bb2action_[&dstBB];
       dst->preEdge = edgeType;
@@ -316,7 +318,7 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
     }
   }
   if (dstName == "post") {
-    for (auto & srcBB : F) {
+    for (auto & srcBB : func_) {
       if (!blockMatches(srcBB, srcName)) continue;
       Action *src = bb2action_[&srcBB];
       src->postEdge = edgeType;
@@ -326,14 +328,14 @@ void RealizeRMC::processEdge(Function &F, CallInst *call) {
 
 }
 
-void RealizeRMC::processPush(Function &F, CallInst *call) {
+void RealizeRMC::processPush(CallInst *call) {
   Action *a = bb2action_[call->getParent()];
   pushes_.insert(a);
   a->isPush = true;
 }
 
-void RealizeRMC::findEdges(Function &F) {
-  for (inst_iterator is = inst_begin(F), ie = inst_end(F); is != ie;) {
+void RealizeRMC::findEdges() {
+  for (inst_iterator is = inst_begin(func_), ie = inst_end(func_); is != ie;) {
     // Grab the instruction and advance the iterator at the start, since
     // we might delete the instruction.
     Instruction *i = &*is;
@@ -347,9 +349,9 @@ void RealizeRMC::findEdges(Function &F) {
     // the calls.
     if (!target) continue;
     if (target->getName() == "__rmc_edge_register") {
-      processEdge(F, call);
+      processEdge(call);
     } else if (target->getName() == "__rmc_push") {
-      processPush(F, call);
+      processPush(call);
     } else {
       continue;
     }
@@ -391,10 +393,10 @@ void analyzeAction(Action &info) {
   }
 }
 
-void RealizeRMC::findActions(Function &F) {
+void RealizeRMC::findActions() {
   // First, collect all the basic blocks that are actions
   SmallPtrSet<BasicBlock *, 8> basicBlocks;
-  for (auto & block : F) {
+  for (auto & block : func_) {
     if (block.getName().startswith("_rmc_")) {
       basicBlocks.insert(&block);
     }
@@ -419,8 +421,7 @@ bool isSameValueWithBS(Value *v1, Value *v2) {
     call->getOperand(0) == v1;
 }
 
-CutStrength RealizeRMC::isPathCut(Function &F,
-                                  const RMCEdge &edge,
+CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
                                   PathID pathid,
                                   bool enforceSoft,
                                   bool justCheckCtrl) {
@@ -506,13 +507,13 @@ CutStrength RealizeRMC::isPathCut(Function &F,
   return hasSoftCut ? SoftCut : NoCut;
 }
 
-CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
+CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
   PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
   pc_.dumpPaths(paths);
   for (auto & path : paths) {
-    CutStrength pathStrength = isPathCut(F, edge, path,
+    CutStrength pathStrength = isPathCut(edge, path,
                                          enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
   }
@@ -520,15 +521,15 @@ CutStrength RealizeRMC::isEdgeCut(Function &F, const RMCEdge &edge,
   return strength;
 }
 
-bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
-  switch (isEdgeCut(F, edge)) {
+bool RealizeRMC::isCut(const RMCEdge &edge) {
+  switch (isEdgeCut(edge)) {
     case HardCut: return true;
     case NoCut: return false;
     case SoftCut:
-      if (isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
+      if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
           > NoCut) {
-        isEdgeCut(F, edge, true, true);
-        isEdgeCut(F, RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
+        isEdgeCut(edge, true, true);
+        isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
         return true;
       } else {
         return false;
@@ -537,7 +538,7 @@ bool RealizeRMC::isCut(Function &F, const RMCEdge &edge) {
 }
 
 
-void RealizeRMC::cutPushes(Function &F) {
+void RealizeRMC::cutPushes() {
   // We just insert pushes wherever we see one, for now.
   // We could also have a notion of push edges derived from
   // the edges to and from a push action.
@@ -554,7 +555,7 @@ void RealizeRMC::cutPushes(Function &F) {
   }
 }
 
-void RealizeRMC::cutPrePostEdges(Function &F) {
+void RealizeRMC::cutPrePostEdges() {
   for (auto & edge : edges_) {
     // TODO: be able to not do dumb shit when there is a push
     if (!edge.src) { // pre
@@ -578,8 +579,8 @@ void RealizeRMC::cutPrePostEdges(Function &F) {
   }
 }
 
-void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
-  if (isCut(F, edge)) return;
+void RealizeRMC::cutEdge(RMCEdge &edge) {
+  if (isCut(edge)) return;
 
   // As a first pass, we just insert lwsyncs at the start of the destination.
   BasicBlock *bb = edge.dst->bb;
@@ -589,12 +590,12 @@ void RealizeRMC::cutEdge(Function &F, RMCEdge &edge) {
   cuts_[bb] = EdgeCut(CutLwsync, true);
 }
 
-void RealizeRMC::cutEdges(Function &F) {
+void RealizeRMC::cutEdges() {
   // Maybe we should actually use the graph structure we built?
   for (auto & edge : edges_) {
     // Drop pre/post edges, which we needed to handle earlier
     if (!edge.src || !edge.dst) continue;
-    cutEdge(F, edge);
+    cutEdge(edge);
   }
 }
 
@@ -628,13 +629,13 @@ void buildActionGraph(Function &F, std::vector<Action> &actions) {
 }
 
 
-bool RealizeRMC::run(Function &F) {
-  findActions(F);
-  findEdges(F);
+bool RealizeRMC::run() {
+  findActions();
+  findEdges();
 
   if (actions_.empty() && edges_.empty()) return false;
 
-  errs() << "Stuff to do for: " << F.getName() << "\n";
+  errs() << "Stuff to do for: " << func_.getName() << "\n";
   for (auto & edge : edges_) {
     errs() << "Found an edge: " << edge << "\n";
   }
@@ -644,13 +645,13 @@ bool RealizeRMC::run(Function &F) {
     analyzeAction(action);
   }
 
-  buildActionGraph(F, actions_);
+  buildActionGraph(func_, actions_);
 
-  cutPushes(F);
-  cutPrePostEdges(F);
-  cutEdges(F);
+  cutPushes();
+  cutPrePostEdges();
+  cutEdges();
 
-  smtAnalyze(F);
+  smtAnalyze();
 
   return true;
 }
@@ -674,8 +675,8 @@ public:
   }
   ~RealizeRMCPass() { }
   virtual bool runOnFunction(Function &F) {
-    RealizeRMC rmc;
-    return rmc.run(F);
+    RealizeRMC rmc(F);
+    return rmc.run();
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -971,7 +972,7 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     });
 }
 
-void RealizeRMC::smtAnalyze(Function &F) {
+void RealizeRMC::smtAnalyze() {
   z3::context c;
   solver s(c);
 
@@ -983,7 +984,7 @@ void RealizeRMC::smtAnalyze(Function &F) {
   };
 
   // Compute the capacity function
-  DenseMap<EdgeKey, int> edgeCap = computeCapacities(F);
+  DenseMap<EdgeKey, int> edgeCap = computeCapacities(func_);
 
   //////////
   // HOK. Make sure everything is cut. Just lwsync for now.
@@ -1004,7 +1005,7 @@ void RealizeRMC::smtAnalyze(Function &F) {
   // tuning.
   z3::expr costVar = c.int_const("cost");
   z3::expr cost = c.int_val(0);
-  for (auto & block : F) {
+  for (auto & block : func_) {
     BasicBlock *src = &block;
     for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
       BasicBlock *dst = *i;
