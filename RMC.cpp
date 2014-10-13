@@ -219,7 +219,7 @@ BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
-class RealizeRMC : public FunctionPass {
+class RealizeRMC {
 private:
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
@@ -228,6 +228,7 @@ private:
   DenseMap<BasicBlock *, EdgeCut> cuts_;
   PathCache pc_;
 
+  // Functions
   CutStrength isPathCut(Function &F, const RMCEdge &edge, PathID path,
                         bool enforceSoft, bool justCheckCtrl);
   CutStrength isEdgeCut(Function &F, const RMCEdge &edge,
@@ -246,39 +247,10 @@ private:
 
   void smtAnalyze(Function &F);
 
-  // Clear our data structures to save memory, make things clean for
-  // future runs.
-  void clear() {
-    actions_.clear();
-    edges_.clear();
-    pushes_.clear();
-    bb2action_.clear();
-    cuts_.clear();
-    pc_.clear();
-  }
-
 public:
-  static char ID;
-  RealizeRMC() : FunctionPass(ID) {
-    // This is definitely not the right way to do this.
-    char *target_cstr = getenv("RMC_PLATFORM");
-    std::string target_env = target_cstr ? target_cstr : "";
-    if (target_env == "x86") {
-      target = TargetX86;
-    } else if (target_env == "arm") {
-      target = TargetARM;
-    } else {
-      assert(false && "not given a supported target");
-    }
-  }
+  RealizeRMC() { }
   ~RealizeRMC() { }
-  virtual bool runOnFunction(Function &F);
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(BreakCriticalEdgesID);
-    AU.setPreservesCFG();
-  }
-
+  bool run(Function &F);
 };
 
 bool nameMatches(StringRef blockName, StringRef target,
@@ -656,7 +628,7 @@ void buildActionGraph(Function &F, std::vector<Action> &actions) {
 }
 
 
-bool RealizeRMC::runOnFunction(Function &F) {
+bool RealizeRMC::run(Function &F) {
   findActions(F);
   findEdges(F);
 
@@ -680,9 +652,38 @@ bool RealizeRMC::runOnFunction(Function &F) {
 
   smtAnalyze(F);
 
-  clear();
   return true;
 }
+
+// The actual pass. It has a bogus setup return and otherwise
+// calls out to RealizeRMC.
+class RealizeRMCPass : public FunctionPass {
+public:
+  static char ID;
+  RealizeRMCPass() : FunctionPass(ID) {
+    // This is definitely not the right way to do this.
+    char *target_cstr = getenv("RMC_PLATFORM");
+    std::string target_env = target_cstr ? target_cstr : "";
+    if (target_env == "x86") {
+      target = TargetX86;
+    } else if (target_env == "arm") {
+      target = TargetARM;
+    } else {
+      assert(false && "not given a supported target");
+    }
+  }
+  ~RealizeRMCPass() { }
+  virtual bool runOnFunction(Function &F) {
+    RealizeRMC rmc;
+    return rmc.run(F);
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequiredID(BreakCriticalEdgesID);
+    AU.setPreservesCFG();
+  }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////
 // SMT stuff
@@ -1054,5 +1055,5 @@ void RealizeRMC::smtAnalyze(Function &F) {
   errs() << "\n";
 }
 
-char RealizeRMC::ID = 0;
-RegisterPass<RealizeRMC> X("realize-rmc", "Compile RMC annotations");
+char RealizeRMCPass::ID = 0;
+RegisterPass<RealizeRMCPass> X("realize-rmc", "Compile RMC annotations");
