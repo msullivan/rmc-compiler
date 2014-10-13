@@ -386,18 +386,35 @@ Instruction *makeLwsync(Instruction *to_precede) {
   }
   return CallInst::Create(a, None, "", to_precede);
 }
-Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
+Instruction *makeIsync(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
+  FunctionType *f_ty =
+    FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a = nullptr;
+  if (target == TargetARM) {
+    a = makeAsm(f_ty, "isb @ isync", "~{memory}", true);
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "# isync", "~{memory}", true);
+  }
+  return CallInst::Create(a, None, "", to_precede);
+}
+Instruction *makeCtrl(Value *v, Instruction *to_precede) {
   LLVMContext &C = v->getContext();
   FunctionType *f_ty =
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: isb @ ctrlisync",
+    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: @ ctrl",
                 "r,~{memory}", true);
   } else if (target == TargetX86) {
-    a = makeAsm(f_ty, "# ctrlisync", "r,~{memory}", true);
+    a = makeAsm(f_ty, "# ctrl", "r,~{memory}", true);
   }
   return CallInst::Create(a, v, "", to_precede);
+}
+Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
+  Instruction *i = makeIsync(to_precede);
+  makeCtrl(v, i);
+  return i;
 }
 Instruction *makeCopy(Value *v, Instruction *to_precede) {
   FunctionType *f_ty = FunctionType::get(v->getType(), v->getType(), false);
