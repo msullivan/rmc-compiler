@@ -1,6 +1,10 @@
 #ifndef RMC_INTERNAL_H
 #define RMC_INTERNAL_H
 
+#include "PathCache.h"
+
+#include <llvm/ADT/DenseMap.h>
+
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/raw_ostream.h>
@@ -104,6 +108,42 @@ enum CutStrength {
   HardCut
 };
 
+// Class to track the analysis of the function and insert the syncs.
+class RealizeRMC {
+private:
+  Function &func_;
+
+  std::vector<Action> actions_;
+  std::vector<RMCEdge> edges_;
+  SmallPtrSet<Action *, 4> pushes_;
+  DenseMap<BasicBlock *, Action *> bb2action_;
+  DenseMap<BasicBlock *, EdgeCut> cuts_;
+  PathCache pc_;
+
+  // Functions
+  CutStrength isPathCut(const RMCEdge &edge, PathID path,
+                        bool enforceSoft, bool justCheckCtrl);
+  CutStrength isEdgeCut(const RMCEdge &edge,
+                        bool enforceSoft = false, bool justCheckCtrl = false);
+  bool isCut(const RMCEdge &edge);
+
+  void findActions();
+  void findEdges();
+  void cutPushes();
+  void cutPrePostEdges();
+  void cutEdges();
+  void cutEdge(RMCEdge &edge);
+
+  void processEdge(CallInst *call);
+  void processPush(CallInst *call);
+
+  void smtAnalyze();
+
+public:
+  RealizeRMC(Function &F) : func_(F) { }
+  ~RealizeRMC() { }
+  bool run();
+};
 
 }
 

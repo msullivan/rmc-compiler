@@ -219,42 +219,6 @@ BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
-class RealizeRMC {
-private:
-  Function &func_;
-
-  std::vector<Action> actions_;
-  std::vector<RMCEdge> edges_;
-  SmallPtrSet<Action *, 4> pushes_;
-  DenseMap<BasicBlock *, Action *> bb2action_;
-  DenseMap<BasicBlock *, EdgeCut> cuts_;
-  PathCache pc_;
-
-  // Functions
-  CutStrength isPathCut(const RMCEdge &edge, PathID path,
-                        bool enforceSoft, bool justCheckCtrl);
-  CutStrength isEdgeCut(const RMCEdge &edge,
-                        bool enforceSoft = false, bool justCheckCtrl = false);
-  bool isCut(const RMCEdge &edge);
-
-  void findActions();
-  void findEdges();
-  void cutPushes();
-  void cutPrePostEdges();
-  void cutEdges();
-  void cutEdge(RMCEdge &edge);
-
-  void processEdge(CallInst *call);
-  void processPush(CallInst *call);
-
-  void smtAnalyze();
-
-public:
-  RealizeRMC(Function &F) : func_(F) { }
-  ~RealizeRMC() { }
-  bool run();
-};
-
 bool nameMatches(StringRef blockName, StringRef target,
                  const char *prefix) {
   StringRef name = prefix + target.str() + "_";
