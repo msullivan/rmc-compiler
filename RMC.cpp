@@ -29,6 +29,7 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/ADT/iterator_range.h>
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -72,8 +73,9 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 
 }
 
-// Compute the transitive closure of the action graph
-void transitiveClosure(std::vector<Action> &actions,
+// Compute the transitive closure of the action grap
+template <typename Range>
+void transitiveClosure(Range &actions,
                        Action::TransEdges Action::* edgeset) {
   // Use Warshall's algorithm to compute the transitive closure. More
   // or less. I can probably be a little more clever since I have
@@ -376,6 +378,7 @@ void RealizeRMC::findActions() {
   // We need to have all the space reserved in advance so that our
   // pointers don't get invalidated when a resize happens.
   actions_.reserve(3 * basicBlocks.size());
+  numNormalActions_ = basicBlocks.size();
   for (auto bb : basicBlocks) {
     actions_.emplace_back(bb);
     bb2action_[bb] = &actions_.back();
@@ -560,7 +563,7 @@ void dumpGraph(std::vector<Action> &actions) {
   errs() << "\n";
 }
 
-void buildActionGraph(Function &F, std::vector<Action> &actions) {
+void buildActionGraph(std::vector<Action> &actions, int numReal) {
   // Copy the initial edge specifications into the transitive graph
   for (auto & a : actions) {
     a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
@@ -569,9 +572,11 @@ void buildActionGraph(Function &F, std::vector<Action> &actions) {
     a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
   }
 
-  // Now compute the closures
-  transitiveClosure(actions, &Action::execTransEdges);
-  transitiveClosure(actions, &Action::visTransEdges);
+  // Now compute the closures. We only compute the closure for the non
+  // pre/post edges.
+  auto realActions = make_range(actions.begin(), actions.begin() + numReal);
+  transitiveClosure(realActions, &Action::execTransEdges);
+  transitiveClosure(realActions, &Action::visTransEdges);
 
   dumpGraph(actions);
 }
@@ -644,7 +649,7 @@ bool RealizeRMC::run() {
     analyzeAction(action);
   }
 
-  buildActionGraph(func_, actions_);
+  buildActionGraph(actions_, numNormalActions_);
 
   cutPushes();
 

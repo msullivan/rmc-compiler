@@ -122,6 +122,7 @@ class RealizeRMC {
 private:
   Function &func_;
 
+  int numNormalActions_;
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
   SmallPtrSet<Action *, 4> pushes_;
@@ -151,7 +152,7 @@ private:
   std::vector<EdgeCut> smtAnalyze();
 
 public:
-  RealizeRMC(Function &F) : func_(F) { }
+  RealizeRMC(Function &F) : func_(F), numNormalActions_(0) { }
   ~RealizeRMC() { }
   bool run();
 };
