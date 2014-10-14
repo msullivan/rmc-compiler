@@ -304,8 +304,7 @@ void RealizeRMC::findEdges() {
   for (inst_iterator is = inst_begin(func_), ie = inst_end(func_); is != ie;) {
     // Grab the instruction and advance the iterator at the start, since
     // we might delete the instruction.
-    Instruction *i = &*is;
-    ++is;
+    Instruction *i = &*is++;
 
     CallInst *call = dyn_cast<CallInst>(i);
     if (!call) continue;
