@@ -87,16 +87,16 @@ Cost findFirstTrue(CostPred pred, Cost lo, Cost hi) {
 // Given a monotonic predicate pred that is not always false, find the
 // lowest value c for which pred(c) is true.
 Cost findFirstTrue(CostPred pred) {
-  Cost lo = 1, hi = 1;
+  Cost lo = 0, hi = 1;
 
   // Search upwards to find some value for which pred(c) holds.
   while (!pred(hi)) {
-    lo = hi;
+    lo = hi + 1;
     hi *= 2;
     assert(hi != 0); // fail if we overflow
   }
 
-  return findFirstTrue(pred, lo+1, hi);
+  return findFirstTrue(pred, lo, hi);
 }
 
 // Given a solver and an expression, find a solution that minimizes
@@ -115,8 +115,10 @@ void handMinimize(solver &s, z3::expr &costVar) {
     // solution, so maybe do a quick check on upperBound-1
     if (kCheckFirstGuess && upperBound > 0 && !costPred(--upperBound)) {
       minCost = upperBound + 1;
+    } else if (upperBound == 0) {
+      minCost = upperBound;
     } else {
-      minCost = findFirstTrue(costPred, 1, upperBound);
+      minCost = findFirstTrue(costPred, 0, upperBound);
     }
   } else {
     minCost = findFirstTrue(costPred);
