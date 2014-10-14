@@ -679,6 +679,23 @@ public:
     }
   }
   ~RealizeRMCPass() { }
+
+  virtual bool doInitialization(Module &M) {
+    // This is a bogus hack that we use to suppress testing all but a
+    // particular function; this is purely for debugging purposes
+    char *only_test = getenv("RMC_ONLY_TEST");
+    if (!only_test) return false;
+    for (auto i = M.begin(), e = M.end(); i != e;) {
+      Function *F = &*i++;
+      if (F->getName() != only_test) {
+        F->deleteBody();
+        // Remove instead of erase can leak, but there might be
+        // references and this is just a debugging hack anyways.
+        F->removeFromParent();
+      }
+    }
+    return true;
+  }
   virtual bool runOnFunction(Function &F) {
     RealizeRMC rmc(F);
     return rmc.run();
