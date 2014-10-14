@@ -588,8 +588,8 @@ void removeUselessEdges(std::vector<Action> &actions) {
     // Move the set out and filter by building a new one to avoid
     // iterator invalidation woes.
     auto newExec = std::move(src.execTransEdges);
+    src.execTransEdges.clear();
     for (Action *dst : newExec) {
-      //errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
       ActionType dt = dst->type;
       if (!(st == ActionPush || dt == ActionPush ||
             (st == ActionSimpleWrites && dt == ActionSimpleRead) ||
@@ -599,8 +599,8 @@ void removeUselessEdges(std::vector<Action> &actions) {
     }
 
     auto newVis = std::move(src.visTransEdges);
-    for (Action *dst : src.visTransEdges) {
-      //errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
+    src.visTransEdges.clear();
+    for (Action *dst : newVis) {
       ActionType dt = dst->type;
       if (!(st == ActionPush || dt == ActionPush ||
             /* R->R has same force as execution, and we made execution
