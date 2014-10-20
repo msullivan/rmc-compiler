@@ -62,3 +62,14 @@ implement pre and post by making dummy actions immediately before and
 after actions with pre/post constraints. The only tricky thing is that
 we need to make sure we don't try any funny business with dependencies
 for xo edges.
+
+
+------------------------------------------------------
+Things about the paper:
+  -- we need pushes for two threads writing to locations to get ordering:
+     maybe we should require co+vo to be acyclic? is this important
+  -- ISA2+lwsync+data+addr: our semantics don't allow us to generate this
+      code and be correct; vo+xo+xo would allow the forbidden behavior;
+      vo+vo+xo works, as does push+xo+xo;
+      push+xo+xo is maaaybe what we want on ARM, but vo+vo+xo is
+      definitely better on x86
