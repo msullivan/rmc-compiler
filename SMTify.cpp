@@ -172,8 +172,9 @@ z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
   if (entry != map.map.end()) {
     if (alreadyThere) *alreadyThere = true;
     return entry->second;
+  } else {
+    if (alreadyThere) *alreadyThere = false;
   }
-  if (alreadyThere) *alreadyThere = false;
 
   z3::context &c = map.sort.ctx();
   std::string name = map.name + makeVarString(key);
@@ -195,6 +196,7 @@ z3::expr getPathFunc(DeclMap<PathKey> &map,
                      bool *alreadyThere = nullptr) {
   return getFunc(map, makePathKey(path), alreadyThere);
 }
+
 ///////////////
 
 // We precompute this so that the solver doesn't need to consider
@@ -258,7 +260,9 @@ struct VarMaps {
   PathCache &pc;
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
+  DeclMap<EdgeKey> xcut;
   DeclMap<PathKey> pathVcut;
+  DeclMap<PathKey> pathXcut;
 };
 
 // Generalized it.
@@ -314,6 +318,18 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     });
 }
 
+z3::expr makePathXcut(solver &s, VarMaps &m,
+                      PathID path) {
+  bool alreadyMade;
+  z3::expr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
+  if (alreadyMade) return isCut;
+
+  s.add(isCut == makePathVcut(s, m, path));
+
+  return isCut;
+}
+
+
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
   solver s(c);
@@ -322,7 +338,9 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     pc_,
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
+    DeclMap<EdgeKey>(c.bool_sort(), "xcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
+    DeclMap<PathKey>(c.bool_sort(), "path_xcut"),
   };
 
   // Compute the capacity function
@@ -331,13 +349,22 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   //////////
   // HOK. Make sure everything is cut. Just lwsync for now.
   for (auto & src : actions_) {
-    for (auto dst : src.execTransEdges) {
+    for (auto dst : src.visTransEdges) {
       z3::expr isCut = getEdgeFunc(m.vcut, src.bb, dst->bb);
       s.add(isCut);
 
       z3::expr allPathsCut = forAllPaths(
         s, m, src.bb, dst->bb,
         [&] (PathID path) { return makePathVcut(s, m, path); });
+      s.add(isCut == allPathsCut);
+    }
+    for (auto dst : src.execTransEdges) {
+      z3::expr isCut = getEdgeFunc(m.xcut, src.bb, dst->bb);
+      s.add(isCut);
+
+      z3::expr allPathsCut = forAllPaths(
+        s, m, src.bb, dst->bb,
+        [&] (PathID path) { return makePathXcut(s, m, path); });
       s.add(isCut == allPathsCut);
     }
   }
