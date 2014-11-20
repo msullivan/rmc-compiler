@@ -35,10 +35,11 @@ typedef z3::solver solver;
 #endif
 
 // Z3 utility functions
-z3::expr boolToInt(z3::expr const &e) {
-  z3::context &c = e.ctx();
-  return ite(e, c.int_val(1), c.int_val(0));
+z3::expr boolToInt(z3::expr const &flag, int cost = 1) {
+  z3::context &c = flag.ctx();
+  return ite(flag, c.int_val(cost), c.int_val(0));
 }
+
 
 bool extractBool(z3::expr const &e) {
   auto b = Z3_get_bool_value(e.ctx(), e);
@@ -351,8 +352,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     for (auto i = succ_begin(src), e = succ_end(src); i != e; ++i) {
       BasicBlock *dst = *i;
       cost = cost +
-        (boolToInt(getEdgeFunc(m.lwsync, src, dst)) *
-         edgeCap[makeEdgeKey(src, dst)]);
+        boolToInt(getEdgeFunc(m.lwsync, src, dst),
+                  edgeCap[makeEdgeKey(src, dst)]);
     }
   }
   s.add(costVar == cost.simplify());
