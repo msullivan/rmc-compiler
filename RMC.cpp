@@ -395,6 +395,55 @@ bool isSameValueWithBS(Value *v1, Value *v2) {
     call->getOperand(0) == v1;
 }
 
+// FIXME: reorganize the namespace stuff?. Or put this in the class.
+namespace llvm {
+
+// Look for control dependencies on a read.
+bool branchesOn(BasicBlock *bb, Instruction *load,
+                ICmpInst **icmpOut, int *outIdx) {
+  // TODO: we should be able to follow values through phi nodes,
+  // since we are path dependent anyways.
+  BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
+  if (!br || !br->isConditional()) return false;
+  // TODO: We only check one level of things. Check deeper?
+  //if (br->getCondition() == soleLoad) {hasSoftCut = true; continue;}
+
+  // We pretty heavily restrict what operations we handle here.
+  // Some would just be wrong (like call), but really icmp is
+  // the main one, so. Probably we should be able to also
+  // pick through casts and wideness changes.
+  ICmpInst *icmp = dyn_cast<ICmpInst>(br->getCondition());
+  if (!icmp) return false;
+  int idx = 0;
+  for (auto v : icmp->operand_values()) {
+    if (isSameValueWithBS(load, v)) {
+      if (icmpOut) *icmpOut = icmp;
+      if (outIdx) *outIdx = idx;
+      return true;
+    }
+    ++idx;
+  }
+
+  return false;
+}
+
+}
+
+void enforceBranchOn(Instruction *load, BasicBlock *next,
+                     ICmpInst *icmp, int idx) {
+  // In order to keep LLVM from optimizing our stuff away we
+  // insert a dummy copy of the load and a compiler barrier in the
+  // target.
+  if (icmp->getOperand(idx) == load) {
+    // Only put in the copy if we haven't done it already.
+    Instruction *dummyCopy = makeCopy(load, icmp);
+    icmp->setOperand(idx, dummyCopy);
+  }
+  // If we were clever we would avoid putting in multiple barriers,
+  // but really who cares.
+  makeBarrier(&next->front());
+}
+
 CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
                                   PathID pathid,
                                   bool enforceSoft,
@@ -439,43 +488,15 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
           justCheckCtrl)) continue;
     if (hasSoftCut) continue;
 
-    // Look for control dependencies on a read.
-    // TODO: we should be able to follow values through phi nodes,
-    // since we are path dependent anyways.
-    BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
-    if (!br || !br->isConditional()) continue;
-    // TODO: We only check one level of things. Check deeper?
-    //if (br->getCondition() == soleLoad) {hasSoftCut = true; continue;}
+    // Is there a branch on the load?
+    int idx;
+    ICmpInst *icmp;
+    hasSoftCut = branchesOn(bb, soleLoad, &icmp, &idx);
 
-    // We pretty heavily restrict what operations we handle here.
-    // Some would just be wrong (like call), but really icmp is
-    // the main one, so. Probably we should be able to also
-    // pick through casts and wideness changes.
-    ICmpInst *icmp = dyn_cast<ICmpInst>(br->getCondition());
-    if (!icmp) continue;
-    int idx = 0;
-    for (auto v : icmp->operand_values()) {
-      if (isSameValueWithBS(soleLoad, v)) {
-        hasSoftCut = true;
-        break;
-      }
-      ++idx;
+    if (hasSoftCut && enforceSoft) {
+      BasicBlock *next = *(i+1);
+      enforceBranchOn(icmp, next, icmp, idx);
     }
-
-    if (!hasSoftCut || !enforceSoft) continue;
-
-    // In order to keep LLVM from optimizing our stuff away we
-    // insert a dummy copy of the load and a compiler barrier in the
-    // target.
-    if (icmp->getOperand(idx) == soleLoad) {
-      // Only put in the copy if we haven't done it already.
-      Instruction *dummyCopy = makeCopy(soleLoad, icmp);
-      icmp->setOperand(idx, dummyCopy);
-    }
-    // If we were clever we would avoid putting in multiple barriers,
-    // but really who cares.
-    BasicBlock *next = *(i+1);
-    makeBarrier(&next->front());
   }
 
   return hasSoftCut ? SoftCut : NoCut;

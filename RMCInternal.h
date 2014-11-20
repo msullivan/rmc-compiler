@@ -117,6 +117,11 @@ enum CutStrength {
   HardCut
 };
 
+// Utility functions
+bool branchesOn(BasicBlock *bb, Instruction *load,
+                ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
+
+
 // Class to track the analysis of the function and insert the syncs.
 class RealizeRMC {
 private:
