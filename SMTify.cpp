@@ -135,35 +135,35 @@ void handMinimize(solver &s, z3::expr &costVar) {
 // of string lookups anyways? Dunno.
 typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
 typedef PathID PathKey;
+typedef std::pair<BasicBlock *, PathID> BlockPathKey;
 EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
   return std::make_pair(src, dst);
 }
 PathKey makePathKey(PathID path) {
   return path;
 }
+BlockPathKey makeBlockPathKey(BasicBlock *block, PathID path) {
+  return std::make_pair(block, path);
+}
 
-std::string makeVarString(EdgeKey &key) {
-  std::ostringstream buffer;
-  buffer << "(" << key.first->getName().str()
-         << ", " << key.second->getName().str() << ")";
-  return buffer.str();
+std::string makeVarString(BasicBlock *key) {
+  return key->getName().str();
 }
 std::string makeVarString(PathKey &key) {
   std::ostringstream buffer;
-  buffer << "(path #" << key << ")";
+  buffer << "path #" << key;
   return buffer.str();
 }
-std::string makeVarString(BasicBlock *key) {
-  std::ostringstream buffer;
-  buffer << "(" << key->getName().str() << ")";
-  return buffer.str();
+template <typename T, typename U>
+std::string makeVarString(std::pair<T, U> &key) {
+  return makeVarString(key.first) + ", " + makeVarString(key.second);
 }
 
 template<typename Key> struct DeclMap {
   DeclMap(z3::sort isort, const char *iname) : sort(isort), name(iname) {}
   DenseMap<Key, z3::expr> map;
   z3::sort sort;
-  const char *name;
+  std::string name;
 };
 
 template<typename Key>
@@ -177,7 +177,7 @@ z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
   }
 
   z3::context &c = map.sort.ctx();
-  std::string name = map.name + makeVarString(key);
+  std::string name = map.name + "(" + makeVarString(key) + ")";
   z3::expr e = c.constant(name.c_str(), map.sort);
   // Can use inverted boolean variables to help test optimization.
   if (kInvertBools && map.sort.is_bool()) e = !e;
