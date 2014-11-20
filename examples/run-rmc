@@ -1,19 +1,27 @@
 #!/bin/bash
 set -e
 
-case "$1" in
-	--x86)
-		shift
-		RMC_PLATFORM=x86
-		;;
-	--arm)
-		shift
-		RMC_PLATFORM=arm
-		;;
-	*)
-		RMC_PLATFORM=arm
-		;;
-esac
+RMC_PLATFORM=arm
+
+while true
+do
+	case "$1" in
+		--x86)
+			shift
+			RMC_PLATFORM=x86
+			;;
+		--arm)
+			shift
+			RMC_PLATFORM=arm
+			;;
+		--smt)
+			shift
+			export RMC_USE_SMT=1 # export so pass gets it; ew
+			;;
+		*)
+			break
+	esac
+done
 export RMC_PLATFORM #export it so our pass will pick it up; ew.
 
 

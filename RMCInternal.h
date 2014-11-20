@@ -126,6 +126,7 @@ bool branchesOn(BasicBlock *bb, Instruction *load,
 class RealizeRMC {
 private:
   Function &func_;
+  bool useSMT_;
 
   int numNormalActions_;
   std::vector<Action> actions_;
@@ -157,7 +158,8 @@ private:
   std::vector<EdgeCut> smtAnalyze();
 
 public:
-  RealizeRMC(Function &F) : func_(F), numNormalActions_(0) { }
+  RealizeRMC(Function &F, bool useSMT)
+    : func_(F), useSMT_(useSMT), numNormalActions_(0) { }
   ~RealizeRMC() { }
   bool run();
 };

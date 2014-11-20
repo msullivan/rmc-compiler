@@ -42,8 +42,6 @@
 
 using namespace llvm;
 
-const bool kUseSMT = true;
-
 ///////
 // Printing functions I wish didn't have to be here
 namespace llvm {
@@ -673,7 +671,7 @@ bool RealizeRMC::run() {
 
   cutPushes();
 
-  if (!kUseSMT) {
+  if (!useSMT_) {
     cutEdges();
   } else {
     removeUselessEdges(actions_);
@@ -689,6 +687,9 @@ bool RealizeRMC::run() {
 // The actual pass. It has a bogus setup routine and otherwise
 // calls out to RealizeRMC.
 class RealizeRMCPass : public FunctionPass {
+private:
+  bool useSMT_;
+
 public:
   static char ID;
   RealizeRMCPass() : FunctionPass(ID) {
@@ -702,6 +703,9 @@ public:
     } else {
       assert(false && "not given a supported target");
     }
+
+    // OK, do we want to use SMT?
+    useSMT_ = getenv("RMC_USE_SMT") != nullptr;
   }
   ~RealizeRMCPass() { }
 
@@ -722,7 +726,7 @@ public:
     return true;
   }
   virtual bool runOnFunction(Function &F) {
-    RealizeRMC rmc(F);
+    RealizeRMC rmc(F, useSMT_);
     return rmc.run();
   }
 
