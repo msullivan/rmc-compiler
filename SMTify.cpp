@@ -387,7 +387,7 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
 }
 
 
-z3::expr makeXcut(solver &s, VarMaps &m, Action *src, Action *dst);
+z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst);
 
 z3::expr makePathXcut(solver &s, VarMaps &m,
                       PathID path, Action *tail) {
@@ -401,7 +401,8 @@ z3::expr makePathXcut(solver &s, VarMaps &m,
   z3::expr pathCtrlCut = makePathCtrlCut(s, m, path, tail);
   if (!isSelfPath) {
     pathCtrlCut = pathCtrlCut &&
-      (makeAllPathsCtrl(s, m, head, head));
+      (makeAllPathsCtrl(s, m, head, head) ||
+       makeXcut(s, m, head, m.bb2action[head]));
   }
 
   s.add(isCut ==
