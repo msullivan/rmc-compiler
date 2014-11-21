@@ -88,6 +88,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e);
 enum CutType {
   CutNone,
   CutCtrlIsync, // needs to be paired with a dep
+  CutCtrl,
   CutLwsync,
   CutSync
 };
@@ -118,7 +119,7 @@ enum CutStrength {
 };
 
 // Utility functions
-bool branchesOn(BasicBlock *bb, Instruction *load,
+bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
 
 

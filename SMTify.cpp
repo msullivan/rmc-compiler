@@ -136,6 +136,7 @@ void handMinimize(solver &s, z3::expr &costVar) {
 typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
 typedef PathID PathKey;
 typedef std::pair<BasicBlock *, PathID> BlockPathKey;
+typedef std::pair<BasicBlock *, EdgeKey> BlockEdgeKey;
 EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
   return std::make_pair(src, dst);
 }
@@ -144,6 +145,10 @@ PathKey makePathKey(PathID path) {
 }
 BlockPathKey makeBlockPathKey(BasicBlock *block, PathID path) {
   return std::make_pair(block, path);
+}
+BlockEdgeKey makeBlockEdgeKey(BasicBlock *block,
+                              BasicBlock *src, BasicBlock *dst) {
+  return std::make_pair(block, makeEdgeKey(src, dst));
 }
 
 std::string makeVarString(BasicBlock *key) {
@@ -257,12 +262,20 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
 
 
 struct VarMaps {
+  // Sigh.
   PathCache &pc;
+  DenseMap<BasicBlock *, Action *> &bb2action;
+
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
   DeclMap<EdgeKey> xcut;
   DeclMap<PathKey> pathVcut;
   DeclMap<PathKey> pathXcut;
+
+  DeclMap<BlockEdgeKey> usesCtrl;
+  DeclMap<BlockPathKey> pathCtrl;
+  DeclMap<EdgeKey> allPathsCtrl;
+  DeclMap<PathKey> pathCtrlCut;
 };
 
 // Generalized it.
@@ -276,7 +289,7 @@ z3::expr forAllPaths(solver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
   z3::expr allPaths = s.ctx().bool_val(true);
-  PathList paths = m.pc.findAllSimplePaths(src, dst);
+  PathList paths = m.pc.findAllSimplePaths(src, dst, true);
   for (auto & path : paths) {
     allPaths = allPaths && func(path);
   }
@@ -308,6 +321,59 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 
 
 //// Real stuff now.
+z3::expr makeCtrl(solver &s, VarMaps &m,
+                  BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
+  errs() << "lol\n";
+  Action *a = m.bb2action[dep];
+  assert(a->soleLoad);
+  if (branchesOn(src, a->soleLoad)) {
+    return getFunc(m.usesCtrl, makeBlockEdgeKey(dep, src, dst));
+  } else {
+    // TODO: be able to add deps
+    return s.ctx().bool_val(false);
+  }
+}
+
+z3::expr makePathCtrl(solver &s, VarMaps &m, PathID path) {
+  z3::context &c = s.ctx();
+  if (m.pc.isEmpty(path)) return c.bool_val(false);
+  BasicBlock *dep = m.pc.getHead(path);
+  // Can't have a control dependency when it's not a load.
+  // XXX: we can maybe be more granular about things.
+  if (!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) {
+      return getFunc(m.pathCtrl, makeBlockPathKey(dep, path), b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      return makeCtrl(s, m, dep, src, dst);
+    });
+}
+
+z3::expr makeAllPathsCtrl(solver &s, VarMaps &m,
+                          BasicBlock *src, BasicBlock *dst) {
+  z3::expr isCtrl = getEdgeFunc(m.allPathsCtrl, src, dst);
+  z3::expr allPaths = forAllPaths(
+    s, m, src, dst,
+    [&] (PathID path) { return makePathCtrl(s, m, path); });
+  s.add(isCtrl == allPaths);
+  return isCtrl;
+}
+
+z3::expr makePathCtrlCut(solver &s, VarMaps &m,
+                         PathID path, Action *tail) {
+  // XXX: do we care about actually using the variable pathCtrlCut?
+  // TODO: support isync cuts also
+  if (tail->type == ActionSimpleWrites) {
+    return makePathCtrl(s, m, path);
+  } else {
+    return s.ctx().bool_val(false);
+  }
+}
+
+
+
 z3::expr makePathVcut(solver &s, VarMaps &m,
                       PathID path) {
   return forAllPathEdges(
@@ -319,12 +385,17 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
 }
 
 z3::expr makePathXcut(solver &s, VarMaps &m,
-                      PathID path) {
+                      PathID path, Action *tail) {
   bool alreadyMade;
   z3::expr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
   if (alreadyMade) return isCut;
 
-  s.add(isCut == makePathVcut(s, m, path));
+  BasicBlock *head = m.pc.getHead(path);
+  s.add(isCut ==
+        (makePathVcut(s, m, path) ||
+         (makePathCtrlCut(s, m, path, tail) &&
+          makeAllPathsCtrl(s, m, head, head))));
+
 
   return isCut;
 }
@@ -336,11 +407,17 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   VarMaps m = {
     pc_,
+    bb2action_,
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "xcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_xcut"),
+
+    DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl"),
+    DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
+    DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
+    DeclMap<PathKey>(c.bool_sort(), "path_ctrl_cut"),
   };
 
   // Compute the capacity function
@@ -364,7 +441,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
       z3::expr allPathsCut = forAllPaths(
         s, m, src.bb, dst->bb,
-        [&] (PathID path) { return makePathXcut(s, m, path); });
+        [&] (PathID path) { return makePathXcut(s, m, path, dst); });
       s.add(isCut == allPathsCut);
     }
   }
@@ -421,8 +498,21 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     bool val = extractBool(model.eval(cst));
     if (val) {
       cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
-      errs() << edge.first->getName() << " -> "
-             << edge.second->getName() << "\n";
+      errs() << edge.first->getName() <<" -> "<< edge.second->getName() << "\n";
+    }
+  }
+  // Find the controls to preserve
+  errs() << "\nControls to maintain:\n";
+  for (auto & entry : m.usesCtrl.map) {
+    BlockEdgeKey key = entry.first;
+    BasicBlock *dep = key.first;
+    EdgeKey edge = key.second;
+    z3::expr cst = entry.second;
+    bool val = extractBool(model.eval(cst));
+    if (val) {
+      Value *read = bb2action_[dep]->soleLoad;
+      cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
+      errs() << edge.first->getName() <<" -> "<< edge.second->getName() << "\n";
     }
   }
   errs() << "\n";

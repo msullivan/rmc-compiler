@@ -397,7 +397,7 @@ bool isSameValueWithBS(Value *v1, Value *v2) {
 namespace llvm {
 
 // Look for control dependencies on a read.
-bool branchesOn(BasicBlock *bb, Instruction *load,
+bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut, int *outIdx) {
   // TODO: we should be able to follow values through phi nodes,
   // since we are path dependent anyways.
@@ -427,7 +427,7 @@ bool branchesOn(BasicBlock *bb, Instruction *load,
 
 }
 
-void enforceBranchOn(Instruction *load, BasicBlock *next,
+void enforceBranchOn(Value *load, BasicBlock *next,
                      ICmpInst *icmp, int idx) {
   // In order to keep LLVM from optimizing our stuff away we
   // insert a dummy copy of the load and a compiler barrier in the
@@ -644,11 +644,24 @@ Instruction *getCutInstr(const EdgeCut &cut) {
 }
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
-  // For now we only have lwsync
-  assert(cut.type == CutLwsync);
-  // FIXME: it would be nice if we were clever enough to notice when
-  // every edge out of a block as the same cut and merge them.
-  makeLwsync(getCutInstr(cut));
+  switch (cut.type) {
+  case CutLwsync:
+    // FIXME: it would be nice if we were clever enough to notice when
+    // every edge out of a block as the same cut and merge them.
+    makeLwsync(getCutInstr(cut));
+    break;
+  case CutCtrl:
+  {
+    int idx; ICmpInst *icmp;
+    bool branches = branchesOn(cut.src, cut.read, &icmp, &idx);
+    assert(branches);
+    enforceBranchOn(cut.read, cut.dst, icmp, idx);
+    break;
+  }
+  default:
+    assert(false && "Unimplemented insertCut case");
+  }
+
 }
 
 bool RealizeRMC::run() {
