@@ -386,6 +386,9 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     });
 }
 
+
+z3::expr makeXcut(solver &s, VarMaps &m, Action *src, Action *dst);
+
 z3::expr makePathXcut(solver &s, VarMaps &m,
                       PathID path, Action *tail) {
   bool alreadyMade;
@@ -393,11 +396,29 @@ z3::expr makePathXcut(solver &s, VarMaps &m,
   if (alreadyMade) return isCut;
 
   BasicBlock *head = m.pc.getHead(path);
-  s.add(isCut ==
-        (makePathVcut(s, m, path) ||
-         (makePathCtrlCut(s, m, path, tail) &&
-          makeAllPathsCtrl(s, m, head, head))));
+  bool isSelfPath = head == tail->bb;
 
+  z3::expr pathCtrlCut = makePathCtrlCut(s, m, path, tail);
+  if (!isSelfPath) {
+    pathCtrlCut = pathCtrlCut &&
+      (makeAllPathsCtrl(s, m, head, head));
+  }
+
+  s.add(isCut ==
+        (makePathVcut(s, m, path) || pathCtrlCut));
+
+  return isCut;
+}
+
+z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst) {
+  bool alreadyMade;
+  z3::expr isCut = getEdgeFunc(m.xcut, src, dst->bb, &alreadyMade);
+  if (alreadyMade) return isCut;
+
+  z3::expr allPathsCut = forAllPaths(
+    s, m, src, dst->bb,
+    [&] (PathID path) { return makePathXcut(s, m, path, dst); });
+  s.add(isCut == allPathsCut);
 
   return isCut;
 }
@@ -438,13 +459,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
       s.add(isCut == allPathsCut);
     }
     for (auto dst : src.execTransEdges) {
-      z3::expr isCut = getEdgeFunc(m.xcut, src.bb, dst->bb);
-      s.add(isCut);
-
-      z3::expr allPathsCut = forAllPaths(
-        s, m, src.bb, dst->bb,
-        [&] (PathID path) { return makePathXcut(s, m, path, dst); });
-      s.add(isCut == allPathsCut);
+      s.add(makeXcut(s, m, src.bb, dst));
     }
   }
 
