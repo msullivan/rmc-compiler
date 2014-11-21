@@ -89,6 +89,7 @@ enum CutType {
   CutNone,
   CutCtrlIsync, // needs to be paired with a dep
   CutCtrl,
+  CutIsync,
   CutLwsync,
   CutSync
 };

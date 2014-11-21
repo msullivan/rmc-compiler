@@ -653,6 +653,9 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     // every edge out of a block as the same cut and merge them.
     makeLwsync(getCutInstr(cut));
     break;
+  case CutIsync:
+    makeIsync(getCutInstr(cut));
+    break;
   case CutCtrl:
   {
     int idx; ICmpInst *icmp;

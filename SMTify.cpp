@@ -33,6 +33,7 @@ const bool kInvertBools = false;
 // Costs for different sorts of things that we insert.
 // XXX: These numbers are just made up.
 const int kLwsyncCost = 30;
+const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
 
 
@@ -287,6 +288,10 @@ struct VarMaps {
   DeclMap<PathKey> pathVcut;
   DeclMap<PathKey> pathXcut;
 
+  DeclMap<EdgeKey> isync;
+  DeclMap<PathKey> pathIsync;
+  DeclMap<BlockPathKey> pathCtrlIsync;
+
   DeclMap<BlockEdgeKey> usesCtrl;
   DeclMap<BlockPathKey> pathCtrl;
   DeclMap<EdgeKey> allPathsCtrl;
@@ -335,6 +340,7 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 
 
 //// Real stuff now.
+// XXX: there is a lot of duplication...
 z3::expr makeCtrl(solver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
   Action *a = m.bb2action[dep];
@@ -346,6 +352,35 @@ z3::expr makeCtrl(solver &s, VarMaps &m,
     return s.ctx().bool_val(false);
   }
 }
+
+z3::expr makePathIsync(solver &s, VarMaps &m,
+                       PathID path) {
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) { return getPathFunc(m.pathIsync, path, b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      return getEdgeFunc(m.isync, src, dst);
+    });
+}
+
+z3::expr makePathCtrlIsync(solver &s, VarMaps &m,
+                           PathID path) {
+  z3::context &c = s.ctx();
+  if (m.pc.isEmpty(path)) return c.bool_val(false);
+  BasicBlock *dep = m.pc.getHead(path);
+  // Can't have a control dependency when it's not a load.
+  // XXX: we can maybe be more granular about things.
+  if (!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) {
+      return getFunc(m.pathCtrlIsync, makeBlockPathKey(dep, path), b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      return makeCtrl(s, m, dep, src, dst) && makePathIsync(s, m, path);
+    });
+}
+
 
 z3::expr makePathCtrl(solver &s, VarMaps &m, PathID path) {
   z3::context &c = s.ctx();
@@ -381,7 +416,7 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
   if (tail->type == ActionSimpleWrites) {
     return makePathCtrl(s, m, path);
   } else {
-    return s.ctx().bool_val(false);
+    return makePathCtrlIsync(s, m, path);
   }
 }
 
@@ -449,6 +484,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_xcut"),
 
+    DeclMap<EdgeKey>(c.bool_sort(), "isync"),
+    DeclMap<PathKey>(c.bool_sort(), "path_isync"),
+    DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl_isync"),
+
+
     DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
@@ -493,6 +533,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     cost = cost +
       boolToInt(v, kLwsyncCost*cap(src, dst));
   }
+  for (auto & entry : m.isync.map) {
+    tie2(tie(src, dst), v) = entry;
+    cost = cost +
+      boolToInt(v, kIsyncCost*cap(src, dst));
+  }
   for (auto & entry : m.usesCtrl.map) {
     tie2(tie2(std::ignore, tie(src, dst)), v) = entry;
     cost = cost +
@@ -535,6 +580,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     tie(edge, v) = entry;
     if (extractBool(model.eval(v))) {
       cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
+    }
+  }
+  // Find the isyncs we are inserting
+  for (auto & entry : m.isync.map) {
+    tie(edge, v) = entry;
+    if (extractBool(model.eval(v))) {
+      cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
     }
   }
   // Find the controls to preserve
