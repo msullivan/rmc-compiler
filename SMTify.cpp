@@ -283,7 +283,6 @@ struct VarMaps {
   DeclMap<BlockEdgeKey> usesCtrl;
   DeclMap<BlockPathKey> pathCtrl;
   DeclMap<EdgeKey> allPathsCtrl;
-  DeclMap<PathKey> pathCtrlCut;
 };
 
 // Generalized it.
@@ -446,7 +445,6 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
-    DeclMap<PathKey>(c.bool_sort(), "path_ctrl_cut"),
   };
 
   // Compute the capacity function
