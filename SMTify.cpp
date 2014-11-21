@@ -469,14 +469,15 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   // tuning.
   z3::expr costVar = c.int_const("cost");
   z3::expr cost = c.int_val(0);
-  for (auto & block : func_) {
-    BasicBlock *src = &block;
-    for (auto i = succ_begin(src), e = succ_end(src); i != e; ++i) {
-      BasicBlock *dst = *i;
-      cost = cost +
-        boolToInt(getEdgeFunc(m.lwsync, src, dst),
-                  edgeCap[makeEdgeKey(src, dst)]);
-    }
+
+  BasicBlock *src, *dst;
+  z3::expr v = c.bool_val(false);
+
+  // Find the lwsyncs we are inserting
+  for (auto & entry : m.lwsync.map) {
+    tie2(tie(src, dst), v) = entry;
+    cost = cost +
+      boolToInt(v, edgeCap[makeEdgeKey(src, dst)]);
   }
   s.add(costVar == cost.simplify());
 
@@ -508,20 +509,20 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   std::vector<EdgeCut> cuts;
 
-  EdgeKey edge; z3::expr cst = c.bool_val(false);
+  EdgeKey edge;
   // Find the lwsyncs we are inserting
   for (auto & entry : m.lwsync.map) {
-    tie(edge, cst) = entry;
-    if (extractBool(model.eval(cst))) {
+    tie(edge, v) = entry;
+    if (extractBool(model.eval(v))) {
       cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
     }
   }
   // Find the controls to preserve
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
-    tie2(tie(dep, edge), cst) = entry;
+    tie2(tie(dep, edge), v) = entry;
 
-    if (extractBool(model.eval(cst))) {
+    if (extractBool(model.eval(v))) {
       Value *read = bb2action_[dep]->soleLoad;
       cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
     }
