@@ -326,7 +326,6 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 //// Real stuff now.
 z3::expr makeCtrl(solver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
-  errs() << "lol\n";
   Action *a = m.bb2action[dep];
   assert(a->soleLoad);
   if (branchesOn(src, a->soleLoad)) {
