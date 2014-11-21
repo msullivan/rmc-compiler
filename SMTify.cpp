@@ -299,7 +299,7 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
   if (alreadyMade) return isCut;
 
   BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
-  z3::expr somethingCut = getEdgeFunc(m.lwsync, src, dst) ||
+  z3::expr somethingCut = func(src, dst, rest) ||
     forAllPathEdges(s, m, rest, getVar, func);
   s.add(isCut == somethingCut.simplify());
 
