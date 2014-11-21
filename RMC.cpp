@@ -493,7 +493,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 
     if (hasSoftCut && enforceSoft) {
       BasicBlock *next = *(i+1);
-      enforceBranchOn(icmp, next, icmp, idx);
+      enforceBranchOn(soleLoad, next, icmp, idx);
     }
   }
 
