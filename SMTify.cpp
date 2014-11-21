@@ -247,6 +247,13 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
       // n * c(v, u) == c(v)
       s.add(edgeCap * childCount == nodeCap);
     }
+    // Populate the capacities for the fictional back edges to the
+    // function entry point.
+    // XXX: we don't bother establishing the equation holds on the
+    // *other* side, but I think it should work out OK.
+    if (childCount == 0) {
+      s.add(getEdgeFunc(edgeCapM, &block, &F.getEntryBlock()) == nodeCap);
+    }
   }
 
   // Keep all zeros from working:
@@ -449,6 +456,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   // Compute the capacity function
   DenseMap<EdgeKey, int> edgeCap = computeCapacities(func_);
+  auto cap =
+    [&] (BasicBlock *src, BasicBlock *dst) {
+    return edgeCap[makeEdgeKey(src, dst)];
+  };
 
   //////////
   // HOK. Make sure everything is cut. Just lwsync for now.
@@ -480,12 +491,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   for (auto & entry : m.lwsync.map) {
     tie2(tie(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, kLwsyncCost*edgeCap[makeEdgeKey(src, dst)]);
+      boolToInt(v, kLwsyncCost*cap(src, dst));
   }
   for (auto & entry : m.usesCtrl.map) {
     tie2(tie2(std::ignore, tie(src, dst)), v) = entry;
     cost = cost +
-      boolToInt(v, kUseCtrlCost*edgeCap[makeEdgeKey(src, dst)]);
+      boolToInt(v, kUseCtrlCost*cap(src, dst));
   }
 
   s.add(costVar == cost.simplify());

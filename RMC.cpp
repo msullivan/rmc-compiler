@@ -640,7 +640,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
 // outgoing from source.
 Instruction *getCutInstr(const EdgeCut &cut) {
   TerminatorInst *term = cut.src->getTerminator();
-  return term->getNumSuccessors() == 1 ? term : &cut.dst->front();
+  return term->getNumSuccessors() <= 1 ? term : &cut.dst->front();
 }
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
