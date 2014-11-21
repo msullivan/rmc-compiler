@@ -624,7 +624,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
             /* R->R has same force as execution, and we made execution
              * versions of all the vis edges. */
             (st == ActionSimpleRead && dt == ActionSimpleRead) ||
-            (st == ActionSimpleWrites && dt == ActionSimpleWrites))) {
+            (st == ActionSimpleWrites && dt == ActionSimpleRead))) {
         src.visTransEdges.insert(dst);
       }
     }
