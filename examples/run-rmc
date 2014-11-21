@@ -6,6 +6,10 @@ RMC_PLATFORM=arm
 while true
 do
 	case "$1" in
+		--gdb)
+			shift
+			RUN_GDB=1
+			;;
 		--x86)
 			shift
 			RMC_PLATFORM=x86
@@ -40,8 +44,12 @@ esac
 clang $PLATFORM_FLAGS $INCLUDE_FLAGS -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
 llvm-dis $NAME.pre.bc
 
-time opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
-#gdb --args opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+if [ $RUN_GDB ]; then
+	gdb --args opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+else
+	time opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+fi
+
 llvm-dis $NAME.bc
 
 clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
