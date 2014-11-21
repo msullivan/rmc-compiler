@@ -644,6 +644,9 @@ Instruction *getCutInstr(const EdgeCut &cut) {
 }
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
+  errs() << cut.type << ": "
+         << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
+
   switch (cut.type) {
   case CutLwsync:
     // FIXME: it would be nice if we were clever enough to notice when
@@ -689,6 +692,7 @@ bool RealizeRMC::run() {
   } else {
     removeUselessEdges(actions_);
     auto cuts = smtAnalyze();
+    errs() << "Applying SMT results:\n";
     for (auto & cut : cuts) {
       insertCut(cut);
     }

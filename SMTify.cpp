@@ -11,6 +11,9 @@
 
 using namespace llvm;
 
+using std::tie;
+#define tie2 std::forward_as_tuple /* welp */
+
 // Some tuning parameters
 
 // Should we use Z3's optimizer; this is a #define because it tunes
@@ -490,29 +493,22 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   std::vector<EdgeCut> cuts;
 
+  EdgeKey edge; z3::expr cst = c.bool_val(false);
   // Find the lwsyncs we are inserting
-  errs() << "\nLwsyncs to insert:\n";
   for (auto & entry : m.lwsync.map) {
-    EdgeKey edge = entry.first;
-    z3::expr cst = entry.second;
-    bool val = extractBool(model.eval(cst));
-    if (val) {
+    tie(edge, cst) = entry;
+    if (extractBool(model.eval(cst))) {
       cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
-      errs() << edge.first->getName() <<" -> "<< edge.second->getName() << "\n";
     }
   }
   // Find the controls to preserve
-  errs() << "\nControls to maintain:\n";
   for (auto & entry : m.usesCtrl.map) {
-    BlockEdgeKey key = entry.first;
-    BasicBlock *dep = key.first;
-    EdgeKey edge = key.second;
-    z3::expr cst = entry.second;
-    bool val = extractBool(model.eval(cst));
-    if (val) {
+    BasicBlock *dep;
+    tie2(tie(dep, edge), cst) = entry;
+
+    if (extractBool(model.eval(cst))) {
       Value *read = bb2action_[dep]->soleLoad;
       cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
-      errs() << edge.first->getName() <<" -> "<< edge.second->getName() << "\n";
     }
   }
   errs() << "\n";
