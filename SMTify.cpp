@@ -30,6 +30,11 @@ const bool kCheckFirstGuess = false;
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
+// Costs for different sorts of things that we insert.
+// XXX: These numbers are just made up.
+const int kLwsyncCost = 30;
+const int kUseCtrlCost = 1;
+
 
 #if USE_Z3_OPTIMIZER
 typedef z3::optimize solver;
@@ -477,8 +482,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   for (auto & entry : m.lwsync.map) {
     tie2(tie(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, edgeCap[makeEdgeKey(src, dst)]);
+      boolToInt(v, kLwsyncCost*edgeCap[makeEdgeKey(src, dst)]);
   }
+  for (auto & entry : m.usesCtrl.map) {
+    tie2(tie2(std::ignore, tie(src, dst)), v) = entry;
+    cost = cost +
+      boolToInt(v, kUseCtrlCost*edgeCap[makeEdgeKey(src, dst)]);
+  }
+
   s.add(costVar == cost.simplify());
 
   //////////
