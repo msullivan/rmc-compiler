@@ -110,3 +110,14 @@ void binarysearch_test(int *ptr) {
     L(c, *ptr = 3);
     L(d, *ptr = 4);
 }
+
+// Have a push and also a vo edge so we can make sure we take
+// advantage of the push.
+void push_redundant_test(int *p, int *q) {
+    VEDGE(a, push); XEDGE(push, b);
+    VEDGE(a, b);
+
+    L(a, *p = 1);
+    L(push, PUSH);
+    L(b, *q = 2);
+}

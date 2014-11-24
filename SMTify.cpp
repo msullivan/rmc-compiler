@@ -418,6 +418,22 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
 }
 
 
+z3::expr makeEdgeVcut(solver &s, VarMaps &m,
+                      BasicBlock *src, BasicBlock *dst) {
+  // Instead of generating a notion of push edges and making sure that
+  // they are cut by syncs, we just insert syncs exactly where PUSHes
+  // are written. We want to actually take advantage of these syncs,
+  // so check for them here. (If there is already a sync we generate
+  // a bunch of equations for the path which all evaluate to "true",
+  // which is kind of silly. We could avoid some of this if we cared.)
+  if ((m.bb2action[src] && m.bb2action[src]->isPush) ||
+      (m.bb2action[dst] && m.bb2action[dst]->isPush)) {
+    return s.ctx().bool_val(true);
+  } else {
+    return getEdgeFunc(m.lwsync, src, dst);
+  }
+}
+
 
 z3::expr makePathVcut(solver &s, VarMaps &m,
                       PathID path) {
@@ -425,7 +441,7 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
     s, m, path,
     [&] (PathID path, bool *b) { return getPathFunc(m.pathVcut, path, b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      return getEdgeFunc(m.lwsync, src, dst);
+      return makeEdgeVcut(s, m, src, dst);
     });
 }
 
@@ -467,6 +483,18 @@ z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst) {
   return isCut;
 }
 
+z3::expr makeVcut(solver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
+  z3::expr isCut = getEdgeFunc(m.vcut, src, dst);
+
+  z3::expr allPathsCut = forAllPaths(
+    s, m, src, dst,
+    [&] (PathID path) { return makePathVcut(s, m, path); });
+  s.add(isCut == allPathsCut);
+
+  return isCut;
+}
+
+
 
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
@@ -499,16 +527,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   };
 
   //////////
-  // HOK. Make sure everything is cut. Just lwsync for now.
+  // HOK. Make sure everything is cut.
   for (auto & src : actions_) {
     for (auto dst : src.visTransEdges) {
-      z3::expr isCut = getEdgeFunc(m.vcut, src.bb, dst->bb);
-      s.add(isCut);
-
-      z3::expr allPathsCut = forAllPaths(
-        s, m, src.bb, dst->bb,
-        [&] (PathID path) { return makePathVcut(s, m, path); });
-      s.add(isCut == allPathsCut);
+      s.add(makeVcut(s, m, src.bb, dst->bb));
     }
     for (auto dst : src.execTransEdges) {
       s.add(makeXcut(s, m, src.bb, dst));
