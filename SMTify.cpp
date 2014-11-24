@@ -11,8 +11,17 @@
 
 using namespace llvm;
 
-using std::tie;
-#define tie2 std::forward_as_tuple /* welp */
+// std::forward_as_tuple is basically just better for destructuring
+// assignment than std::tie is, I think, since it can handle nesting
+// (since it allows rvalue references as arguments).
+// We want it named something better than forward_as_tuple, though!
+// We just reimplement it because apparently #define is evil these
+// days or something.
+template<class... Types>
+constexpr std::tuple<Types&&...> unpack(Types&&... args) {
+  return std::tuple<Types&&...>(std::forward<Types>(args)...);
+}
+
 
 // Some tuning parameters
 
@@ -529,17 +538,17 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   // Find the lwsyncs we are inserting
   for (auto & entry : m.lwsync.map) {
-    tie2(tie(src, dst), v) = entry;
+    unpack(unpack(src, dst), v) = entry;
     cost = cost +
       boolToInt(v, kLwsyncCost*cap(src, dst));
   }
   for (auto & entry : m.isync.map) {
-    tie2(tie(src, dst), v) = entry;
+    unpack(unpack(src, dst), v) = entry;
     cost = cost +
       boolToInt(v, kIsyncCost*cap(src, dst));
   }
   for (auto & entry : m.usesCtrl.map) {
-    tie2(tie2(std::ignore, tie(src, dst)), v) = entry;
+    unpack(unpack(std::ignore, unpack(src, dst)), v) = entry;
     cost = cost +
       boolToInt(v, kUseCtrlCost*cap(src, dst));
   }
@@ -577,14 +586,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   EdgeKey edge;
   // Find the lwsyncs we are inserting
   for (auto & entry : m.lwsync.map) {
-    tie(edge, v) = entry;
+    unpack(edge, v) = entry;
     if (extractBool(model.eval(v))) {
       cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
     }
   }
   // Find the isyncs we are inserting
   for (auto & entry : m.isync.map) {
-    tie(edge, v) = entry;
+    unpack(edge, v) = entry;
     if (extractBool(model.eval(v))) {
       cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
     }
@@ -592,7 +601,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   // Find the controls to preserve
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
-    tie2(tie(dep, edge), v) = entry;
+    unpack(unpack(dep, edge), v) = entry;
 
     if (extractBool(model.eval(v))) {
       Value *read = bb2action_[dep]->soleLoad;
