@@ -1,6 +1,9 @@
 #ifndef RMC_INTERNAL_H
 #define RMC_INTERNAL_H
 
+#include <utility>
+#include <tuple>
+
 #include "PathCache.h"
 
 #include <llvm/ADT/DenseMap.h>
@@ -8,6 +11,18 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/raw_ostream.h>
+
+
+// std::forward_as_tuple is basically just better for destructuring
+// assignment than std::tie is, I think, since it can handle nesting
+// (since it allows rvalue references as arguments).
+// We want it named something better than forward_as_tuple, though!
+// We just reimplement it because apparently #define is evil these
+// days or something.
+template<class... Types>
+constexpr std::tuple<Types&&...> unpack(Types&&... args) {
+  return std::tuple<Types&&...>(std::forward<Types>(args)...);
+}
 
 namespace llvm {
 

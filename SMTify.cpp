@@ -11,18 +11,6 @@
 
 using namespace llvm;
 
-// std::forward_as_tuple is basically just better for destructuring
-// assignment than std::tie is, I think, since it can handle nesting
-// (since it allows rvalue references as arguments).
-// We want it named something better than forward_as_tuple, though!
-// We just reimplement it because apparently #define is evil these
-// days or something.
-template<class... Types>
-constexpr std::tuple<Types&&...> unpack(Types&&... args) {
-  return std::tuple<Types&&...>(std::forward<Types>(args)...);
-}
-
-
 // Some tuning parameters
 
 // Should we use Z3's optimizer; this is a #define because it tunes
