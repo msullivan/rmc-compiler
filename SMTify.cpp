@@ -426,8 +426,9 @@ z3::expr makeEdgeVcut(solver &s, VarMaps &m,
   // so check for them here. (If there is already a sync we generate
   // a bunch of equations for the path which all evaluate to "true",
   // which is kind of silly. We could avoid some of this if we cared.)
-  if ((m.bb2action[src] && m.bb2action[src]->isPush) ||
-      (m.bb2action[dst] && m.bb2action[dst]->isPush)) {
+  // We only need to check one of src and dst since arcs with PUSH as
+  // an endpoint are dropped.
+  if (m.bb2action[src] && m.bb2action[src]->isPush) {
     return s.ctx().bool_val(true);
   } else {
     return getEdgeFunc(m.lwsync, src, dst);
