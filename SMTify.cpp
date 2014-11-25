@@ -21,10 +21,10 @@ using namespace llvm;
 
 // Should we pick the initial upper bound by seeing what the solver
 // produces without constraints instead of by binary searching up?
-const bool kGuessUpperBound = false;
+const bool kGuessUpperBound = true;
 // If we guess an upper bound, should we hope that it is optimal and
 // check the bound - 1 before we binary search?
-const bool kCheckFirstGuess = false;
+const bool kCheckFirstGuess = true;
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
