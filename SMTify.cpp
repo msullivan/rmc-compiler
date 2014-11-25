@@ -358,7 +358,7 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 }
 
 
-//// Real stuff now.
+//// Real stuff now: the definitions of all the functions
 // XXX: there is a lot of duplication...
 z3::expr makeCtrl(solver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
@@ -522,6 +522,15 @@ z3::expr makeVcut(solver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
   return isCut;
 }
 
+template<typename T>
+void processMap(DeclMap<T> &map, z3::model &model,
+                const std::function<void (T&)> &func) {
+  for (auto & entry : map.map) {
+    if (extractBool(model.eval(entry.second))) {
+      func(entry.first);
+    }
+  }
+}
 
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
@@ -612,31 +621,21 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   std::vector<EdgeCut> cuts;
 
-  EdgeKey edge;
   // Find the lwsyncs we are inserting
-  for (auto & entry : m.lwsync.map) {
-    unpack(edge, v) = entry;
-    if (extractBool(model.eval(v))) {
-      cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
-    }
-  }
+  processMap<EdgeKey>(m.lwsync, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
+  });
   // Find the isyncs we are inserting
-  for (auto & entry : m.isync.map) {
-    unpack(edge, v) = entry;
-    if (extractBool(model.eval(v))) {
-      cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
-    }
-  }
+  processMap<EdgeKey>(m.isync, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
+  });
   // Find the controls to preserve
-  for (auto & entry : m.usesCtrl.map) {
-    BasicBlock *dep;
-    unpack(unpack(dep, edge), v) = entry;
-
-    if (extractBool(model.eval(v))) {
-      Value *read = bb2action_[dep]->soleLoad;
-      cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
-    }
-  }
+  processMap<BlockEdgeKey>(m.usesCtrl, model, [&] (BlockEdgeKey &entry) {
+    EdgeKey edge; BasicBlock *dep;
+    unpack(dep, edge) = entry;
+    Value *read = bb2action_[dep]->soleLoad;
+    cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
+  });
   errs() << "\n";
 
   return cuts;
