@@ -118,7 +118,7 @@ Cost findFirstTrue(CostPred pred) {
 }
 
 // Given a solver and an expression, find a solution that minimizes
-// the expression..
+// the expression through repeated calls to the solver.
 void handMinimize(solver &s, z3::expr &costVar) {
   auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
   Cost minCost;
@@ -142,6 +142,16 @@ void handMinimize(solver &s, z3::expr &costVar) {
     minCost = findFirstTrue(costPred);
   }
   s.add(costVar == s.ctx().int_val(minCost));
+}
+
+// Given a solver and an expression, find a solution that minimizes
+// the expression.
+void minimize(solver &s, z3::expr &costVar) {
+#if USE_Z3_OPTIMIZER
+  s.minimize(costVar);
+#else
+  handMinimize(s, costVar);
+#endif
 }
 
 
@@ -590,13 +600,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   // Print out the model for debugging
   std::cout << "Built a thing: \n" << s << "\n\n";
 
-  // Optimize the cost. There are a number of possible approaches to
-  // this.
-#if USE_Z3_OPTIMIZER
-  s.minimize(costVar);
-#else
-  handMinimize(s, costVar);
-#endif
+  // Optimize the cost.
+  minimize(s, costVar);
 
   // OK, go solve it.
   s.check();
