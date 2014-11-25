@@ -121,3 +121,27 @@ void push_redundant_test(int *p, int *q) {
     L(push, PUSH);
     L(b, *q = 2);
 }
+
+// When we insert a dependency we need to make sure that the
+// thing being depended on dominates the use we insert!
+// This is sort of tricky to test, though.
+void ctrl_dom_test(int *p, int *q, int bs) {
+    XEDGE(a, b);
+
+    if (bs & 1) {
+        L(a, int x = *p);
+    }
+
+    // Use multiple branches so that the weight will be lower if it
+    // gets inserted down by the use.
+    if (bs & 2) {
+        if (bs & 4) {
+            L(b, *q = 1);
+        }
+    }
+
+    // Put in an edge that puts in an lwsync so that keeping the ctrl dep
+    // close to the a load isn't useful for ensuring cross call ordering.
+    VEDGE(pre, fuckoff);
+    L(fuckoff, *p = 1);
+}

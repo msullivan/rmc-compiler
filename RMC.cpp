@@ -31,6 +31,9 @@
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/iterator_range.h>
 
+#include <llvm/IR/Dominators.h>
+
+
 #include <llvm/Support/raw_ostream.h>
 
 #include <ostream>
@@ -660,8 +663,11 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   {
     int idx; ICmpInst *icmp;
     bool branches = branchesOn(cut.src, cut.read, &icmp, &idx);
-    assert(branches);
-    enforceBranchOn(cut.read, cut.dst, icmp, idx);
+    if (branches) {
+      enforceBranchOn(cut.read, cut.dst, icmp, idx);
+    } else {
+      makeCtrl(cut.read, getCutInstr(cut));
+    }
     break;
   }
   default:
@@ -746,12 +752,14 @@ public:
     return true;
   }
   virtual bool runOnFunction(Function &F) {
-    RealizeRMC rmc(F, useSMT_);
+    DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+    RealizeRMC rmc(F, dom, useSMT_);
     return rmc.run();
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
+    AU.addRequired<DominatorTreeWrapperPass>();
     AU.setPreservesCFG();
   }
 };

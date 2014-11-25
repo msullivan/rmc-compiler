@@ -5,6 +5,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/CFG.h>
 
+#include <llvm/IR/Dominators.h>
 
 #include <z3++.h>
 
@@ -32,6 +33,7 @@ const bool kInvertBools = false;
 const int kLwsyncCost = 30;
 const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
+const int kAddCtrlCost = 7;
 
 
 #if USE_Z3_OPTIMIZER
@@ -278,6 +280,7 @@ struct VarMaps {
   // Sigh.
   PathCache &pc;
   DenseMap<BasicBlock *, Action *> &bb2action;
+  DominatorTree &domTree;
 
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
@@ -340,12 +343,17 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 // XXX: there is a lot of duplication...
 z3::expr makeCtrl(solver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
-  Action *a = m.bb2action[dep];
-  assert(a->soleLoad);
-  if (branchesOn(src, a->soleLoad)) {
+  // We can only add a ctrl dep in locations that are dominated by the
+  // load.
+  //
+  // Because we rely on not having critical edges, we only worry about
+  // whether the *src* is dominated. If the src is dominated but the
+  // dst is not, then we will always insert a ctrl in the src (since
+  // the dst must have multiple incoming edges while the src only has
+  // one outgoing).
+  if (m.domTree.dominates(m.bb2action[dep]->soleLoad, src)) {
     return getFunc(m.usesCtrl, makeBlockEdgeKey(dep, src, dst));
   } else {
-    // TODO: be able to add deps
     return s.ctx().bool_val(false);
   }
 }
@@ -504,6 +512,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   VarMaps m = {
     pc_,
     bb2action_,
+    domTree_,
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "xcut"),
@@ -559,9 +568,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
       boolToInt(v, kIsyncCost*cap(src, dst));
   }
   for (auto & entry : m.usesCtrl.map) {
-    unpack(unpack(std::ignore, unpack(src, dst)), v) = entry;
+    BasicBlock *dep;
+    unpack(unpack(dep, unpack(src, dst)), v) = entry;
+    auto weight =
+      branchesOn(src, bb2action_[dep]->soleLoad) ? kUseCtrlCost : kAddCtrlCost;
     cost = cost +
-      boolToInt(v, kUseCtrlCost*cap(src, dst));
+      boolToInt(v, weight*cap(src, dst));
   }
 
   s.add(costVar == cost.simplify());
