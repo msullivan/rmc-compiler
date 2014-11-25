@@ -48,7 +48,6 @@ z3::expr boolToInt(z3::expr const &flag, int cost = 1) {
   return ite(flag, c.int_val(cost), c.int_val(0));
 }
 
-
 bool extractBool(z3::expr const &e) {
   auto b = Z3_get_bool_value(e.ctx(), e);
   assert(b != Z3_L_UNDEF);
@@ -59,6 +58,16 @@ int extractInt(z3::expr const &e) {
   auto b = Z3_get_numeral_int(e.ctx(), e, &i);
   assert(b == Z3_TRUE);
   return i;
+}
+
+void dumpModel(z3::model &model) {
+  // traversing the model
+  for (unsigned i = 0; i < model.size(); ++i) {
+    z3::func_decl v = model[i];
+    // this problem contains only constants
+    assert(v.arity() == 0);
+    std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
+  }
 }
 
 // Code for optimizing
@@ -504,7 +513,6 @@ z3::expr makeVcut(solver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
 }
 
 
-
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
   solver s(c);
@@ -592,17 +600,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   // OK, go solve it.
   s.check();
-
-  //////////
-  // Output the model
   z3::model model = s.get_model();
-  // traversing the model
-  for (unsigned i = 0; i < model.size(); ++i) {
-    z3::func_decl v = model[i];
-    // this problem contains only constants
-    assert(v.arity() == 0);
-    std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
-  }
+
+  // Print out the results for debugging
+  dumpModel(model);
 
   std::vector<EdgeCut> cuts;
 
