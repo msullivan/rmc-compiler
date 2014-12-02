@@ -385,6 +385,28 @@ void RealizeRMC::findActions() {
   }
 }
 
+
+// Fix up an action so that loads and stores that happen in it won't
+// get messed up by LLVM too much. I'm not really sure how to make
+// this notion particularly precise. Right now we mark loads and
+// stores as Monotonic, which I /think/ is what we need. (It is at least,
+// by spec, good enough to squash the bug that made me *definitely*
+// need something like this, which was a program that looped on a read
+// having the read hoisted out of the loop.)
+// We could also try setting volatile also/instead?
+void fixupAccessesAction(Action &info) {
+  if (info.type == ActionPrePost) return;
+
+  for (auto & i : *info.bb) {
+    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
+      load->setAtomic(Monotonic);
+    } else if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
+      store->setAtomic(Unordered);
+    }
+    // XXX: Handle other things?? RMWs??
+  }
+}
+
 // Check if v1 and v2 are the same where maybe v2 has been
 // passed to a bs copy inline asm routine.
 // We could make our checking a bit better
@@ -688,8 +710,10 @@ bool RealizeRMC::run() {
   }
 
   // Analyze the instructions in actions to see what they do.
+  // Also change their memory accesses to have an atomic ordering.
   for (auto & action : actions_) {
     analyzeAction(action);
+    fixupAccessesAction(action);
   }
 
   buildActionGraph(actions_, numNormalActions_);
