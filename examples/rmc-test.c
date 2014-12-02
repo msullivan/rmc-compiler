@@ -145,3 +145,35 @@ void ctrl_dom_test(int *p, int *q, int bs) {
     VEDGE(pre, fuckoff);
     L(fuckoff, *p = 1);
 }
+
+
+// Looping MP recv test.
+int mp_recv(int *flag, int *data) {
+    int rf;
+    XEDGE(rflag, rdata);
+    do {
+        L(rflag, rf = *flag);
+    } while (rf == 0);
+    L(rdata, int rd = *data);
+    return rd;
+}
+
+// XXX: We fail to use an isync here because the very restricted
+// pattern matching we use to detect control deps doesn't find
+// this. We should be less bad.
+//
+// Actually, we handle this extra really badly and miscompile this
+// code if we aren't depending on the branch! LLVM optimizes this into
+// code that reads the flag *once* and then loops on that register.
+// I'm not sure how the RMC story interacts with this sort of thing.
+// Adding a XEDGE(rflag, rflag) fixes it...  As does making flag
+// volatile...
+int mp_recv_bang(int *flag, int *data) {
+    int rf;
+    XEDGE(rflag, rdata);
+    do {
+        L(rflag, rf = *flag);
+    } while (!rf);
+    L(rdata, int rd = *data);
+    return rd;
+}
