@@ -12,6 +12,8 @@
 
 using namespace llvm;
 
+#define LONG_PATH_NAMES 1
+
 // Some tuning parameters
 
 // Should we use Z3's optimizer; this is a #define because it tunes
@@ -30,7 +32,7 @@ const bool kInvertBools = false;
 
 // Costs for different sorts of things that we insert.
 // XXX: These numbers are just made up.
-const int kLwsyncCost = 30;
+const int kLwsyncCost = 500;
 const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
 const int kAddCtrlCost = 7;
@@ -181,11 +183,22 @@ BlockEdgeKey makeBlockEdgeKey(BasicBlock *block,
 std::string makeVarString(BasicBlock *key) {
   return key->getName().str();
 }
+
+#if LONG_PATH_NAMES
+// This is an awful hack; we stick the PathCache into TLS so we can use
+// the whole expanded path as the key.
+__thread PathCache *debugPathCache = nullptr;
+std::string makeVarString(PathKey &key) {
+  return debugPathCache->formatPath(key);
+}
+#else
 std::string makeVarString(PathKey &key) {
   std::ostringstream buffer;
   buffer << "path #" << key;
   return buffer.str();
 }
+#endif
+
 template <typename T, typename U>
 std::string makeVarString(std::pair<T, U> &key) {
   return makeVarString(key.first) + ", " + makeVarString(key.second);
@@ -535,6 +548,10 @@ void processMap(DeclMap<T> &map, z3::model &model,
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::context c;
   solver s(c);
+
+#if LONG_PATH_NAMES
+  debugPathCache = &pc_; /* :( */
+#endif
 
   VarMaps m = {
     pc_,

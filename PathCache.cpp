@@ -1,5 +1,7 @@
 #include "PathCache.h"
 
+#include <sstream>
+
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/CFG.h>
@@ -88,12 +90,19 @@ PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
 }
 
 ////
+std::string PathCache::formatPath(PathID pathid) const {
+  std::ostringstream buffer;
+  Path path = extractPath(pathid);
+  bool first = true;
+  for (auto block : path) {
+    if (!first) buffer << "->";
+    first = false;
+    buffer << block->getName().str();
+  }
+  return buffer.str();
+}
 void PathCache::dumpPaths(const PathList &paths) const {
   for (auto & pathid : paths) {
-    Path path = extractPath(pathid);
-    for (auto block : path) {
-      errs() << block->getName() << " -> ";
-    }
-    errs() << "\n";
+    errs() << formatPath(pathid) << "\n";
   }
 }

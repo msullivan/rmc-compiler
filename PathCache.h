@@ -32,6 +32,7 @@ public:
   PathID getTail(PathID k) const { return entries_[k].second; }
 
   // For debugging:
+  std::string formatPath(PathID pathid) const;
   void dumpPaths(const PathList &paths) const;
 
 private:
