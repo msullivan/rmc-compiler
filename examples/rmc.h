@@ -39,6 +39,7 @@ extern void __rmc_push(void);
 /* The (void)0s are because declarations can't directly follow labels,
  * apparently. */
 #define L(label, stmt)                                                    \
+    XRCAT(__rmc_entry_##label##_, __COUNTER__): __attribute__((unused))   \
     XRCAT(_rmc_##label##_, __COUNTER__): __attribute__((unused)) (void)0; \
     stmt;                                                                 \
     XRCAT(__rmc_end_##label##_, __COUNTER__): __attribute__((unused)) (void)0

@@ -232,6 +232,8 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
 Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
   actions_.emplace_back(bb);
   Action *a = &actions_.back();
+  // This will trip if something is pre/post'd more than once
+  assert(!bb2action_[bb]);
   bb2action_[bb] = a;
   a->type = ActionPrePost;
   return a;
@@ -273,9 +275,6 @@ void RealizeRMC::processEdge(CallInst *call) {
   }
 
   // Handle pre and post edges now
-  // FIXME: we'll can run into trouble if the same blocks get
-  // pre/post'd multiple times and the array resizes. There is no
-  // reason to do this, but we should handle it.
   if (srcName == "pre") {
     for (auto & dstBB : func_) {
       if (!blockMatches(dstBB, dstName)) continue;
