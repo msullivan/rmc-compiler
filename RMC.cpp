@@ -205,6 +205,28 @@ BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
   return bb->getTerminator()->getSuccessor(0);
 }
 
+Instruction *getNextInstr(Instruction *i) {
+  BasicBlock::iterator I = *i;
+  return ++I == i->getParent()->end() ? nullptr : &*I;
+}
+Instruction *getPrevInstr(Instruction *i) {
+  BasicBlock::iterator I = *i;
+  return I == i->getParent()->begin() ? nullptr : &*--I;
+}
+
+// Code to detect our inline asm things
+bool isInstrInlineAsm(Instruction *i, const char *string) {
+  if (CallInst *call = dyn_cast_or_null<CallInst>(i)) {
+    if (InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledValue())) {
+      if (iasm->getAsmString().find(string) != std::string::npos) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+bool isInstrIsync(Instruction *i) { return isInstrInlineAsm(i, " isync #"); }
+
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
@@ -655,16 +677,24 @@ void removeUselessEdges(std::vector<Action> &actions) {
   }
 }
 
-
 // Find the instruction to insert a cut in front of.
 // This is either the last instruction of the source or the first
 // instruction of the destination, depending on whether the source has
 // multiple outgoing edges. Because we broke critical edges, we can
 // not have that there are multiple incoming to dst and multiple
 // outgoing from source.
+//
+// If the cut is a control cut, we do some fairly bogus checking to
+// see if the last instruction is an isync so that we can make sure we
+// don't much up the ordering.
+// This relies on isync's being processed before ctrls :/
 Instruction *getCutInstr(const EdgeCut &cut) {
   TerminatorInst *term = cut.src->getTerminator();
-  return term->getNumSuccessors() <= 1 ? term : &cut.dst->front();
+  if (term->getNumSuccessors() > 1) return &cut.dst->front();
+  if (cut.type == CutCtrl && isInstrIsync(getPrevInstr(term))) {
+    return getPrevInstr(term);
+  }
+  return term;
 }
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
