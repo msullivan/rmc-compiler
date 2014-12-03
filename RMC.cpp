@@ -226,6 +226,7 @@ bool isInstrInlineAsm(Instruction *i, const char *string) {
   return false;
 }
 bool isInstrIsync(Instruction *i) { return isInstrInlineAsm(i, " isync #"); }
+bool isInstrBarrier(Instruction *i) { return isInstrInlineAsm(i, " barrier #");}
 
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
@@ -483,9 +484,7 @@ void enforceBranchOn(Value *load, BasicBlock *next,
     Instruction *dummyCopy = makeCopy(load, icmp);
     icmp->setOperand(idx, dummyCopy);
   }
-  // If we were clever we would avoid putting in multiple barriers,
-  // but really who cares.
-  makeBarrier(&next->front());
+  if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
 }
 
 CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
