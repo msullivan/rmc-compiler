@@ -38,7 +38,7 @@ extern void __rmc_push(void);
 /* This is unhygenic in a nasty way. */
 /* The (void)0s are because declarations can't directly follow labels,
  * apparently. */
-#define L(label, stmt)                                                    \
+#define LS(label, stmt)                                                   \
     XRCAT(__rmc_entry_##label##_, __COUNTER__): __attribute__((unused))   \
     XRCAT(_rmc_##label##_, __COUNTER__): __attribute__((unused)) (void)0; \
     stmt;                                                                 \
@@ -56,10 +56,16 @@ extern void __rmc_push(void);
 /* Just stick a visibility barrier after every label. This isn't good
  * or anything, but it probably works. */
 /* This is unhygenic in a nasty way. */
-#define L(label, stmt) stmt; vis_barrier()
+#define LS(label, stmt) stmt; vis_barrier()
 
 #define PUSH smp_mb()
 
 #endif /* HAS_RMC */
+
+#define L(label, stmt) LS(label, stmt)
+// Nice way to extract a value directly from a named read
+// without needing to manually stick it in a temporary.
+#define LE(label, expr) ({LS(label, typeof(expr) _______t = expr); _______t;})
+
 
 #endif

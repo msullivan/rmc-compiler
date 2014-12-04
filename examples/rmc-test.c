@@ -170,3 +170,13 @@ int mp_recv_bang(int *flag, int *data) {
     L(rdata, int rd = *data);
     return rd;
 }
+
+// Hm. This is nicer.
+int mp_recv_le(int *flag, int *data) {
+    int rf;
+    XEDGE(rflag, rdata);
+    while (LE(rflag, *flag) == 0)
+        continue;
+    int rd = LE(rdata, *data);
+    return rd;
+}
