@@ -24,12 +24,16 @@
 extern "C" {
 #endif
 
-extern void __rmc_edge_register(int is_vis, char *src, char *dst);
+extern void __rmc_edge_register(int is_vis, const char *src, const char *dst);
 extern void __rmc_push(void);
 
 #ifdef __cplusplus
 }
 #endif
+
+#define DO_PRAGMA(x) _Pragma(#x)
+#define RMC_PRAGMA_PUSH DO_PRAGMA(clang diagnostic push) DO_PRAGMA(clang diagnostic ignored "-Wunused-label")
+#define RMC_PRAGMA_POP DO_PRAGMA(clang diagnostic pop)
 
 
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
@@ -38,11 +42,13 @@ extern void __rmc_push(void);
 /* This is unhygenic in a nasty way. */
 /* The (void)0s are because declarations can't directly follow labels,
  * apparently. */
-#define LS(label, stmt)                                                   \
-    XRCAT(__rmc_entry_##label##_, __COUNTER__): __attribute__((unused))   \
-    XRCAT(_rmc_##label##_, __COUNTER__): __attribute__((unused)) (void)0; \
-    stmt;                                                                 \
-    XRCAT(__rmc_end_##label##_, __COUNTER__): __attribute__((unused)) (void)0
+#define LS(label, stmt)                                          \
+    RMC_PRAGMA_PUSH                                              \
+    XRCAT(__rmc_entry_##label##_, __COUNTER__):                  \
+    XRCAT(_rmc_##label##_, __COUNTER__): (void)0;                \
+    stmt;                                                        \
+    XRCAT(__rmc_end_##label##_, __COUNTER__): (void)0            \
+    RMC_PRAGMA_POP
 
 #define PUSH __rmc_push()
 
