@@ -9,7 +9,7 @@
  * block (labelled statements don't fundamentally *need* to be in
  * their own basic block, but it makes things convenient) and edges
  * are specified by calling a dummy function __rmc_edge_register with
- * the labels as arguments (using computed goto to get the labels).
+ * the names of the labels as arguments.
  *
  * This is really quite fragile; optimization passes will easily
  * destroy this information. The RMC pass should be run *before* any
@@ -40,14 +40,14 @@ extern void __rmc_push(void);
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
 /* This is unhygenic in a nasty way. */
-/* The (void)0s are because declarations can't directly follow labels,
- * apparently. */
+/* The semis after the labels are because declarations can't directly
+ * follow labels, apparently. */
 #define LS(label, stmt)                                          \
     RMC_PRAGMA_PUSH                                              \
     XRCAT(__rmc_entry_##label##_, __COUNTER__):                  \
-    XRCAT(_rmc_##label##_, __COUNTER__): (void)0;                \
+    XRCAT(_rmc_##label##_, __COUNTER__): ;                       \
     stmt;                                                        \
-    XRCAT(__rmc_end_##label##_, __COUNTER__): (void)0            \
+    XRCAT(__rmc_end_##label##_, __COUNTER__): ;                  \
     RMC_PRAGMA_POP
 
 #define PUSH __rmc_push()

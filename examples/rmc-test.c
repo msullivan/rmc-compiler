@@ -130,6 +130,7 @@ void ctrl_dom_test(int *p, int *q, int bs) {
 
     if (bs & 1) {
         L(a, int x = *p);
+        (void)x;
     }
 
     // Use multiple branches so that the weight will be lower if it
@@ -173,7 +174,6 @@ int mp_recv_bang(int *flag, int *data) {
 
 // Hm. This is nicer.
 int mp_recv_le(int *flag, int *data) {
-    int rf;
     XEDGE(rflag, rdata);
     while (LE(rflag, *flag) == 0)
         continue;
