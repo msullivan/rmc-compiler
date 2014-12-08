@@ -42,13 +42,15 @@ extern int __rmc_push(void);
 /* This is unhygenic in a nasty way. */
 /* The semis after the labels are because declarations can't directly
  * follow labels, apparently. */
-#define LS(label, stmt)                                          \
+#define LS_(label, stmt)                                         \
     RMC_PRAGMA_PUSH                                              \
-    XRCAT(__rmc_entry_##label##_, __COUNTER__):                  \
-    XRCAT(_rmc_##label##_, __COUNTER__): ;                       \
+    XRCAT(__rmc_entry_, label):                                  \
+    XRCAT(_rmc_, label): ;                                       \
     stmt;                                                        \
-    XRCAT(__rmc_end_##label##_, __COUNTER__): ;                  \
+    XRCAT(__rmc_end_, label): ;                                  \
     RMC_PRAGMA_POP
+
+#define LS(label, stmt) LS_(XRCAT(label##_, __COUNTER__), stmt)
 
 #define PUSH __rmc_push()
 
