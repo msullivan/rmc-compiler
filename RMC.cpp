@@ -426,7 +426,7 @@ void fixupAccessesAction(Action &info) {
     if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
       load->setAtomic(Monotonic);
     } else if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
-      store->setAtomic(Unordered);
+      store->setAtomic(Monotonic);
     }
     // XXX: Handle other things?? RMWs??
   }
