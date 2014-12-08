@@ -344,8 +344,10 @@ void RealizeRMC::findEdges() {
       continue;
     }
 
-    // Delete the bogus call.
-    i->eraseFromParent();
+    // Delete the bogus call. There might be uses if we didn't mem2reg.
+    BasicBlock::iterator ii(i);
+    ReplaceInstWithValue(i->getParent()->getInstList(),
+                         ii, ConstantInt::get(i->getType(), 0));
   }
 }
 
@@ -370,7 +372,8 @@ void analyzeAction(Action &info) {
   // Try to characterize what this action does.
   // These categories might not be the best.
   if (info.isPush) {
-    assert(info.loads+info.stores+info.calls+info.RMWs == 0);
+    // shouldn't do anything else; but might be a store if we didn't mem2reg
+    assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
     info.type = ActionPush;
   } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;

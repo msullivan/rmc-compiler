@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-extern void __rmc_edge_register(int is_vis, const char *src, const char *dst);
+extern int __rmc_edge_register(int is_vis, const char *src, const char *dst);
 extern int __rmc_push(void);
 
 #ifdef __cplusplus
