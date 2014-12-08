@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 extern void __rmc_edge_register(int is_vis, const char *src, const char *dst);
-extern void __rmc_push(void);
+extern int __rmc_push(void);
 
 #ifdef __cplusplus
 }
@@ -68,10 +68,16 @@ extern void __rmc_push(void);
 
 #endif /* HAS_RMC */
 
-#define L(label, stmt) LS(label, stmt)
 // Nice way to extract a value directly from a named read
 // without needing to manually stick it in a temporary.
 #define LE(label, expr) ({LS(label, typeof(expr) _______t = expr); _______t;})
+#define LR(label, expr) LE(label, expr)
+
+#ifdef OLD_L_BEHAVIOR
+#define L(label, stmt) LS(label, stmt)
+#else
+#define L(label, stmt) LR(label, stmt)
+#endif
 
 
 #endif

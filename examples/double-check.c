@@ -19,7 +19,7 @@ foo_t *get_foo(void) {
     XEDGE(read, post);
     VEDGE(construct, update);
 
-    L(read, foo_t *r = single_foo);
+    foo_t *r = L(read, single_foo);
     if (r != 0) return r;
 
     mutex_lock(foo_lock);

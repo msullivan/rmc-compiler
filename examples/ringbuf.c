@@ -451,7 +451,7 @@ int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
     VEDGE(insert, e_update);
 
     unsigned back = buf->back;
-    L(e_check, unsigned front = buf->front);
+    unsigned front = L(e_check, buf->front);
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
@@ -468,7 +468,7 @@ int buf_dequeue_rmc(ring_buf_t *buf)
     XEDGE(read, d_update);
 
     unsigned front = buf->front;
-    L(d_check, unsigned back = buf->back);
+    unsigned back = L(d_check, buf->back);
 
     int c = -1;
     if (front != back) {

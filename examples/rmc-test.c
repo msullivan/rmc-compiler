@@ -9,7 +9,7 @@
 int bogus_ctrl_dep1(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = *p);
+    int r = L(read, *p);
     if (r == r) {
         L(write, *q = 1);
     }
@@ -23,7 +23,7 @@ int bogus_ctrl_dep1(int *p, int *q) {
 int bogus_ctrl_dep2(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = *p);
+    int r = L(read, *p);
     if (r) {
         L(write, *q = 1);
     } else {
@@ -37,7 +37,7 @@ int bogus_ctrl_dep2(int *p, int *q) {
 int bogus_ctrl_dep3(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = *p);
+    int r = L(read, *p);
     if (r) {};
 
     L(write, *q = 1);
@@ -49,7 +49,7 @@ int bogus_ctrl_dep3(int *p, int *q) {
 int bogus_ctrl_dep4(int *p, int *q) {
     XEDGE(read, write);
 
-    L(read, int r = *p);
+    int r = L(read, *p);
     if (r || 1) {
         L(write, *q = 1);
     }
@@ -64,7 +64,7 @@ int sb_test1(int *p, int *q) {
 
     L(write, *p = 1);
     L(push, PUSH);
-    L(read, int x = *q);
+    int x = L(read, *q);
 
     return x;
 }
@@ -88,7 +88,7 @@ void store_release(int *ptr, int val) {
 }
 int load_acquire(int *ptr) {
     XEDGE(load, post);
-    L(load, int val = *ptr);
+    int val = L(load, *ptr);
     return val;
 }
 
@@ -129,7 +129,7 @@ void ctrl_dom_test(int *p, int *q, int bs) {
     XEDGE(a, b);
 
     if (bs & 1) {
-        L(a, int x = *p);
+        int x = L(a, *p);
         (void)x;
     }
 
@@ -153,9 +153,9 @@ int mp_recv(int *flag, int *data) {
     int rf;
     XEDGE(rflag, rdata);
     do {
-        L(rflag, rf = *flag);
+        LS(rflag, rf = *flag);
     } while (rf == 0);
-    L(rdata, int rd = *data);
+    LS(rdata, int rd = *data);
     return rd;
 }
 
@@ -168,15 +168,14 @@ int mp_recv_bang(int *flag, int *data) {
     do {
         L(rflag, rf = *flag);
     } while (!rf);
-    L(rdata, int rd = *data);
+    int rd = L(rdata, *data);
     return rd;
 }
 
 // Hm. This is nicer.
 int mp_recv_le(int *flag, int *data) {
     XEDGE(rflag, rdata);
-    while (LE(rflag, *flag) == 0)
+    while (L(rflag, *flag) == 0)
         continue;
-    int rd = LE(rdata, *data);
-    return rd;
+    return L(rdata, *data);
 }
