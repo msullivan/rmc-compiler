@@ -32,7 +32,7 @@ const bool kInvertBools = false;
 
 // Costs for different sorts of things that we insert.
 // XXX: These numbers are just made up.
-const int kLwsyncCost = 500;
+const int kLwsyncCost = 50;
 const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
 const int kAddCtrlCost = 7;
