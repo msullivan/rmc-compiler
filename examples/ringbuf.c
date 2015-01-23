@@ -49,6 +49,35 @@ int buf_dequeue_410(ring_buf_t *buf)
     return c;
 }
 
+// This is the thing that Dave whines about
+int buf_enqueue_pow2(ring_buf_t *buf, unsigned char c)
+{
+    unsigned back = buf->back;
+    unsigned front = buf->front;
+
+    int enqueued = 0;
+    if (back != front + KBD_BUF_SIZE) {
+        buf->buf[back % KBD_BUF_SIZE] = c;
+        buf->back = back+1;
+        enqueued = 1;
+    }
+    return enqueued;
+}
+
+int buf_dequeue_pow2(ring_buf_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = buf->back;
+
+    int c = -1;
+    if (front != back) {
+        c = buf->buf[front % KBD_BUF_SIZE];
+        buf->front = front+1;
+    }
+    return c;
+}
+
+
 /******** Something that is at least correct wrt the compiler  **********/
 int buf_enqueue_compiler_safe(ring_buf_t *buf, unsigned char c)
 {
