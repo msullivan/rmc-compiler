@@ -179,3 +179,15 @@ int mp_recv_le(int *flag, int *data) {
         continue;
     return L(rdata, *data);
 }
+
+
+// Consume style stuff
+int recv_consume(int **pdata) {
+    XEDGE(rp, rdata);
+    int *p = L(rp, *pdata);
+    int rd = L(rdata, *p);
+    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
+    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
+    BARRIER();
+    return rd;
+}
