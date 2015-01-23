@@ -202,3 +202,12 @@ int recv_consume2(int *parray, int *pidx) {
     BARRIER();
     return rd;
 }
+
+int recv_consume_loop(int **pdata) {
+    XEDGE(rp, rdata);
+    int *p;
+    while ((p = L(rp, *pdata)) == 0)
+        ;
+    int rd = L(rdata, *p);
+    return rd;
+}
