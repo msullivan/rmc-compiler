@@ -73,3 +73,20 @@ Things about the paper:
       vo+vo+xo works, as does push+xo+xo;
       push+xo+xo is maaaybe what we want on ARM, but vo+vo+xo is
       definitely better on x86
+
+
+--------------------------------------------
+
+I think we are going to want to be able to adjust where labels get
+"bound": that is, relative to loops, the function call, etc. This
+seems important for doing consume style stuff. The thing that matches
+the theory would be to handle it at the label declaration, but it
+seems cleaner for code implementation to do it when specifying edges.
+
+We *definitely* want to be able to bind inside a function. Loops more
+complicated. What about gotos, etc.
+
+---
+How elaborate of real dependencies do we want to try to preserve?
+And how do we preserve them?
+Detecting and preserving straightforward deps should be eaaaaasy.
