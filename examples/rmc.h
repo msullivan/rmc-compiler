@@ -81,5 +81,8 @@ extern int __rmc_push(void);
 #define L(label, stmt) LR(label, stmt)
 #endif
 
+#define BARRIER_INTERNAL(l) do { L(l, PUSH); VEDGE(pre, l); XEDGE(l, post); } while (0)
+#define BARRIER() BARRIER_INTERNAL(XRCAT(__barrier_push, __COUNTER__))
+
 
 #endif
