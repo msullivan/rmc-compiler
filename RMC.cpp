@@ -454,7 +454,6 @@ bool branchesOn(BasicBlock *bb, Value *load,
   BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
   if (!br || !br->isConditional()) return false;
   // TODO: We only check one level of things. Check deeper?
-  //if (br->getCondition() == soleLoad) {hasSoftCut = true; continue;}
 
   // We pretty heavily restrict what operations we handle here.
   // Some would just be wrong (like call), but really icmp is
@@ -484,7 +483,19 @@ bool addrDepsOn(Instruction *instr, Value *load,
     if (outIdx) *outIdx = 0;
     return true;
   }
-  // TODO: handle more elaborate dependencies. GEP at least!
+
+  // TODO: less heavily restrict what we use
+  GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pointer);
+  if (!gep) return false;
+  int idx = 0;
+  for (auto v : gep->operand_values()) {
+    if (isSameValueWithBS(load, v)) {
+      if (instrOut) *instrOut = gep;
+      if (outIdx) *outIdx = idx;
+      return true;
+    }
+    ++idx;
+  }
   return false;
 }
 

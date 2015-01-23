@@ -191,3 +191,14 @@ int recv_consume(int **pdata) {
     BARRIER();
     return rd;
 }
+
+// Same as above but indexing
+int recv_consume2(int *parray, int *pidx) {
+    XEDGE(rp, rdata);
+    int idx = L(rp, *pidx);
+    int rd = L(rdata, parray[idx]);
+    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
+    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
+    BARRIER();
+    return rd;
+}
