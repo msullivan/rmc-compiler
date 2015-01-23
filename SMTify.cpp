@@ -456,7 +456,18 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
     return makePathCtrlIsync(s, m, path);
   }
 }
+// Does it make sense for this to be a path variable at all???
+z3::expr makePathDataCut(solver &s, VarMaps &m,
+                         PathID path, Action *tail) {
+  // TODO: allow things to get broken down some! to pass through things
+  Action *src = m.bb2action[m.pc.getHead(path)];
+  // TODO: add a variable to track it!
+  if (src && src->soleLoad && tail->soleLoad &&
+      addrDepsOn(tail->soleLoad, src->soleLoad))
+    return s.ctx().bool_val(true);
 
+  return s.ctx().bool_val(false);
+}
 
 z3::expr makeEdgeVcut(solver &s, VarMaps &m,
                       BasicBlock *src, BasicBlock *dst) {
@@ -504,9 +515,14 @@ z3::expr makePathXcut(solver &s, VarMaps &m,
       (makeAllPathsCtrl(s, m, head, head) ||
       makeXcut(s, m, head, m.bb2action[head]));
   }
+  z3::expr pathDataCut = makePathDataCut(s, m, path, tail);
+  if (!isSelfPath) {
+    pathDataCut = pathDataCut &&
+      makeXcut(s, m, head, m.bb2action[head]);
+  }
 
   s.add(isCut ==
-        (makePathVcut(s, m, path) || pathCtrlCut));
+        (makePathVcut(s, m, path) || pathCtrlCut || pathDataCut));
 
   return isCut;
 }

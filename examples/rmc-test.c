@@ -211,3 +211,17 @@ int recv_consume_loop(int **pdata) {
     int rd = L(rdata, *p);
     return rd;
 }
+
+int recv_consume_twice(int *parray, int *pidx) {
+    // We don't handle this well yet because of how we handle transitivity
+    // in the SMT version.
+    XEDGE(rp, rdata);
+    XEDGE(rdata, rdata2);
+    int idx = L(rp, *pidx);
+    int rd = L(rdata, parray[idx]);
+    rd = L(rdata2, parray[rd]);
+    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
+    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
+    BARRIER();
+    return rd;
+}
