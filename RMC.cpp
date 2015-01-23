@@ -475,6 +475,31 @@ bool branchesOn(BasicBlock *bb, Value *load,
   return false;
 }
 
+// Look for address dependencies on a read.
+bool addrDepsOn(Instruction *instr, Value *load,
+                Instruction **instrOut, int *outIdx) {
+  Value *pointer = instr->getOperand(0);
+  if (isSameValueWithBS(pointer, load)) {
+    if (instrOut) *instrOut = instr;
+    if (outIdx) *outIdx = 0;
+    return true;
+  }
+  // TODO: handle more elaborate dependencies. GEP at least!
+  return false;
+}
+
+
+}
+
+// Rewrite an instruction so that one of the operands is a dummy copy
+// to hide information from llvm
+void enforceUseOf(Value *load, BasicBlock *next,
+                  Instruction *instr, int idx) {
+  if (instr->getOperand(idx) == load) {
+    // Only put in the copy if we haven't done it already.
+    Instruction *dummyCopy = makeCopy(load, instr);
+    instr->setOperand(idx, dummyCopy);
+  }
 }
 
 void enforceBranchOn(Value *load, BasicBlock *next,
@@ -482,11 +507,7 @@ void enforceBranchOn(Value *load, BasicBlock *next,
   // In order to keep LLVM from optimizing our stuff away we
   // insert a dummy copy of the load and a compiler barrier in the
   // target.
-  if (icmp->getOperand(idx) == load) {
-    // Only put in the copy if we haven't done it already.
-    Instruction *dummyCopy = makeCopy(load, icmp);
-    icmp->setOperand(idx, dummyCopy);
-  }
+  enforceUseOf(load, next, icmp, idx);
   if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
 }
 
@@ -557,6 +578,15 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
     CutStrength pathStrength = isPathCut(edge, path,
                                          enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
+  }
+
+  // See if we have a data dep in a very basic way.
+  // FIXME: Should be able to handle writes also!
+  // FIXME: Do we need to enforce?
+  if (strength == NoCut &&
+      edge.src->soleLoad && edge.dst->soleLoad &&
+      addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad)) {
+    return SoftCut;
   }
 
   return strength;
