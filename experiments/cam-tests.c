@@ -132,3 +132,39 @@ exists
 //Is I think what I want! - tragically, this does not work.
 
 #endif
+
+/////////////////////////////////////////////
+
+// Out of thin air writes are really scary.
+// Example adapted from http://dl.acm.org/citation.cfm?id=2618134 to
+// work under http://svr-pes20-cppmem.cl.cam.ac.uk/cppmem/index.html
+
+
+// Can wind up with an = &b, bn = &a!
+int main() {
+  int *p1, *p2;
+  atomic_int a, an, b, bn;
+  a = &an;
+  b = &bn;
+
+  {{{ { p1 = a.load(memory_order_relaxed);
+        atomic_store_explicit(*p1, &a, memory_order_relaxed); }
+  ||| { p2 = b.load(memory_order_relaxed);
+        atomic_store_explicit(*p2, &b, memory_order_relaxed); } }}};
+  return 0;
+}
+
+// But if there are no atomics, everything is fine!
+
+int main() {
+  int *p1, *p2;
+  int a, an, b, bn;
+  a = &an;
+  b = &bn;
+
+  {{{ { p1 = a;
+        *p1 = &a; }
+  ||| { p2 = b;
+        *p2 = &b; } }}};
+  return 0;
+}
