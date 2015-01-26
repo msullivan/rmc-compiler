@@ -332,6 +332,7 @@ struct VarMaps {
   // The edge here isn't actually a proper edge in that it isn't
   // necessarily two blocks connected in the CFG
   DeclMap<EdgeKey> usesData;
+  DeclMap<BlockPathKey> pathData;
 };
 
 // Generalized it.
@@ -370,7 +371,8 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
   BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
   z3::expr somethingCut = func(src, dst, path) ||
     forAllPathEdges(s, m, rest, getVar, func);
-  s.add(isCut == somethingCut.simplify());
+//  s.add(isCut == somethingCut.simplify());
+  s.add(isCut == somethingCut);
 
   return isCut;
 }
@@ -412,7 +414,7 @@ z3::expr makePathCtrlIsync(solver &s, VarMaps &m,
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -430,7 +432,7 @@ z3::expr makePathCtrl(solver &s, VarMaps &m, PathID path) {
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -461,16 +463,42 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
     return makePathCtrlIsync(s, m, path);
   }
 }
-// Does it make sense for this to be a path variable at all???
-z3::expr makePathDataCut(solver &s, VarMaps &m,
-                         PathID path, Action *tail) {
-  // TODO: allow things to get broken down some! to pass through things
-  Action *src = m.bb2action[m.pc.getHead(path)];
-  if (src && src->soleLoad && tail->soleLoad &&
+
+z3::expr makeData(solver &s, VarMaps &m,
+                  BasicBlock *dep, BasicBlock *dst) {
+  Action *src = m.bb2action[dep];
+  Action *tail = m.bb2action[dst];
+  if (src && tail && src->soleLoad && tail->soleLoad &&
       addrDepsOn(tail->soleLoad, src->soleLoad))
     return getEdgeFunc(m.usesData, src->bb, tail->bb);
 
   return s.ctx().bool_val(false);
+}
+
+// Does it make sense for this to be a path variable at all???
+z3::expr makePathDataCut(solver &s, VarMaps &m,
+                         PathID path, Action *tail) {
+  z3::context &c = s.ctx();
+  if (m.pc.isEmpty(path)) return c.bool_val(false);
+  BasicBlock *dep = m.pc.getHead(path);
+  // Can't have a addr dependency when it's not a load.
+  // XXX: we can maybe be more granular about things.
+  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) {
+      return getFunc(m.pathData, makeBlockPathKey(dep, path), b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      z3::expr cut = makeData(s, m, dep, dst);
+      path = m.pc.getTail(path);
+      if (dst != tail->bb) {
+        cut = cut &&
+          (makePathCtrlCut(s, m, path, tail) ||
+           makePathDataCut(s, m, path, tail));
+      }
+      return cut;
+    });
 }
 
 z3::expr makeEdgeVcut(solver &s, VarMaps &m,
@@ -593,6 +621,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
 
     DeclMap<EdgeKey>(c.bool_sort(), "uses_data"),
+    DeclMap<BlockPathKey>(c.bool_sort(), "path_data"),
   };
 
   // Compute the capacity function
