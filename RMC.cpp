@@ -432,15 +432,17 @@ void fixupAccessesAction(Action &info) {
   }
 }
 
-// Check if v1 and v2 are the same where maybe v2 has been
-// passed to a bs copy inline asm routine.
-// We could make our checking a bit better
-bool isSameValueWithBS(Value *v1, Value *v2) {
-  if (v1 == v2) return true;
-  CallInst *call = dyn_cast<CallInst>(v2);
-  if (!call) return false;
-  return call->getName() == "__rmc_bs_copy" &&
-    call->getOperand(0) == v1;
+// Return the CallInst if the value is a bs copy, otherwise null
+CallInst *getBSCopy(Value *v) {
+  CallInst *call = dyn_cast<CallInst>(v);
+  if (!call) return nullptr;
+  return call->getName() == "__rmc_bs_copy" ? call : nullptr;
+}
+
+// Look through a possible bs copy to find the real underlying value
+Value *getRealValue(Value *v) {
+  CallInst *copy = getBSCopy(v);
+  return copy ? copy->getOperand(0) : v;
 }
 
 // FIXME: reorganize the namespace stuff?. Or put this in the class.
@@ -463,7 +465,7 @@ bool branchesOn(BasicBlock *bb, Value *load,
   if (!icmp) return false;
   int idx = 0;
   for (auto v : icmp->operand_values()) {
-    if (isSameValueWithBS(load, v)) {
+    if (getRealValue(v) == load) {
       if (icmpOut) *icmpOut = icmp;
       if (outIdx) *outIdx = idx;
       return true;
@@ -478,7 +480,7 @@ bool branchesOn(BasicBlock *bb, Value *load,
 bool addrDepsOn(Instruction *instr, Value *load,
                 Instruction **instrOut, int *outIdx) {
   Value *pointer = instr->getOperand(0);
-  if (isSameValueWithBS(pointer, load)) {
+  if (getRealValue(pointer) == load) {
     if (instrOut) *instrOut = instr;
     if (outIdx) *outIdx = 0;
     return true;
@@ -489,7 +491,7 @@ bool addrDepsOn(Instruction *instr, Value *load,
   if (!gep) return false;
   int idx = 0;
   for (auto v : gep->operand_values()) {
-    if (isSameValueWithBS(load, v)) {
+    if (getRealValue(v) == load) {
       if (instrOut) *instrOut = gep;
       if (outIdx) *outIdx = idx;
       return true;
