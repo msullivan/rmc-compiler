@@ -57,6 +57,19 @@ int bogus_ctrl_dep4(int *p, int *q) {
     return r;
 }
 
+// A tautological comparison that we can't disguise just by disguising
+// the input.
+int bogus_ctrl_dep5(unsigned *p, unsigned *q) {
+    XEDGE(read, write);
+
+    unsigned r = L(read, *p);
+    if (r >= 0) {
+        L(write, *q = 1);
+    }
+
+    return r;
+}
+
 //// Some push tests
 // Regular store buffering test
 int sb_test1(int *p, int *q) {

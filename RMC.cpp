@@ -436,7 +436,8 @@ void fixupAccessesAction(Action &info) {
 CallInst *getBSCopy(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
-  return call->getName() == "__rmc_bs_copy" ? call : nullptr;
+  // This is gind of dubious
+  return call->getName().startswith("__rmc_bs_copy") ? call : nullptr;
 }
 
 // Look through a possible bs copy to find the real underlying value
@@ -504,23 +505,27 @@ bool addrDepsOn(Instruction *instr, Value *load,
 
 }
 
-// Rewrite an instruction so that one of the operands is a dummy copy
-// to hide information from llvm
-void enforceUseOf(Value *load, BasicBlock *next,
-                  Instruction *instr, int idx) {
-  if (instr->getOperand(idx) == load) {
-    // Only put in the copy if we haven't done it already.
-    Instruction *dummyCopy = makeCopy(load, instr);
-    instr->setOperand(idx, dummyCopy);
+// Rewrite an instruction so that an operand is a dummy copy to
+// hide information from llvm's optimizer
+void hideOperand(Instruction *instr, int i) {
+  Value *v = instr->getOperand(i);
+  // Only put in the copy if we haven't done it already.
+  if (!getBSCopy(v)) {
+    Instruction *dummyCopy = makeCopy(v, instr);
+    instr->setOperand(i, dummyCopy);
+  }
+}
+void hideOperands(Instruction *instr) {
+  for (int i = 0; i < instr->getNumOperands(); i++) {
+    hideOperand(instr, i);
   }
 }
 
-void enforceBranchOn(Value *load, BasicBlock *next,
-                     ICmpInst *icmp, int idx) {
+void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
   // In order to keep LLVM from optimizing our stuff away we
-  // insert a dummy copy of the load and a compiler barrier in the
+  // insert dummy copies of the operands and a compiler barrier in the
   // target.
-  enforceUseOf(load, next, icmp, idx);
+  hideOperands(icmp);
   if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
 }
 
@@ -575,7 +580,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 
     if (hasSoftCut && enforceSoft) {
       BasicBlock *next = *(i+1);
-      enforceBranchOn(soleLoad, next, icmp, idx);
+      enforceBranchOn(next, icmp, idx);
     }
   }
 
@@ -768,7 +773,7 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     int idx; ICmpInst *icmp;
     bool branches = branchesOn(cut.src, cut.read, &icmp, &idx);
     if (branches) {
-      enforceBranchOn(cut.read, cut.dst, icmp, idx);
+      enforceBranchOn(cut.dst, icmp, idx);
     } else {
       makeCtrl(cut.read, getCutInstr(cut));
     }
