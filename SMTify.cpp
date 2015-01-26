@@ -36,6 +36,7 @@ const int kLwsyncCost = 50;
 const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
 const int kAddCtrlCost = 7;
+const int kUseDataCost = 1;
 
 
 #if USE_Z3_OPTIMIZER
@@ -327,6 +328,10 @@ struct VarMaps {
   DeclMap<BlockEdgeKey> usesCtrl;
   DeclMap<BlockPathKey> pathCtrl;
   DeclMap<EdgeKey> allPathsCtrl;
+
+  // The edge here isn't actually a proper edge in that it isn't
+  // necessarily two blocks connected in the CFG
+  DeclMap<EdgeKey> usesData;
 };
 
 // Generalized it.
@@ -461,10 +466,9 @@ z3::expr makePathDataCut(solver &s, VarMaps &m,
                          PathID path, Action *tail) {
   // TODO: allow things to get broken down some! to pass through things
   Action *src = m.bb2action[m.pc.getHead(path)];
-  // TODO: add a variable to track it!
   if (src && src->soleLoad && tail->soleLoad &&
       addrDepsOn(tail->soleLoad, src->soleLoad))
-    return s.ctx().bool_val(true);
+    return getEdgeFunc(m.usesData, src->bb, tail->bb);
 
   return s.ctx().bool_val(false);
 }
@@ -587,6 +591,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
+
+    DeclMap<EdgeKey>(c.bool_sort(), "uses_data"),
   };
 
   // Compute the capacity function
@@ -634,6 +640,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
       branchesOn(src, bb2action_[dep]->soleLoad) ? kUseCtrlCost : kAddCtrlCost;
     cost = cost +
       boolToInt(v, weight*cap(src, dst));
+  }
+  for (auto & entry : m.usesData.map) {
+    unpack(unpack(src, dst), v) = entry;
+    // XXX: this is a hack that depends on us only using actions in
+    // usesData things
+    BasicBlock *pred = dst->getSinglePredecessor();
+    cost = cost +
+      boolToInt(v, kUseDataCost*cap(pred, dst));
   }
 
   s.add(costVar == cost.simplify());
