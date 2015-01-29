@@ -18,6 +18,7 @@
 #define smp_mb() __asm__ __volatile__("mfence":::"memory")
 #define smp_rmb() __asm__ __volatile__("lfence":::"memory")
 #define smp_wmb() __asm__ __volatile__("sfence" ::: "memory")
+#define smp_read_barrier_depends() nop()
 
 /* These are for x86 */
 #define smp_store_release(p, v)                  \
@@ -26,12 +27,6 @@
         ACCESS_ONCE(*p) = v;                     \
     } while (0)
 #define smp_load_acquire(p)                      \
-    ({                                           \
-    __typeof__(*p) __v = ACCESS_ONCE(*p);        \
-    barrier();                                   \
-    __v;                                         \
-    })
-#define smp_load_consume(p)                      \
     ({                                           \
     __typeof__(*p) __v = ACCESS_ONCE(*p);        \
     barrier();                                   \
@@ -50,12 +45,14 @@
     __v;                                         \
     })
 
+#define smp_read_barrier_depends() nop()
 
 #elif defined(__arm__)
 
 #define smp_mb() __asm__ __volatile__("dmb":::"memory")
 #define smp_rmb smp_mb
 #define smp_wmb smp_mb
+#define smp_read_barrier_depends() nop()
 
 // Make sure you are doing a ctrl yourself!
 #define isync() __asm__ __volatile__("isb":::"memory")
@@ -94,13 +91,6 @@
     })
 #endif
 
-#define smp_load_consume(p)                      \
-    ({                                           \
-    __typeof__(*p) __v = ACCESS_ONCE(*p);        \
-    barrier();                                   \
-    __v;                                         \
-    })
-
 // On arm we produce a zero that is data dependent on an
 // argument by xoring it with itself.
 #define dependent_zero(v)                                               \
@@ -117,6 +107,14 @@
 #else
 #error CPU not supported
 #endif
+
+#define smp_load_consume(p)                      \
+    ({                                           \
+    __typeof__(*p) __v = ACCESS_ONCE(*p);        \
+    smp_read_barrier_depends();                  \
+    __v;                                         \
+    })
+
 
 /* Given values v and bs, produce a copy of v that is technically
  * data dependent on bs.
