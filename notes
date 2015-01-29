@@ -107,6 +107,9 @@ narrow possible binding" (least common dominator?).
 And how do we preserve them?  Detecting and preserving straightforward
 deps should be eaaaaasy.
 
+We probably need to be able to handle linux RCU list style things,
+which means handling bitcasts and GEPs.
+
 *** We are definitely definitely going to need a notion of path dependence
 for detecting dependency. A super common example of RCU is searching a
 linked list, so...
