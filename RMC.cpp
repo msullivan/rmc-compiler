@@ -32,6 +32,7 @@
 #include <llvm/ADT/iterator_range.h>
 
 #include <llvm/IR/Dominators.h>
+#include <llvm/Analysis/LoopInfo.h>
 
 
 #include <llvm/Support/raw_ostream.h>
@@ -864,13 +865,15 @@ public:
   }
   virtual bool runOnFunction(Function &F) {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    RealizeRMC rmc(F, dom, useSMT_);
+    LoopInfo &li = getAnalysis<LoopInfo>();
+    RealizeRMC rmc(F, dom, li, useSMT_);
     return rmc.run();
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
     AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<LoopInfo>();
     AU.setPreservesCFG();
   }
 };

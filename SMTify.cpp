@@ -626,9 +626,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   // Compute the capacity function
   DenseMap<EdgeKey, int> edgeCap = computeCapacities(func_);
-  auto cap =
+  auto weight =
     [&] (BasicBlock *src, BasicBlock *dst) {
-    return edgeCap[makeEdgeKey(src, dst)];
+    // The weight of an edge is based on its graph capacity and its loop depth.
+    // We use 4^depth as a scaling factor for loop depth so that a loop body
+    // will have twice the cost of its parent (since the parent probably has
+    // twice the capacity).
+    return edgeCap[makeEdgeKey(src, dst)] * pow(4, loopInfo_.getLoopDepth(src));
   };
 
   //////////
@@ -655,20 +659,20 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   for (auto & entry : m.lwsync.map) {
     unpack(unpack(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, kLwsyncCost*cap(src, dst));
+      boolToInt(v, kLwsyncCost*weight(src, dst));
   }
   for (auto & entry : m.isync.map) {
     unpack(unpack(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, kIsyncCost*cap(src, dst));
+      boolToInt(v, kIsyncCost*weight(src, dst));
   }
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
     unpack(unpack(dep, unpack(src, dst)), v) = entry;
-    auto weight =
+    auto ctrlWeight =
       branchesOn(src, bb2action_[dep]->soleLoad) ? kUseCtrlCost : kAddCtrlCost;
     cost = cost +
-      boolToInt(v, weight*cap(src, dst));
+      boolToInt(v, ctrlWeight*weight(src, dst));
   }
   for (auto & entry : m.usesData.map) {
     unpack(unpack(src, dst), v) = entry;
@@ -676,7 +680,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     // usesData things
     BasicBlock *pred = dst->getSinglePredecessor();
     cost = cost +
-      boolToInt(v, kUseDataCost*cap(pred, dst));
+      boolToInt(v, kUseDataCost*weight(pred, dst));
   }
 
   s.add(costVar == cost.simplify());

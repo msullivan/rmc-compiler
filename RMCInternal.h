@@ -13,6 +13,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <llvm/IR/Dominators.h>
+#include <llvm/Analysis/LoopInfo.h>
 
 // std::forward_as_tuple is basically just better for destructuring
 // assignment than std::tie is, I think, since it can handle nesting
@@ -147,6 +148,7 @@ class RealizeRMC {
 private:
   Function &func_;
   DominatorTree &domTree_;
+  LoopInfo &loopInfo_;
   bool useSMT_;
 
   int numNormalActions_;
@@ -179,8 +181,10 @@ private:
   std::vector<EdgeCut> smtAnalyze();
 
 public:
-  RealizeRMC(Function &F, DominatorTree &domTree, bool useSMT)
-    : func_(F), domTree_(domTree), useSMT_(useSMT), numNormalActions_(0) { }
+  RealizeRMC(Function &F, DominatorTree &domTree,
+             LoopInfo &loopInfo, bool useSMT)
+    : func_(F), domTree_(domTree), loopInfo_(loopInfo),
+      useSMT_(useSMT), numNormalActions_(0) { }
   ~RealizeRMC() { }
   bool run();
 };

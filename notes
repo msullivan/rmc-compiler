@@ -124,7 +124,7 @@ since all addresses need to be resolved, right?
 
 ----
 
-*** We need to adjust our notion of cost to take loops into account!
+DONE *** We need to adjust our notion of cost to take loops into account!
 We will basically preferentially put things into loops instead of
 taking them out, which is totally backwards.  Dunno if it should be
 part of capacity or a seperate score.  Maybe increase the cost by a
