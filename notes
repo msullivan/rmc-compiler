@@ -86,7 +86,45 @@ seems cleaner for code implementation to do it when specifying edges.
 We *definitely* want to be able to bind inside a function. Loops more
 complicated. What about gotos, etc.
 
----
-How elaborate of real dependencies do we want to try to preserve?
-And how do we preserve them?
-Detecting and preserving straightforward deps should be eaaaaasy.
+Actually maybe not definitely. If rcu_read_unlock() has a barrier then
+maybe we don't give a shit anymore.
+
+*** Idea: allow explicitly specifying a binding location for a
+label. That binding location then needs to dominate all occurances of
+the label as well as anything with edges to/from that label. Then,
+when looking at paths, we can ignore paths that go through the binding
+site, I think. Not totally sure how to properly handle differing
+binding sites between src/dst (technically they will probably always
+differ, even if trivially...): maybe ignore the least common ancestor
+dominator.
+
+Probably also want a way to specify binding something at the "most
+narrow possible binding" (least common dominator?).
+
+
+
+--- How elaborate of real dependencies do we want to try to preserve?
+And how do we preserve them?  Detecting and preserving straightforward
+deps should be eaaaaasy.
+
+*** We are definitely definitely going to need a notion of path dependence
+for detecting dependency. A super common example of RCU is searching a
+linked list, so...
+* I should run some benchmarks to see how much faster it is with RCU.
+
+
+-----
+
+** Combining isync and depedencies might actually be quite profitable,
+since all addresses need to be resolved, right?
+
+
+----
+
+*** We need to adjust our notion of cost to take loops into account!
+We will basically preferentially put things into loops instead of
+taking them out, which is totally backwards.  Dunno if it should be
+part of capacity or a seperate score.  Maybe increase the cost by a
+factor of 4^n where n is the loop nesting count?  (4 because a loop
+will probably have 1/2 the capacity of its parent; 4^n makes a loop
+have twice the cost of its parent).
