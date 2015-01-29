@@ -31,9 +31,16 @@ extern int __rmc_push(void);
 }
 #endif
 
+
 #define DO_PRAGMA(x) _Pragma(#x)
 #define RMC_PRAGMA_PUSH DO_PRAGMA(clang diagnostic push) DO_PRAGMA(clang diagnostic ignored "-Wunused-label")
 #define RMC_PRAGMA_POP DO_PRAGMA(clang diagnostic pop)
+
+// Ffffffffffff. The pragma to suppress the unused label warning
+// doesn't seem to work if L() is passed as an argument to some other
+// macro!  I'm just going to disable the warning for now. There are
+// other better workarounds for later.
+#pragma clang diagnostic ignored "-Wunused-label"
 
 
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
