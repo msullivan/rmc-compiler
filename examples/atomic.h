@@ -15,9 +15,12 @@
 
 #if defined(i386) || defined(__x86_64)
 
+#define x86_lfence() __asm__ __volatile__("lfence":::"memory")
+#define x86_sfence() __asm__ __volatile__("sfence" ::: "memory")
+
 #define smp_mb() __asm__ __volatile__("mfence":::"memory")
-#define smp_rmb() __asm__ __volatile__("lfence":::"memory")
-#define smp_wmb() __asm__ __volatile__("sfence" ::: "memory")
+#define smp_rmb() barrier()
+#define smp_wmb() barrier()
 #define smp_read_barrier_depends() nop()
 
 /* These are for x86 */
