@@ -38,6 +38,8 @@ const int kUseCtrlCost = 1;
 const int kAddCtrlCost = 7;
 const int kUseDataCost = 1;
 
+bool debugSpew = false;
+
 
 #if USE_Z3_OPTIMIZER
 typedef z3::optimize solver;
@@ -687,7 +689,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   //////////
   // Print out the model for debugging
-  std::cout << "Built a thing: \n" << s << "\n\n";
+  if (debugSpew) std::cout << "Built a thing: \n" << s << "\n\n";
 
   // Optimize the cost.
   minimize(s, costVar);
@@ -697,7 +699,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   z3::model model = s.get_model();
 
   // Print out the results for debugging
-  dumpModel(model);
+  if (debugSpew) dumpModel(model);
 
   std::vector<EdgeCut> cuts;
 
@@ -716,7 +718,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     Value *read = bb2action_[dep]->soleLoad;
     cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
   });
-  errs() << "\n";
+  if (debugSpew) errs() << "\n";
 
   return cuts;
 }

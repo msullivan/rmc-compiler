@@ -701,7 +701,7 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
   transitiveClosure(realActions, &Action::execTransEdges);
   transitiveClosure(realActions, &Action::visTransEdges);
 
-  dumpGraph(actions);
+  //dumpGraph(actions);
 }
 
 void removeUselessEdges(std::vector<Action> &actions) {
