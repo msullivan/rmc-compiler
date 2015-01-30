@@ -19,11 +19,11 @@ typedef struct list_head_t {
 
 //
 
-#define rcu_dereference(p)		({ \
-            typeof(p) _value = ACCESS_ONCE(p);                          \
-            smp_read_barrier_depends();                                 \
-            (_value);                                                   \
-        })
+#ifdef USE_ACQUIRE
+#define rcu_dereference(p) smp_load_acquire(&p)
+#else
+#define rcu_dereference(p) smp_load_consume(&p)
+#endif
 
 #define list_entry_rcu_linux(ptr, type, member) \
         container_of(rcu_dereference(ptr), type, member)
@@ -90,6 +90,23 @@ int noob_search_rmc(noob_node_t **head, int key) {
 }
 
 
+int list_search_rmc(list_head_t *head, int key) {
+    int res = -1;
+    test_node_t *node;
+    rcu_read_lock();
+    list_for_each_entry_rcu_rmc(node, head, l, r) {
+        if (L(r, node->key) == key) {
+            res = L(r, node->val);
+            break;
+        }
+    }
+
+    rcu_read_unlock();
+    return res;
+}
+
+//
+
 int list_search_linux(list_head_t *head, int key) {
     int res = -1;
     test_node_t *node;
@@ -105,17 +122,99 @@ int list_search_linux(list_head_t *head, int key) {
     return res;
 }
 
-int list_search_rmc(list_head_t *head, int key) {
-    int res = -1;
-    test_node_t *node;
-    rcu_read_lock();
-    list_for_each_entry_rcu_rmc(node, head, l, r) {
-        if (L(r, node->key) == key) {
-            res = L(r, node->val);
-            break;
+
+
+#ifndef NO_TEST
+/*************************** Testing ***************************************/
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <assert.h>
+
+void __list_insert_between(list_node_t *n, list_node_t *n1, list_node_t *n2) {
+    n->prev = n1;
+    n->next = n2;
+    n1->next = n;
+    n2->prev = n;
+}
+void list_insert_before(list_node_t *n, list_node_t *n_old) {
+    __list_insert_between(n, n_old->prev, n_old);
+}
+void list_insert_tail(list_node_t *n, list_head_t *head) {
+    list_insert_before(n, &head->head);
+}
+
+//
+void build_list(list_head_t *head, int size) {
+    head->head.next = head->head.prev = &head->head;
+    for (int i = 0; i < size; i++) {
+        test_node_t *node = malloc(sizeof(*node));
+        assert(node);
+
+        node->key = i;
+        node->val = -i;
+        list_insert_tail(&node->l, head);
+    }
+}
+//
+
+#define list_search list_search_linux
+
+#define INT_TO_PTR(i) ((void *)(long)i)
+#define PTR_TO_INT(p) ((long)p)
+
+
+long iterations = 10000000;
+long size = 50;
+long num_threads = 1;
+
+list_head_t head;
+
+
+void *tester(void *p)
+{
+    long *data = p;
+    unsigned seed = 410 + PTR_TO_INT(p);
+
+    for (int i = 0; i < iterations; i++) {
+        int idx = rand_r(&seed) % size;
+        int res = list_search(&head, idx);
+        assert(idx == -res);
+    }
+
+    return NULL;
+}
+
+
+
+int main(int argc, char **argv)
+{
+    int opt;
+    while ((opt = getopt(argc, argv, "i:s:t:")) != -1) {
+        switch (opt) {
+        case 'i': iterations = strtol(optarg, NULL, 0); break;
+        case 's': size = strtol(optarg, NULL, 0); break;
+        case 't': num_threads = strtol(optarg, NULL, 0); break;
         }
     }
 
-    rcu_read_unlock();
-    return res;
+    build_list(&head, size);
+    smp_mb();
+
+    pthread_t threads[num_threads]; // weeeee, dangerous
+    for (int i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, tester, INT_TO_PTR(i));
+    }
+
+    for (int i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    return 0;
 }
+
+
+
+
+#endif
