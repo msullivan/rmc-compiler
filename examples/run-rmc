@@ -22,6 +22,10 @@ do
 			shift
 			export RMC_USE_SMT=1 # export so pass gets it; ew
 			;;
+		--exe)
+			shift
+			BUILD_EXE=1
+			;;
 		*)
 			break
 	esac
@@ -34,14 +38,23 @@ PATH=../../build/Debug+Asserts/bin/:$PATH
 
 case $RMC_PLATFORM in
 	arm)
-		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=soft"
-		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
+		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=hard"
+#		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
+		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
+		LINKER=arm-linux-gnueabihf-gcc
 		;;
 	x86)
+		LINKER=clang
 		;;
 esac
 
-clang $PLATFORM_FLAGS $INCLUDE_FLAGS -DNO_TEST -DONLY_RMC -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
+if [ $BUILD_EXE ]; then
+    DEF_FLAGS=""
+else
+    DEF_FLAGS="-DNO_TEST -DONLY_RMC"
+fi
+
+clang $PLATFORM_FLAGS $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
 llvm-dis $NAME.pre.bc
 
 if [ $RUN_GDB ]; then
@@ -56,3 +69,7 @@ clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
 llvm-dis $NAME.opt.bc
 
 clang $PLATFORM_FLAGS -O -S -o $NAME.s $NAME.opt.bc
+
+if [ $BUILD_EXE ]; then
+    $LINKER -pthread $NAME.s -o $NAME
+fi
