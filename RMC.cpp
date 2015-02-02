@@ -437,7 +437,7 @@ void fixupAccessesAction(Action &info) {
 CallInst *getBSCopy(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
-  // This is gind of dubious
+  // This is kind of dubious
   return call->getName().startswith("__rmc_bs_copy") ? call : nullptr;
 }
 
@@ -446,6 +446,22 @@ Value *getRealValue(Value *v) {
   CallInst *copy = getBSCopy(v);
   return copy ? copy->getOperand(0) : v;
 }
+
+BasicBlock *getPathPred(PathCache *cache, PathID path, BasicBlock *block) {
+  // XXX: is this the right way to handle self loops?
+  //errs() << "looking for " << block->getName() << "\n";
+  if (!cache) return nullptr;
+  BasicBlock *pred = nullptr;
+  while (!cache->isEmpty(path)) {
+    BasicBlock *b = cache->getHead(path);
+    //errs() << "looking at " << b->getName() << "\n";
+    if (pred && b == block) return pred;
+    pred = b;
+    path = cache->getTail(path);
+  }
+  return nullptr;
+}
+
 
 // FIXME: reorganize the namespace stuff?. Or put this in the class.
 namespace llvm {
@@ -479,11 +495,12 @@ bool branchesOn(BasicBlock *bb, Value *load,
 }
 
 // Look for address dependencies on a read.
-bool addrDepsOnSearch(Value *pointer, Value *load) {
+bool addrDepsOnSearch(Value *pointer, Value *load,
+                      PathCache *cache, PathID path) {
   if (pointer == load) {
     return true;
   } else if (getBSCopy(pointer)) {
-    return addrDepsOnSearch(getRealValue(pointer), load);
+    return addrDepsOnSearch(getRealValue(pointer), load, cache, path);
   }
   Instruction *instr = dyn_cast<Instruction>(pointer);
   if (!instr) return false;
@@ -494,19 +511,29 @@ bool addrDepsOnSearch(Value *pointer, Value *load) {
   // TODO: less heavily restrict what we use?
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr)) {
     for (auto v : instr->operand_values()) {
-      if (addrDepsOnSearch(v, load)) {
+      if (addrDepsOnSearch(v, load, cache, path)) {
         return true;
       }
     }
   }
+  // Trace through PHI nodes also, using any information about the
+  // path we took to get here
+  if (PHINode *phi = dyn_cast<PHINode>(instr)) {
+    if (BasicBlock *pred = getPathPred(cache, path, phi->getParent())) {
+      return addrDepsOnSearch(phi->getIncomingValueForBlock(pred),
+                              load, cache, path);
+    }
+  }
+
 
   return false;
 }
 
 // Look for address dependencies on a read.
-bool addrDepsOn(Instruction *instr, Value *load) {
+bool addrDepsOn(Instruction *instr, Value *load,
+                PathCache *cache, PathID path) {
   Value *pointer = instr->getOperand(0);
-  return addrDepsOnSearch(pointer, load);
+  return addrDepsOnSearch(pointer, load, cache, path);
 }
 
 }

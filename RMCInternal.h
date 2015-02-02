@@ -139,8 +139,9 @@ enum CutStrength {
 // Utility functions
 bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
-bool addrDepsOn(Instruction *instr, Value *load);
-
+bool addrDepsOn(Instruction *instr, Value *load,
+                PathCache *cache = nullptr,
+                PathID path = PathCache::kEmptyPath);
 
 // Class to track the analysis of the function and insert the syncs.
 class RealizeRMC {

@@ -22,7 +22,7 @@ public:
                               bool allowSelfCycle = false);
   Path extractPath(PathID k) const;
 
-  const PathID kEmptyPath = -1;
+  static const PathID kEmptyPath = -1;
   typedef std::pair<BasicBlock *, PathID> PathCacheEntry;
 
   bool isEmpty(PathID k) const { return k == kEmptyPath; }

@@ -467,11 +467,12 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
 }
 
 z3::expr makeData(solver &s, VarMaps &m,
-                  BasicBlock *dep, BasicBlock *dst) {
+                  BasicBlock *dep, BasicBlock *dst,
+                  PathID path) {
   Action *src = m.bb2action[dep];
   Action *tail = m.bb2action[dst];
   if (src && tail && src->soleLoad && tail->soleLoad &&
-      addrDepsOn(tail->soleLoad, src->soleLoad))
+      addrDepsOn(tail->soleLoad, src->soleLoad, &m.pc, path))
     return getEdgeFunc(m.usesData, src->bb, tail->bb);
 
   return s.ctx().bool_val(false);
@@ -479,20 +480,23 @@ z3::expr makeData(solver &s, VarMaps &m,
 
 // Does it make sense for this to be a path variable at all???
 z3::expr makePathDataCut(solver &s, VarMaps &m,
-                         PathID path, Action *tail) {
+                         PathID fullPath, Action *tail) {
   z3::context &c = s.ctx();
-  if (m.pc.isEmpty(path)) return c.bool_val(false);
-  BasicBlock *dep = m.pc.getHead(path);
+  if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
+  BasicBlock *dep = m.pc.getHead(fullPath);
   // Can't have a addr dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
   if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
 
   return forAllPathEdges(
-    s, m, path,
+    s, m, fullPath,
     [&] (PathID path, bool *b) {
       return getFunc(m.pathData, makeBlockPathKey(dep, path), b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      z3::expr cut = makeData(s, m, dep, dst);
+      // XXX: I think using fullPath here causes trouble! I think we can
+      // get in trouble because postfixes can be shared when they
+      // shouldn't be. XXX: BUG
+      z3::expr cut = makeData(s, m, dep, dst, fullPath);
       path = m.pc.getTail(path);
       if (dst != tail->bb) {
         cut = cut &&
