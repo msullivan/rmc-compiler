@@ -479,30 +479,35 @@ bool branchesOn(BasicBlock *bb, Value *load,
 }
 
 // Look for address dependencies on a read.
-bool addrDepsOn(Instruction *instr, Value *load,
-                Instruction **instrOut, int *outIdx) {
-  Value *pointer = instr->getOperand(0);
-  if (getRealValue(pointer) == load) {
-    if (instrOut) *instrOut = instr;
-    if (outIdx) *outIdx = 0;
+bool addrDepsOnSearch(Value *pointer, Value *load) {
+  if (pointer == load) {
     return true;
+  } else if (getBSCopy(pointer)) {
+    return addrDepsOnSearch(getRealValue(pointer), load);
+  }
+  Instruction *instr = dyn_cast<Instruction>(pointer);
+  if (!instr) return false;
+
+  // We trace through GEPs and BitCasts.
+  // I wish we weren't recursive. Maybe we should restrict how we
+  // trace through GEPs?
+  // TODO: less heavily restrict what we use?
+  if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr)) {
+    for (auto v : instr->operand_values()) {
+      if (addrDepsOnSearch(v, load)) {
+        return true;
+      }
+    }
   }
 
-  // TODO: less heavily restrict what we use
-  GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pointer);
-  if (!gep) return false;
-  int idx = 0;
-  for (auto v : gep->operand_values()) {
-    if (getRealValue(v) == load) {
-      if (instrOut) *instrOut = gep;
-      if (outIdx) *outIdx = idx;
-      return true;
-    }
-    ++idx;
-  }
   return false;
 }
 
+// Look for address dependencies on a read.
+bool addrDepsOn(Instruction *instr, Value *load) {
+  Value *pointer = instr->getOperand(0);
+  return addrDepsOnSearch(pointer, load);
+}
 
 }
 

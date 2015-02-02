@@ -139,8 +139,7 @@ enum CutStrength {
 // Utility functions
 bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
-bool addrDepsOn(Instruction *instr, Value *load,
-                Instruction **instrOut = nullptr, int *outIdx = nullptr);
+bool addrDepsOn(Instruction *instr, Value *load);
 
 
 // Class to track the analysis of the function and insert the syncs.
