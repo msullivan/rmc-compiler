@@ -42,23 +42,26 @@ bool debugSpew = false;
 
 
 #if USE_Z3_OPTIMIZER
-typedef z3::optimize solver;
+typedef z3::optimize SmtSolver;
 #else
-typedef z3::solver solver;
+typedef z3::solver SmtSolver;
 #endif
+typedef z3::expr SmtExpr;
+typedef z3::context SmtContext;
+typedef z3::sort SmtSort;
 
 // Z3 utility functions
-z3::expr boolToInt(z3::expr const &flag, int cost = 1) {
-  z3::context &c = flag.ctx();
+SmtExpr boolToInt(SmtExpr const &flag, int cost = 1) {
+  SmtContext &c = flag.ctx();
   return ite(flag, c.int_val(cost), c.int_val(0));
 }
 
-bool extractBool(z3::expr const &e) {
+bool extractBool(SmtExpr const &e) {
   auto b = Z3_get_bool_value(e.ctx(), e);
   assert(b != Z3_L_UNDEF);
   return b == Z3_L_TRUE;
 }
-int extractInt(z3::expr const &e) {
+int extractInt(SmtExpr const &e) {
   int i;
   auto b = Z3_get_numeral_int(e.ctx(), e, &i);
   assert(b == Z3_TRUE);
@@ -79,7 +82,7 @@ void dumpModel(z3::model &model) {
 // FIXME: should we try to use some sort of bigint?
 typedef __uint64 Cost;
 
-bool isCostUnder(solver &s, z3::expr &costVar, Cost cost) {
+bool isCostUnder(SmtSolver &s, SmtExpr &costVar, Cost cost) {
   s.push();
   s.add(costVar <= s.ctx().int_val(cost));
   z3::check_result result = s.check();
@@ -124,7 +127,7 @@ Cost findFirstTrue(CostPred pred) {
 
 // Given a solver and an expression, find a solution that minimizes
 // the expression through repeated calls to the solver.
-void handMinimize(solver &s, z3::expr &costVar) {
+void handMinimize(SmtSolver &s, SmtExpr &costVar) {
   auto costPred = [&] (Cost cost) { return isCostUnder(s, costVar, cost); };
   Cost minCost;
   if (kGuessUpperBound) {
@@ -151,7 +154,7 @@ void handMinimize(solver &s, z3::expr &costVar) {
 
 // Given a solver and an expression, find a solution that minimizes
 // the expression.
-void minimize(solver &s, z3::expr &costVar) {
+void minimize(SmtSolver &s, SmtExpr &costVar) {
 #if USE_Z3_OPTIMIZER
   s.minimize(costVar);
 #else
@@ -208,14 +211,14 @@ std::string makeVarString(std::pair<T, U> &key) {
 }
 
 template<typename Key> struct DeclMap {
-  DeclMap(z3::sort isort, const char *iname) : sort(isort), name(iname) {}
-  DenseMap<Key, z3::expr> map;
-  z3::sort sort;
+  DeclMap(SmtSort isort, const char *iname) : sort(isort), name(iname) {}
+  DenseMap<Key, SmtExpr> map;
+  SmtSort sort;
   std::string name;
 };
 
 template<typename Key>
-z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
+SmtExpr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
   auto entry = map.map.find(key);
   if (entry != map.map.end()) {
     if (alreadyThere) *alreadyThere = true;
@@ -224,9 +227,9 @@ z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
     if (alreadyThere) *alreadyThere = false;
   }
 
-  z3::context &c = map.sort.ctx();
+  SmtContext &c = map.sort.ctx();
   std::string name = map.name + "(" + makeVarString(key) + ")";
-  z3::expr e = c.constant(name.c_str(), map.sort);
+  SmtExpr e = c.constant(name.c_str(), map.sort);
   // Can use inverted boolean variables to help test optimization.
   if (kInvertBools && map.sort.is_bool()) e = !e;
 
@@ -234,12 +237,12 @@ z3::expr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
 
   return e;
 }
-z3::expr getEdgeFunc(DeclMap<EdgeKey> &map,
+SmtExpr getEdgeFunc(DeclMap<EdgeKey> &map,
                      BasicBlock *src, BasicBlock *dst,
                      bool *alreadyThere = nullptr) {
   return getFunc(map, makeEdgeKey(src, dst), alreadyThere);
 }
-z3::expr getPathFunc(DeclMap<PathKey> &map,
+SmtExpr getPathFunc(DeclMap<PathKey> &map,
                      PathID path,
                      bool *alreadyThere = nullptr) {
   return getFunc(map, makePathKey(path), alreadyThere);
@@ -252,18 +255,18 @@ z3::expr getPathFunc(DeclMap<PathKey> &map,
 // We should maybe compute these with normal linear algebra instead of
 // giving it to the SMT solver, though.
 DenseMap<EdgeKey, int> computeCapacities(Function &F) {
-  z3::context c;
-  solver s(c);
+  SmtContext c;
+  SmtSolver s(c);
 
   DeclMap<BasicBlock *> nodeCapM(c.int_sort(), "node_cap");
   DeclMap<EdgeKey> edgeCapM(c.int_sort(), "edge_cap");
 
   //// Build the equations.
   for (auto & block : F) {
-    z3::expr nodeCap = getFunc(nodeCapM, &block);
+    SmtExpr nodeCap = getFunc(nodeCapM, &block);
 
     // Compute the node's incoming capacity
-    z3::expr incomingCap = c.int_val(0);
+    SmtExpr incomingCap = c.int_val(0);
     for (auto i = pred_begin(&block), e = pred_end(&block); i != e; ++i) {
       incomingCap = incomingCap + getEdgeFunc(edgeCapM, *i, &block);
     }
@@ -277,7 +280,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     for (; i != e; ++i) {
       // For now, we assume even probabilities.
       // Would be an improvement to do better
-      z3::expr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
+      SmtExpr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
       // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
       // n * c(v, u) == c(v)
       s.add(edgeCap * childCount == nodeCap);
@@ -302,7 +305,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   z3::model model = s.get_model();
   for (auto & entry : edgeCapM.map) {
     EdgeKey edge = entry.first;
-    z3::expr cst = entry.second;
+    SmtExpr cst = entry.second;
     int cap = extractInt(model.eval(cst));
     caps.insert(std::make_pair(edge, cap));
   }
@@ -338,16 +341,16 @@ struct VarMaps {
 };
 
 // Generalized it.
-typedef std::function<z3::expr (PathID path)> PathFunc;
+typedef std::function<SmtExpr (PathID path)> PathFunc;
 
-typedef std::function<z3::expr (PathID path, bool *already)> GetPathVarFunc;
-typedef std::function<z3::expr (BasicBlock *src, BasicBlock *dst, PathID path)>
+typedef std::function<SmtExpr (PathID path, bool *already)> GetPathVarFunc;
+typedef std::function<SmtExpr (BasicBlock *src, BasicBlock *dst, PathID path)>
   EdgeFunc;
 
-z3::expr forAllPaths(solver &s, VarMaps &m,
+SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
-  z3::expr allPaths = s.ctx().bool_val(true);
+  SmtExpr allPaths = s.ctx().bool_val(true);
   PathList paths = m.pc.findAllSimplePaths(src, dst, true);
   for (auto & path : paths) {
     allPaths = allPaths && func(path);
@@ -355,11 +358,11 @@ z3::expr forAllPaths(solver &s, VarMaps &m,
   return allPaths.simplify();
 }
 
-z3::expr forAllPathEdges(solver &s, VarMaps &m,
+SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
                          PathID path,
                          GetPathVarFunc getVar,
                          EdgeFunc func) {
-  z3::context &c = s.ctx();
+  SmtContext &c = s.ctx();
 
   PathID rest;
   if (m.pc.isEmpty(path) || m.pc.isEmpty(rest = m.pc.getTail(path))) {
@@ -367,11 +370,11 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
   }
 
   bool alreadyMade;
-  z3::expr isCut = getVar(path, &alreadyMade);
+  SmtExpr isCut = getVar(path, &alreadyMade);
   if (alreadyMade) return isCut;
 
   BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
-  z3::expr somethingCut = func(src, dst, path) ||
+  SmtExpr somethingCut = func(src, dst, path) ||
     forAllPathEdges(s, m, rest, getVar, func);
 //  s.add(isCut == somethingCut.simplify());
   s.add(isCut == somethingCut);
@@ -382,7 +385,7 @@ z3::expr forAllPathEdges(solver &s, VarMaps &m,
 
 //// Real stuff now: the definitions of all the functions
 // XXX: there is a lot of duplication...
-z3::expr makeCtrl(solver &s, VarMaps &m,
+SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
   // We can only add a ctrl dep in locations that are dominated by the
   // load.
@@ -399,7 +402,7 @@ z3::expr makeCtrl(solver &s, VarMaps &m,
   }
 }
 
-z3::expr makePathIsync(solver &s, VarMaps &m,
+SmtExpr makePathIsync(SmtSolver &s, VarMaps &m,
                        PathID path) {
   return forAllPathEdges(
     s, m, path,
@@ -409,9 +412,9 @@ z3::expr makePathIsync(solver &s, VarMaps &m,
     });
 }
 
-z3::expr makePathCtrlIsync(solver &s, VarMaps &m,
+SmtExpr makePathCtrlIsync(SmtSolver &s, VarMaps &m,
                            PathID path) {
-  z3::context &c = s.ctx();
+  SmtContext &c = s.ctx();
   if (m.pc.isEmpty(path)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
@@ -428,8 +431,8 @@ z3::expr makePathCtrlIsync(solver &s, VarMaps &m,
 }
 
 
-z3::expr makePathCtrl(solver &s, VarMaps &m, PathID path) {
-  z3::context &c = s.ctx();
+SmtExpr makePathCtrl(SmtSolver &s, VarMaps &m, PathID path) {
+  SmtContext &c = s.ctx();
   if (m.pc.isEmpty(path)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
@@ -445,17 +448,17 @@ z3::expr makePathCtrl(solver &s, VarMaps &m, PathID path) {
     });
 }
 
-z3::expr makeAllPathsCtrl(solver &s, VarMaps &m,
+SmtExpr makeAllPathsCtrl(SmtSolver &s, VarMaps &m,
                           BasicBlock *src, BasicBlock *dst) {
-  z3::expr isCtrl = getEdgeFunc(m.allPathsCtrl, src, dst);
-  z3::expr allPaths = forAllPaths(
+  SmtExpr isCtrl = getEdgeFunc(m.allPathsCtrl, src, dst);
+  SmtExpr allPaths = forAllPaths(
     s, m, src, dst,
     [&] (PathID path) { return makePathCtrl(s, m, path); });
   s.add(isCtrl == allPaths);
   return isCtrl;
 }
 
-z3::expr makePathCtrlCut(solver &s, VarMaps &m,
+SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
                          PathID path, Action *tail) {
   // XXX: do we care about actually using the variable pathCtrlCut?
   // TODO: support isync cuts also
@@ -466,7 +469,7 @@ z3::expr makePathCtrlCut(solver &s, VarMaps &m,
   }
 }
 
-z3::expr makeData(solver &s, VarMaps &m,
+SmtExpr makeData(SmtSolver &s, VarMaps &m,
                   BasicBlock *dep, BasicBlock *dst,
                   PathID path) {
   Action *src = m.bb2action[dep];
@@ -479,9 +482,9 @@ z3::expr makeData(solver &s, VarMaps &m,
 }
 
 // Does it make sense for this to be a path variable at all???
-z3::expr makePathDataCut(solver &s, VarMaps &m,
+SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
                          PathID fullPath, Action *tail) {
-  z3::context &c = s.ctx();
+  SmtContext &c = s.ctx();
   if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(fullPath);
   // Can't have a addr dependency when it's not a load.
@@ -496,7 +499,7 @@ z3::expr makePathDataCut(solver &s, VarMaps &m,
       // XXX: I think using fullPath here causes trouble! I think we can
       // get in trouble because postfixes can be shared when they
       // shouldn't be. XXX: BUG
-      z3::expr cut = makeData(s, m, dep, dst, fullPath);
+      SmtExpr cut = makeData(s, m, dep, dst, fullPath);
       path = m.pc.getTail(path);
       if (dst != tail->bb) {
         cut = cut &&
@@ -507,7 +510,7 @@ z3::expr makePathDataCut(solver &s, VarMaps &m,
     });
 }
 
-z3::expr makeEdgeVcut(solver &s, VarMaps &m,
+SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
                       BasicBlock *src, BasicBlock *dst) {
   // Instead of generating a notion of push edges and making sure that
   // they are cut by syncs, we just insert syncs exactly where PUSHes
@@ -525,7 +528,7 @@ z3::expr makeEdgeVcut(solver &s, VarMaps &m,
 }
 
 
-z3::expr makePathVcut(solver &s, VarMaps &m,
+SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
                       PathID path) {
   return forAllPathEdges(
     s, m, path,
@@ -536,24 +539,24 @@ z3::expr makePathVcut(solver &s, VarMaps &m,
 }
 
 
-z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst);
+SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst);
 
-z3::expr makePathXcut(solver &s, VarMaps &m,
+SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
                       PathID path, Action *tail) {
   bool alreadyMade;
-  z3::expr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
+  SmtExpr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
   if (alreadyMade) return isCut;
 
   BasicBlock *head = m.pc.getHead(path);
   bool isSelfPath = head == tail->bb;
 
-  z3::expr pathCtrlCut = makePathCtrlCut(s, m, path, tail);
+  SmtExpr pathCtrlCut = makePathCtrlCut(s, m, path, tail);
   if (!isSelfPath) {
     pathCtrlCut = pathCtrlCut &&
       (makeAllPathsCtrl(s, m, head, head) ||
       makeXcut(s, m, head, m.bb2action[head]));
   }
-  z3::expr pathDataCut = makePathDataCut(s, m, path, tail);
+  SmtExpr pathDataCut = makePathDataCut(s, m, path, tail);
   if (!isSelfPath) {
     pathDataCut = pathDataCut &&
       makeXcut(s, m, head, m.bb2action[head]);
@@ -565,12 +568,12 @@ z3::expr makePathXcut(solver &s, VarMaps &m,
   return isCut;
 }
 
-z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst) {
+SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst) {
   bool alreadyMade;
-  z3::expr isCut = getEdgeFunc(m.xcut, src, dst->bb, &alreadyMade);
+  SmtExpr isCut = getEdgeFunc(m.xcut, src, dst->bb, &alreadyMade);
   if (alreadyMade) return isCut;
 
-  z3::expr allPathsCut = forAllPaths(
+  SmtExpr allPathsCut = forAllPaths(
     s, m, src, dst->bb,
     [&] (PathID path) { return makePathXcut(s, m, path, dst); });
   s.add(isCut == allPathsCut);
@@ -578,10 +581,10 @@ z3::expr makeXcut(solver &s, VarMaps &m, BasicBlock *src, Action *dst) {
   return isCut;
 }
 
-z3::expr makeVcut(solver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
-  z3::expr isCut = getEdgeFunc(m.vcut, src, dst);
+SmtExpr makeVcut(SmtSolver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
+  SmtExpr isCut = getEdgeFunc(m.vcut, src, dst);
 
-  z3::expr allPathsCut = forAllPaths(
+  SmtExpr allPathsCut = forAllPaths(
     s, m, src, dst,
     [&] (PathID path) { return makePathVcut(s, m, path); });
   s.add(isCut == allPathsCut);
@@ -600,8 +603,8 @@ void processMap(DeclMap<T> &map, z3::model &model,
 }
 
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
-  z3::context c;
-  solver s(c);
+  SmtContext c;
+  SmtSolver s(c);
 
 #if LONG_PATH_NAMES
   debugPathCache = &pc_; /* :( */
@@ -655,11 +658,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   //////////
   // OK, now build a cost function. This will probably take a lot of
   // tuning.
-  z3::expr costVar = c.int_const("cost");
-  z3::expr cost = c.int_val(0);
+  SmtExpr costVar = c.int_const("cost");
+  SmtExpr cost = c.int_val(0);
 
   BasicBlock *src, *dst;
-  z3::expr v = c.bool_val(false);
+  SmtExpr v = c.bool_val(false);
 
   // Find the lwsyncs we are inserting
   for (auto & entry : m.lwsync.map) {
