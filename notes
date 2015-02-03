@@ -110,10 +110,13 @@ deps should be eaaaaasy.
 We probably need to be able to handle linux RCU list style things,
 which means handling bitcasts and GEPs.
 
-*** We are definitely definitely going to need a notion of path dependence
+DONE *** We are definitely definitely going to need a notion of path dependence
 for detecting dependency. A super common example of RCU is searching a
 linked list, so...
-* I should run some benchmarks to see how much faster it is with RCU.
+- Wee.
+
+DONE * I should run some benchmarks to see how much faster it is with RCU.
+- Like twice as fast
 
 
 -----
