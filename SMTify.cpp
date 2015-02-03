@@ -41,28 +41,17 @@ SmtExpr boolToInt(SmtExpr const &flag, int cost = 1) {
   return ite(flag, c.int_val(cost), c.int_val(0));
 }
 
-void dumpModel(z3::model &model) {
-  // traversing the model
-  for (unsigned i = 0; i < model.size(); ++i) {
-    z3::func_decl v = model[i];
-    // this problem contains only constants
-    assert(v.arity() == 0);
-    std::cout << v.name() << " = " << model.get_const_interp(v) << "\n";
-  }
-}
 
 // Code for optimizing
 // FIXME: should we try to use some sort of bigint?
-typedef __uint64 Cost;
+typedef smt_uint Cost;
 
 bool isCostUnder(SmtSolver &s, SmtExpr &costVar, Cost cost) {
   s.push();
   s.add(costVar <= s.ctx().int_val(cost));
-  z3::check_result result = s.check();
-  assert(result != z3::unknown);
+  bool isSat = doCheck(s);
   s.pop();
 
-  bool isSat = result == z3::sat;
   errs() << "Trying cost " << cost << ": " << isSat << "\n";
   return isSat;
 }
@@ -107,7 +96,7 @@ void handMinimize(SmtSolver &s, SmtExpr &costVar) {
     // This is in theory arbitrarily worse but might be better in
     // practice. Although the cost is bounded by the number of things
     // we could do, so...
-    s.check();
+    doCheck(s);
     Cost upperBound = extractInt(s.get_model().eval(costVar));
     errs() << "Upper bound: " << upperBound << "\n";
     // The solver seems to often "just happen" to find the optimal
@@ -256,7 +245,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
       SmtExpr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
       // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
       // n * c(v, u) == c(v)
-      s.add(edgeCap * childCount == nodeCap);
+      s.add(edgeCap * c.int_val(childCount) == nodeCap);
     }
     // Populate the capacities for the fictional back edges to the
     // function entry point.
@@ -268,14 +257,14 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   }
 
   // Keep all zeros from working:
-  s.add(getFunc(nodeCapM, &F.getEntryBlock()) > 0);
+  s.add(getFunc(nodeCapM, &F.getEntryBlock()) > c.int_val(0));
 
   //// Extract a solution.
   // XXX: will this get returned efficiently?
   DenseMap<EdgeKey, int> caps;
 
-  s.check();
-  z3::model model = s.get_model();
+  doCheck(s);
+  SmtModel model = s.get_model();
   for (auto & entry : edgeCapM.map) {
     EdgeKey edge = entry.first;
     SmtExpr cst = entry.second;
@@ -566,7 +555,7 @@ SmtExpr makeVcut(SmtSolver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
 }
 
 template<typename T>
-void processMap(DeclMap<T> &map, z3::model &model,
+void processMap(DeclMap<T> &map, SmtModel &model,
                 const std::function<void (T&)> &func) {
   for (auto & entry : map.map) {
     if (extractBool(model.eval(entry.second))) {
@@ -669,14 +658,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   //////////
   // Print out the model for debugging
-  if (debugSpew) std::cout << "Built a thing: \n" << s << "\n\n";
+  if (debugSpew) dumpSolver(s);
 
   // Optimize the cost.
   minimize(s, costVar);
 
   // OK, go solve it.
-  s.check();
-  z3::model model = s.get_model();
+  doCheck(s);
+  SmtModel model = s.get_model();
 
   // Print out the results for debugging
   if (debugSpew) dumpModel(model);
