@@ -52,20 +52,20 @@ namespace llvm {
 
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   switch (t) {
-    case VisibilityEdge:
-      os << "v";
-      break;
-    case ExecutionEdge:
-      os << "x";
-      break;
-    case NoEdge:
-      os << "no";
-      break;
-    default:
-      os << "?";
-      break;
+  case VisibilityEdge:
+    os << "v";
+    break;
+  case ExecutionEdge:
+    os << "x";
+    break;
+  case NoEdge:
+    os << "no";
+    break;
+  default:
+    os << "?";
+    break;
   }
-   return os;
+  return os;
 }
 
 raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
