@@ -631,6 +631,15 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
     if (pathStrength < strength) strength = pathStrength;
   }
 
+  // Try a data cut
+  // See if we have a data dep in a very basic way.
+  // FIXME: Should be able to handle writes also!
+  if (strength == NoCut) {
+    if (edge.src->soleLoad && edge.dst->soleLoad &&
+        addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad)) {
+      return DataCut;
+    }
+  }
 
 
   return strength;
@@ -638,32 +647,28 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
 
 bool RealizeRMC::isCut(const RMCEdge &edge) {
   switch (isEdgeCut(edge)) {
-    case HardCut: return true;
-    case NoCut:
-      // Try a data cut
-      // See if we have a data dep in a very basic way.
-      // FIXME: Should be able to handle writes also!
-      // FIXME: Do we need to enforce?
-      // We need to make sure we have a cut from src->src but it *isn't*
-      // enough to just check ctrl!
-      if (edge.src->soleLoad && edge.dst->soleLoad &&
-          addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad) &&
-          isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, false)
-          > NoCut) {
-        isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, false);
-        return true;
-      } else {
-        return false;
-      }
-    case SoftCut:
-      if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
-          > NoCut) {
-        isEdgeCut(edge, true, true);
-        isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
-        return true;
-      } else {
-        return false;
-      }
+  case HardCut: return true;
+  case NoCut: return false;
+  case DataCut:
+    // FIXME: Do we need to enforce?
+    // We need to make sure we have a cut from src->src but it *isn't*
+    // enough to just check ctrl!
+    if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, false)
+        > NoCut) {
+      isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, false);
+      return true;
+    } else {
+      return false;
+    }
+  case SoftCut:
+    if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
+        > NoCut) {
+      isEdgeCut(edge, true, true);
+      isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
+      return true;
+    } else {
+      return false;
+    }
   }
 }
 

@@ -132,7 +132,8 @@ struct EdgeCut {
 
 enum CutStrength {
   NoCut,
-  SoftCut, // Is cut for one loop iteration
+  DataCut, // Is cut for one loop iteration, needs an xcut
+  SoftCut, // Is cut for one loop iteration, needs a ctrl
   HardCut
 };
 
