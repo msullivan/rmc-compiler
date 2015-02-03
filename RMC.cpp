@@ -617,7 +617,18 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
     }
   }
 
-  return hasSoftCut ? SoftCut : NoCut;
+  if (hasSoftCut) return SoftCut;
+
+  // Try a data cut
+  // See if we have a data dep in a very basic way.
+  // FIXME: Should be able to handle writes also!
+  if (edge.src->soleLoad && edge.dst->soleLoad &&
+      addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad,
+                 &pc_, pathid)) {
+    return DataCut;
+  }
+
+  return NoCut;
 }
 
 CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
@@ -630,17 +641,6 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
                                          enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
   }
-
-  // Try a data cut
-  // See if we have a data dep in a very basic way.
-  // FIXME: Should be able to handle writes also!
-  if (strength == NoCut) {
-    if (edge.src->soleLoad && edge.dst->soleLoad &&
-        addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad)) {
-      return DataCut;
-    }
-  }
-
 
   return strength;
 }
