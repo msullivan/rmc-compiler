@@ -253,6 +253,8 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
   return true;
 }
 
+////////////// RMC analysis routines
+
 Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
   actions_.emplace_back(bb);
   Action *a = &actions_.back();
@@ -411,27 +413,38 @@ void RealizeRMC::findActions() {
   }
 }
 
-
-// Fix up an action so that loads and stores that happen in it won't
-// get messed up by LLVM too much. I'm not really sure how to make
-// this notion particularly precise. Right now we mark loads and
-// stores as Monotonic, which I /think/ is what we need. (It is at least,
-// by spec, good enough to squash the bug that made me *definitely*
-// need something like this, which was a program that looped on a read
-// having the read hoisted out of the loop.)
-// We could also try setting volatile also/instead?
-void fixupAccessesAction(Action &info) {
-  if (info.type == ActionPrePost) return;
-
-  for (auto & i : *info.bb) {
-    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
-      load->setAtomic(Monotonic);
-    } else if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
-      store->setAtomic(Monotonic);
+void dumpGraph(std::vector<Action> &actions) {
+  // Debug spew!!
+  for (auto & src : actions) {
+    for (auto dst : src.execTransEdges) {
+      errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
     }
-    // XXX: Handle other things?? RMWs??
+    for (auto dst : src.visTransEdges) {
+      errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
+    }
   }
+  errs() << "\n";
 }
+
+void buildActionGraph(std::vector<Action> &actions, int numReal) {
+  // Copy the initial edge specifications into the transitive graph
+  for (auto & a : actions) {
+    a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
+    // Visibility implies execution.
+    a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+  }
+
+  // Now compute the closures. We only compute the closure for the non
+  // pre/post edges.
+  auto realActions = make_range(actions.begin(), actions.begin() + numReal);
+  transitiveClosure(realActions, &Action::execTransEdges);
+  transitiveClosure(realActions, &Action::visTransEdges);
+
+  //dumpGraph(actions);
+}
+
+////////////// Chicanary to handle disguising operands
 
 // Return the CallInst if the value is a bs copy, otherwise null
 CallInst *getBSCopy(Value *v) {
@@ -446,6 +459,32 @@ Value *getRealValue(Value *v) {
   CallInst *copy = getBSCopy(v);
   return copy ? copy->getOperand(0) : v;
 }
+
+// Rewrite an instruction so that an operand is a dummy copy to
+// hide information from llvm's optimizer
+void hideOperand(Instruction *instr, int i) {
+  Value *v = instr->getOperand(i);
+  // Only put in the copy if we haven't done it already.
+  if (!getBSCopy(v)) {
+    Instruction *dummyCopy = makeCopy(v, instr);
+    instr->setOperand(i, dummyCopy);
+  }
+}
+void hideOperands(Instruction *instr) {
+  for (int i = 0; i < instr->getNumOperands(); i++) {
+    hideOperand(instr, i);
+  }
+}
+
+void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
+  // In order to keep LLVM from optimizing our stuff away we
+  // insert dummy copies of the operands and a compiler barrier in the
+  // target.
+  hideOperands(icmp);
+  if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
+}
+
+////////////// Program analysis that we use
 
 BasicBlock *getPathPred(PathCache *cache, PathID path, BasicBlock *block) {
   // XXX: is this the right way to handle self loops?
@@ -538,29 +577,8 @@ bool addrDepsOn(Instruction *instr, Value *load,
 
 }
 
-// Rewrite an instruction so that an operand is a dummy copy to
-// hide information from llvm's optimizer
-void hideOperand(Instruction *instr, int i) {
-  Value *v = instr->getOperand(i);
-  // Only put in the copy if we haven't done it already.
-  if (!getBSCopy(v)) {
-    Instruction *dummyCopy = makeCopy(v, instr);
-    instr->setOperand(i, dummyCopy);
-  }
-}
-void hideOperands(Instruction *instr) {
-  for (int i = 0; i < instr->getNumOperands(); i++) {
-    hideOperand(instr, i);
-  }
-}
 
-void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
-  // In order to keep LLVM from optimizing our stuff away we
-  // insert dummy copies of the operands and a compiler barrier in the
-  // target.
-  hideOperands(icmp);
-  if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
-}
+////////////// non-SMT specific compilation
 
 CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
                                   PathID pathid,
@@ -635,7 +653,7 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
   PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb, true);
-  pc_.dumpPaths(paths);
+  //pc_.dumpPaths(paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(edge, path,
                                          enforceSoft, justCheckCtrl);
@@ -672,24 +690,6 @@ bool RealizeRMC::isCut(const RMCEdge &edge) {
   }
 }
 
-
-void RealizeRMC::cutPushes() {
-  // We just insert pushes wherever we see one, for now.
-  // We could also have a notion of push edges derived from
-  // the edges to and from a push action.
-  for (auto action : pushes_) {
-    assert(action->isPush);
-    BasicBlock *bb = action->bb;
-    makeSync(&bb->front());
-    cuts_[bb] = BlockCut(CutSync, true);
-    // XXX: since we can't actually handle cuts on the front and the
-    // back and because the sync is the only thing in the block and so
-    // cuts at both the front and back, we insert a bogus BlockCut in
-    // the next block.
-    cuts_[getSingleSuccessor(bb)] = BlockCut(CutSync, true);
-  }
-}
-
 void RealizeRMC::cutEdge(RMCEdge &edge) {
   if (isCut(edge)) return;
 
@@ -710,37 +710,9 @@ void RealizeRMC::cutEdges() {
   }
 }
 
-void dumpGraph(std::vector<Action> &actions) {
-  // Debug spew!!
-  for (auto & src : actions) {
-    for (auto dst : src.execTransEdges) {
-      errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
-    }
-    for (auto dst : src.visTransEdges) {
-      errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
-    }
-  }
-  errs() << "\n";
-}
+////////////// SMT specific compilation
 
-void buildActionGraph(std::vector<Action> &actions, int numReal) {
-  // Copy the initial edge specifications into the transitive graph
-  for (auto & a : actions) {
-    a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
-    a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
-    // Visibility implies execution.
-    a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
-  }
-
-  // Now compute the closures. We only compute the closure for the non
-  // pre/post edges.
-  auto realActions = make_range(actions.begin(), actions.begin() + numReal);
-  transitiveClosure(realActions, &Action::execTransEdges);
-  transitiveClosure(realActions, &Action::visTransEdges);
-
-  //dumpGraph(actions);
-}
-
+// Remove edges that have no effect (after transitive closure
 void removeUselessEdges(std::vector<Action> &actions) {
   for (auto & src : actions) {
     ActionType st = src.type;
@@ -822,6 +794,47 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   }
 
 }
+
+////////////// Shared compilation
+
+// Fix up an action so that loads and stores that happen in it won't
+// get messed up by LLVM too much. I'm not really sure how to make
+// this notion particularly precise. Right now we mark loads and
+// stores as Monotonic, which I /think/ is what we need. (It is at least,
+// by spec, good enough to squash the bug that made me *definitely*
+// need something like this, which was a program that looped on a read
+// having the read hoisted out of the loop.)
+// We could also try setting volatile also/instead?
+void fixupAccessesAction(Action &info) {
+  if (info.type == ActionPrePost) return;
+
+  for (auto & i : *info.bb) {
+    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
+      load->setAtomic(Monotonic);
+    } else if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
+      store->setAtomic(Monotonic);
+    }
+    // XXX: Handle other things?? RMWs??
+  }
+}
+
+void RealizeRMC::cutPushes() {
+  // We just insert pushes wherever we see one, for now.
+  // We could also have a notion of push edges derived from
+  // the edges to and from a push action.
+  for (auto action : pushes_) {
+    assert(action->isPush);
+    BasicBlock *bb = action->bb;
+    makeSync(&bb->front());
+    cuts_[bb] = BlockCut(CutSync, true);
+    // XXX: since we can't actually handle cuts on the front and the
+    // back and because the sync is the only thing in the block and so
+    // cuts at both the front and back, we insert a bogus BlockCut in
+    // the next block.
+    cuts_[getSingleSuccessor(bb)] = BlockCut(CutSync, true);
+  }
+}
+
 
 bool RealizeRMC::run() {
   findActions();

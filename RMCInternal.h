@@ -161,24 +161,28 @@ private:
   PathCache pc_;
 
   // Functions
+
+  // Analysis routines
+  void findActions();
+  void findEdges();
+  Action *makePrePostAction(BasicBlock *bb);
+  void processEdge(CallInst *call);
+  void processPush(CallInst *call);
+
+  // Shared compilation
+  void cutPushes();
+
+  // non-SMT compilation
   CutStrength isPathCut(const RMCEdge &edge, PathID path,
                         bool enforceSoft, bool justCheckCtrl);
   CutStrength isEdgeCut(const RMCEdge &edge,
                         bool enforceSoft = false, bool justCheckCtrl = false);
   bool isCut(const RMCEdge &edge);
-
-  void findActions();
-  void findEdges();
-  void cutPushes();
-  void cutEdges();
   void cutEdge(RMCEdge &edge);
+  void cutEdges();
 
-  Action *makePrePostAction(BasicBlock *bb);
-  void processEdge(CallInst *call);
-  void processPush(CallInst *call);
-
+  // SMT compilation
   void insertCut(const EdgeCut &cut);
-
   std::vector<EdgeCut> smtAnalyze();
 
 public:
