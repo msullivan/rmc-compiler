@@ -17,10 +17,11 @@ using namespace llvm;
 
 // Should we pick the initial upper bound by seeing what the solver
 // produces without constraints instead of by binary searching up?
-const bool kGuessUpperBound = true;
+const bool kGuessUpperBound = false;
+const int kFirstUpperBound = 16;
 // If we guess an upper bound, should we hope that it is optimal and
 // check the bound - 1 before we binary search?
-const bool kCheckFirstGuess = true;
+const bool kCheckFirstGuess = false;
 // Should we invert all bool variables; sort of useful for testing
 const bool kInvertBools = false;
 
@@ -75,7 +76,7 @@ Cost findFirstTrue(CostPred pred, Cost lo, Cost hi) {
 // Given a monotonic predicate pred that is not always false, find the
 // lowest value c for which pred(c) is true.
 Cost findFirstTrue(CostPred pred) {
-  Cost lo = 0, hi = 1;
+  Cost lo = 0, hi = kFirstUpperBound;
 
   // Search upwards to find some value for which pred(c) holds.
   while (!pred(hi)) {
