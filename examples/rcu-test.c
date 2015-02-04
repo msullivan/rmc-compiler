@@ -26,26 +26,27 @@ typedef struct list_head_t {
 #endif
 
 #define list_entry_rcu_linux(ptr, type, member) \
-        container_of(rcu_dereference(ptr), type, member)
+    container_of(rcu_dereference(ptr), type, member)
 
 #define list_for_each_entry_rcu_linux(pos, head, member) \
-        for (pos = list_entry_rcu_linux((head)->head.next, typeof(*pos), member); \
-             &pos->member != &(head)->head;                              \
-             pos = list_entry_rcu_linux(pos->member.next, typeof(*pos), member))
+    for (pos = list_entry_rcu_linux((head)->head.next, typeof(*pos), member); \
+         &pos->member != &(head)->head; \
+         pos = list_entry_rcu_linux(pos->member.next, typeof(*pos), member))
 
 
 #define list_entry_rcu_rmc(ptr, type, member, tag)  \
-        container_of(L(tag, ptr), type, member)
+    container_of(L(tag, ptr), type, member)
 
 
 #define list_for_each_entry_rcu_rmc2(pos, head, member, tag_a, tag_b) \
-        XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b);                       \
-        for (pos = list_entry_rcu_rmc((head)->head.next, typeof(*pos), member, tag_a); \
-             &pos->member != &(head)->head;                              \
-             pos = list_entry_rcu_rmc(pos->member.next, typeof(*pos), member, tag_a))
+    XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b); \
+    for (pos = list_entry_rcu_rmc((head)->head.next, typeof(*pos), \
+                                  member, tag_a); \
+         &pos->member != &(head)->head; \
+         pos = list_entry_rcu_rmc(pos->member.next, typeof(*pos), member,tag_a))
 
 #define list_for_each_entry_rcu_rmc(pos, head, member, tag) \
-            list_for_each_entry_rcu_rmc2(pos, head, member, __rcu_read, tag)
+    list_for_each_entry_rcu_rmc2(pos, head, member, __rcu_read, tag)
 
 
 /////////////////
