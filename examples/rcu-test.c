@@ -2,6 +2,8 @@
 #include "atomic.h"
 #include "rmc.h"
 
+#define DO_C11 1
+
 ///////////////
 
 #define container_of(ptr, type, member) ({                              \
@@ -37,7 +39,6 @@ typedef struct list_head_t {
 #define list_entry_rcu_rmc(ptr, type, member, tag)  \
     container_of(L(tag, ptr), type, member)
 
-
 #define list_for_each_entry_rcu_rmc2(pos, head, member, tag_a, tag_b) \
     XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b); \
     for (pos = list_entry_rcu_rmc((head)->head.next, typeof(*pos), \
@@ -47,6 +48,32 @@ typedef struct list_head_t {
 
 #define list_for_each_entry_rcu_rmc(pos, head, member, tag) \
     list_for_each_entry_rcu_rmc2(pos, head, member, __rcu_read, tag)
+
+
+// Trying it in C11. This is kind of wonky because of all the macros and
+// offset of and stuff.
+#ifdef DO_C11
+
+// FIXME: This will work in gcc but not that well
+#include "stdatomic.h"
+
+typedef struct list_node_c11_t {
+    _Atomic (struct list_node_c11_t *)next;
+    _Atomic (struct list_node_c11_t *)prev;
+} list_node_c11_t;
+typedef struct list_head_c11_t {
+    list_node_c11_t head;
+} list_head_c11_t;
+
+#define list_entry_rcu_c11(ptr, type, member) \
+    container_of(atomic_load_explicit(&ptr, memory_order_acquire), type, member)
+
+#define list_for_each_entry_rcu_c11(pos, head, member) \
+    for (pos = list_entry_rcu_c11((head)->head.next, typeof(*pos), member); \
+         &pos->member != &(head)->head; \
+         pos = list_entry_rcu_c11(pos->member.next, typeof(*pos), member))
+
+#endif
 
 
 /////////////////
@@ -123,6 +150,55 @@ int list_search_linux(list_head_t *head, int key) {
     return res;
 }
 
+#ifdef DO_C11
+
+typedef struct test_node_c11_t {
+    int key;
+    int val;
+    list_node_c11_t l;
+} test_node_c11_t;
+
+typedef struct noob_node_c11_t {
+    _Atomic (struct noob_node_c11_t *)next;
+    int key;
+    int val;
+} noob_node_c11_t;
+
+// FIXME: identical to linux except different macros
+int list_search_c11(list_head_c11_t *head, int key) {
+    int res = -1;
+    test_node_c11_t *node;
+    //rcu_read_lock();
+    list_for_each_entry_rcu_c11(node, head, l) {
+        if (node->key == key) {
+            res = node->val;
+            break;
+        }
+    }
+
+    //rcu_read_unlock();
+    return res;
+}
+
+int noob_search_c11(_Atomic(noob_node_c11_t *)*head, int key) {
+    int res = -1;
+
+    for (noob_node_c11_t *node =
+             atomic_load_explicit(head, memory_order_consume);
+         node;
+         node = atomic_load_explicit(&node->next, memory_order_consume)) {
+        if (node->key == key) {
+            res = node->val;
+            break;
+        }
+    }
+
+    return res;
+}
+
+
+#endif
+
 
 
 #ifndef NO_TEST
@@ -160,7 +236,7 @@ void build_list(list_head_t *head, int size) {
 }
 //
 
-#define list_search list_search_linux
+#define list_search(x, i) list_search_c11((void*)x, i)
 
 #define INT_TO_PTR(i) ((void *)(long)i)
 #define PTR_TO_INT(p) ((long)p)
@@ -175,7 +251,6 @@ list_head_t head;
 
 void *tester(void *p)
 {
-    long *data = p;
     unsigned seed = 410 + PTR_TO_INT(p);
 
     for (int i = 0; i < iterations; i++) {
