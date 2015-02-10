@@ -134,3 +134,21 @@ part of capacity or a seperate score.  Maybe increase the cost by a
 factor of 4^n where n is the loop nesting count?  (4 because a loop
 will probably have 1/2 the capacity of its parent; 4^n makes a loop
 have twice the cost of its parent).
+
+
+---
+
+*** We could track which functions always have barriers (dmbs, isyncs)
+    and factor that information in when doing analysis.
+
+
+---
+
+Hilariously, calling mprotect
+
+--
+
+In C++: 1.10.28: "An implementation should ensure that the last value (in modification order) assigned by an atomic or
+synchronization operation will become visible to all other threads in a finite period of time."
+This precludes (I think) transformations like (assuming mo_relaxed):
+x = 1; while (y); --> while (y); x = 1;
