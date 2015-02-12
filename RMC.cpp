@@ -385,6 +385,8 @@ void analyzeAction(Action &info) {
     info.type = ActionSimpleWrites;
   } else if (info.RMWs == 1 && info.stores+info.loads+info.calls == 0) {
     info.type = ActionSimpleRMW;
+  } else if (info.RMWs+info.stores+info.loads+info.calls == 0) {
+    info.type = ActionNop;
   } else {
     info.type = ActionComplex;
   }
@@ -724,6 +726,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
     for (Action *dst : newExec) {
       ActionType dt = dst->type;
       if (!(st == ActionPush || dt == ActionPush ||
+            st == ActionNop || dt == ActionNop ||
             (st == ActionSimpleWrites && dt == ActionSimpleRead) ||
             (st == ActionSimpleWrites && dt == ActionSimpleWrites))) {
         src.execTransEdges.insert(dst);
@@ -735,6 +738,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
     for (Action *dst : newVis) {
       ActionType dt = dst->type;
       if (!(st == ActionPush || dt == ActionPush ||
+            st == ActionNop || dt == ActionNop ||
             /* R->R has same force as execution, and we made execution
              * versions of all the vis edges. */
             (st == ActionSimpleRead && dt == ActionSimpleRead) ||

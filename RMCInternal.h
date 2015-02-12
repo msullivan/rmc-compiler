@@ -39,6 +39,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 //// Information for a node in the RMC graph.
 enum ActionType {
   ActionPrePost,
+  ActionNop,
   ActionComplex,
   ActionPush,
   ActionSimpleRead,
