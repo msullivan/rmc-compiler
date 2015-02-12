@@ -47,8 +47,9 @@ enum ActionType {
   ActionSimpleRMW
 };
 struct Action {
-  Action(BasicBlock *p_bb) :
+Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr) :
     bb(p_bb),
+    endBlock(p_endBlock),
     type(ActionComplex),
     isPush(false),
     stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr)
@@ -58,6 +59,7 @@ struct Action {
   Action(Action &&) = default; // move constructor!
 
   BasicBlock *bb;
+  BasicBlock *endBlock;
 
   // Some basic info about what sort of instructions live in the action
   ActionType type;

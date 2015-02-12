@@ -201,9 +201,8 @@ StringRef getStringArg(Value *v) {
 }
 
 BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
-  assert(bb->getTerminator()->getNumSuccessors() == 1 &&
-         "ERROR: Actions must not contain control flow!");
-  return bb->getTerminator()->getSuccessor(0);
+  return bb->getTerminator()->getNumSuccessors() == 1 ?
+    bb->getTerminator()->getSuccessor(0) : nullptr;
 }
 
 Instruction *getNextInstr(Instruction *i) {
@@ -233,12 +232,12 @@ bool isInstrBarrier(Instruction *i) { return isInstrInlineAsm(i, " barrier #");}
 //// Actual code for the pass
 
 bool nameMatches(StringRef blockName, StringRef target,
-                 const char *prefix) {
+                 const char *prefix, APInt *id = nullptr) {
   StringRef name = prefix + target.str() + "_";
   if (!blockName.startswith(name)) return false;
   // Now make sure the rest is an int
-  APInt dummy;
-  return !blockName.drop_front(name.size()).getAsInteger(10, dummy);
+  APInt dummy; APInt *out = id ? id : &dummy;
+  return !blockName.drop_front(name.size()).getAsInteger(10, *out);
 }
 
 bool blockMatches(const BasicBlock &block, StringRef target) {
@@ -247,11 +246,26 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
   // end block.
   // We should maybe have a real error message at some point.
   // We could also maybe do better than this?
-  assert(nameMatches(getSingleSuccessor(&block)->getName(),
-                     target, "__rmc_end_") &&
-         "ERROR: Actions must not contain control flow!");
+  //assert(nameMatches(getSingleSuccessor(&block)->getName(),
+  //                   target, "__rmc_end_") &&
+  //       "ERROR: Actions must not contain control flow!");
   return true;
 }
+
+BasicBlock *findEndBlock(BasicBlock &block) {
+  // Would this be right?
+  //BasicBlock *succ = getSingleSuccessor(block);
+  //if (succ) return succ;
+
+  std::string target =
+    "__rmc_end_" + block.getName().drop_front(strlen("_rmc_")).str();
+  // This, also, is needlessly O(n^2)
+  for (auto & bb : *block.getParent()) {
+    if (bb.getName() == target) return &bb;
+  }
+  assert(0 && "end block missing??");
+}
+
 
 ////////////// RMC analysis routines
 
@@ -313,7 +327,7 @@ void RealizeRMC::processEdge(CallInst *call) {
     for (auto & srcBB : func_) {
       if (!blockMatches(srcBB, srcName)) continue;
       Action *src = bb2action_[&srcBB];
-      Action *dst = makePrePostAction(getSingleSuccessor(&srcBB));
+      Action *dst = makePrePostAction(src->endBlock);
       registerEdge(edges_, edgeType, src, dst);
     }
   }
@@ -396,7 +410,11 @@ void RealizeRMC::findActions() {
   // First, collect all the basic blocks that are actions
   SmallPtrSet<BasicBlock *, 8> basicBlocks;
   for (auto & block : func_) {
-    if (block.getName().startswith("_rmc_")) {
+    // Uhoh, sometimes clang will generate new subsidiary basic blocks that
+    // start with "_rmc_". For now we detect those because they have periods.
+    // HACK.
+    if (block.getName().startswith("_rmc_") &&
+        block.getName().find(".") == StringRef::npos) {
       basicBlocks.insert(&block);
     }
   }
@@ -410,7 +428,7 @@ void RealizeRMC::findActions() {
   actions_.reserve(3 * basicBlocks.size());
   numNormalActions_ = basicBlocks.size();
   for (auto bb : basicBlocks) {
-    actions_.emplace_back(bb);
+    actions_.emplace_back(bb, findEndBlock(*bb));
     bb2action_[bb] = &actions_.back();
   }
 }
@@ -835,7 +853,7 @@ void RealizeRMC::cutPushes() {
     // back and because the sync is the only thing in the block and so
     // cuts at both the front and back, we insert a bogus BlockCut in
     // the next block.
-    cuts_[getSingleSuccessor(bb)] = BlockCut(CutSync, true);
+    cuts_[action->endBlock] = BlockCut(CutSync, true);
   }
 }
 
