@@ -152,3 +152,15 @@ In C++: 1.10.28: "An implementation should ensure that the last value (in modifi
 synchronization operation will become visible to all other threads in a finite period of time."
 This precludes (I think) transformations like (assuming mo_relaxed):
 x = 1; while (y); --> while (y); x = 1;
+
+--
+
+Do we have a theory story for using weak cmpxchg?
+
+---
+
+
+*** Add some factor so that one lwsync is better than two, even if the
+    cost is the same. Reduces code size, maybe inhibits optimizations
+    less in certain cases? Myabe we should be more directly merging
+    things wehn all the edges out of a node are cut.

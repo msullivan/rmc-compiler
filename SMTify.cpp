@@ -631,12 +631,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   for (auto & entry : m.lwsync.map) {
     unpack(unpack(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, kLwsyncCost*weight(src, dst));
+      boolToInt(v, kLwsyncCost*weight(src, dst)+1);
   }
   for (auto & entry : m.isync.map) {
     unpack(unpack(src, dst), v) = entry;
     cost = cost +
-      boolToInt(v, kIsyncCost*weight(src, dst));
+      boolToInt(v, kIsyncCost*weight(src, dst)+1);
   }
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
