@@ -455,11 +455,11 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
     a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
   }
 
-  // Now compute the closures. We only compute the closure for the non
-  // pre/post edges.
-  auto realActions = make_range(actions.begin(), actions.begin() + numReal);
-  transitiveClosure(realActions, &Action::execTransEdges);
-  transitiveClosure(realActions, &Action::visTransEdges);
+  // Now compute the closures.  We previously ignored pre/post edges,
+  // which was wrong; was it on to /anything/, though?
+  //auto realActions = make_range(actions.begin(), actions.begin() + numReal);
+  transitiveClosure(actions, &Action::execTransEdges);
+  transitiveClosure(actions, &Action::visTransEdges);
 
   //dumpGraph(actions);
 }
