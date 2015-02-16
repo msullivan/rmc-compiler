@@ -384,6 +384,7 @@ void analyzeAction(Action &info) {
       ++info.calls;
     } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
       ++info.RMWs;
+      soleLoad = load;
     }
   }
   // Try to characterize what this action does.
@@ -398,6 +399,7 @@ void analyzeAction(Action &info) {
   } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
     info.type = ActionSimpleWrites;
   } else if (info.RMWs == 1 && info.stores+info.loads+info.calls == 0) {
+    info.soleLoad = soleLoad;
     info.type = ActionSimpleRMW;
   } else if (info.RMWs+info.stores+info.loads+info.calls == 0) {
     info.type = ActionNop;
