@@ -5,11 +5,12 @@
 
 /* We signal our labels and edges to our LLVM pass in a *really* hacky
  * way to avoid needing to modify the frontend.  Labelled statements
- * are wrapped in two goto labels to force them into their own basic
+ * are wrapped in three goto labels to force them into their own basic
  * block (labelled statements don't fundamentally *need* to be in
  * their own basic block, but it makes things convenient) and edges
  * are specified by calling a dummy function __rmc_edge_register with
- * the names of the labels as arguments.
+ * the names of the labels as arguments. __rmc_action_register is passed
+ * pointers to the labels as well as the name, in order to associate them.
  *
  * This is really quite fragile; optimization passes will easily
  * destroy this information. The RMC pass should be run *before* any
@@ -39,12 +40,12 @@ extern int __rmc_push(void);
 /* This is unhygenic in a nasty way. */
 /* The semis after the labels are because declarations can't directly
  * follow labels, apparently. */
-#define LS_(name, label, stmt)                                     \
-    __rmc_action_register(#name, &&XRCAT(__rmc_entry_, label), &&XRCAT(_rmc_, label), &&XRCAT(__rmc_end_, label)); \
-    XRCAT(__rmc_entry_, label):                                  \
+#define LS_(name, label, stmt)                                   \
+    __rmc_action_register(#name, &&XRCAT(_rmc_entry_, label), &&XRCAT(_rmc_, label), &&XRCAT(_rmc_end_, label)); \
+    XRCAT(_rmc_entry_, label):                                   \
     XRCAT(_rmc_, label): ;                                       \
     stmt;                                                        \
-    XRCAT(__rmc_end_, label): ;
+    XRCAT(_rmc_end_, label): ;
 
 #define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 
