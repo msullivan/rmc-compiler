@@ -228,6 +228,14 @@ bool isInstrInlineAsm(Instruction *i, const char *string) {
 bool isInstrIsync(Instruction *i) { return isInstrInlineAsm(i, " isync #"); }
 bool isInstrBarrier(Instruction *i) { return isInstrInlineAsm(i, " barrier #");}
 
+void deleteRegisterCall(Instruction *i) {
+  // Delete a bogus registration call. There might be uses if we didn't mem2reg.
+  BasicBlock::iterator ii(i);
+  ReplaceInstWithValue(i->getParent()->getInstList(),
+                       ii, ConstantInt::get(i->getType(), 0));
+}
+
+
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
@@ -251,21 +259,6 @@ bool blockMatches(const BasicBlock &block, StringRef target) {
   //       "ERROR: Actions must not contain control flow!");
   return true;
 }
-
-BasicBlock *findEndBlock(BasicBlock &block) {
-  // Would this be right?
-  //BasicBlock *succ = getSingleSuccessor(block);
-  //if (succ) return succ;
-
-  std::string target =
-    "__rmc_end_" + block.getName().drop_front(strlen("_rmc_")).str();
-  // This, also, is needlessly O(n^2)
-  for (auto & bb : *block.getParent()) {
-    if (bb.getName() == target) return &bb;
-  }
-  assert(0 && "end block missing??");
-}
-
 
 ////////////// RMC analysis routines
 
@@ -361,10 +354,7 @@ void RealizeRMC::findEdges() {
       continue;
     }
 
-    // Delete the bogus call. There might be uses if we didn't mem2reg.
-    BasicBlock::iterator ii(i);
-    ReplaceInstWithValue(i->getParent()->getInstList(),
-                         ii, ConstantInt::get(i->getType(), 0));
+    deleteRegisterCall(i);
   }
 }
 
@@ -409,15 +399,16 @@ void analyzeAction(Action &info) {
 }
 
 void RealizeRMC::findActions() {
-  // First, collect all the basic blocks that are actions
-  SmallPtrSet<BasicBlock *, 8> basicBlocks;
-  for (auto & block : func_) {
-    // Uhoh, sometimes clang will generate new subsidiary basic blocks that
-    // start with "_rmc_". For now we detect those because they have periods.
-    // HACK.
-    if (block.getName().startswith("_rmc_") &&
-        block.getName().find(".") == StringRef::npos) {
-      basicBlocks.insert(&block);
+  // First, collect all calls to register actions
+  SmallPtrSet<CallInst *, 8> registrations;
+  for (inst_iterator is = inst_begin(func_), ie = inst_end(func_); is != ie;
+       is++) {
+    if (CallInst *call = dyn_cast<CallInst>(&*is)) {
+      if (Function *target = call->getCalledFunction()) {
+        if (target->getName() == "__rmc_action_register") {
+          registrations.insert(call);
+        }
+      }
     }
   }
 
@@ -427,11 +418,29 @@ void RealizeRMC::findActions() {
   // actions that we might need to dummy up.
   // We need to have all the space reserved in advance so that our
   // pointers don't get invalidated when a resize happens.
-  actions_.reserve(3 * basicBlocks.size());
-  numNormalActions_ = basicBlocks.size();
-  for (auto bb : basicBlocks) {
-    actions_.emplace_back(bb, findEndBlock(*bb));
-    bb2action_[bb] = &actions_.back();
+  actions_.reserve(3 * registrations.size());
+  numNormalActions_ = registrations.size();
+  for (auto reg : registrations) {
+    BasicBlock *main = cast<BlockAddress>(reg->getOperand(2))->getBasicBlock();
+    BasicBlock *end = cast<BlockAddress>(reg->getOperand(3))->getBasicBlock();
+
+    actions_.emplace_back(main, end);
+    bb2action_[main] = &actions_.back();
+
+    deleteRegisterCall(reg);
+  }
+
+  // If this function uses RMC, look for a bogus "indirectgoto" block
+  // and remove it.
+  // XXX: how does this interact with actually using indirectgoto??
+  if (numNormalActions_) {
+    for (auto & block : func_) {
+      if (block.getName() == "indirectgoto" &&
+          pred_begin(&block) == pred_end(&block)) {
+        DeleteDeadBlock(&block);
+        break;
+      }
+    }
   }
 }
 

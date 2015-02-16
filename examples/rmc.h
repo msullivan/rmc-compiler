@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+extern int __rmc_action_register(const char *name,
+                                 void *entry, void *main, void *action);
 extern int __rmc_edge_register(int is_vis, const char *src, const char *dst);
 extern int __rmc_push(void);
 
@@ -31,33 +33,20 @@ extern int __rmc_push(void);
 }
 #endif
 
-
-#define DO_PRAGMA(x) _Pragma(#x)
-#define RMC_PRAGMA_PUSH DO_PRAGMA(clang diagnostic push) DO_PRAGMA(clang diagnostic ignored "-Wunused-label")
-#define RMC_PRAGMA_POP DO_PRAGMA(clang diagnostic pop)
-
-// Ffffffffffff. The pragma to suppress the unused label warning
-// doesn't seem to work if L() is passed as an argument to some other
-// macro!  I'm just going to disable the warning for now. There are
-// other better workarounds for later.
-#pragma clang diagnostic ignored "-Wunused-label"
-
-
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
 /* This is unhygenic in a nasty way. */
 /* The semis after the labels are because declarations can't directly
  * follow labels, apparently. */
-#define LS_(label, stmt)                                         \
-    RMC_PRAGMA_PUSH                                              \
+#define LS_(name, label, stmt)                                     \
+    __rmc_action_register(#name, &&XRCAT(__rmc_entry_, label), &&XRCAT(_rmc_, label), &&XRCAT(__rmc_end_, label)); \
     XRCAT(__rmc_entry_, label):                                  \
     XRCAT(_rmc_, label): ;                                       \
     stmt;                                                        \
-    XRCAT(__rmc_end_, label): ;                                  \
-    RMC_PRAGMA_POP
+    XRCAT(__rmc_end_, label): ;
 
-#define LS(label, stmt) LS_(XRCAT(label##_, __COUNTER__), stmt)
+#define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 
 #define PUSH __rmc_push()
 
