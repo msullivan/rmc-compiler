@@ -166,8 +166,7 @@ Instruction *makeCtrl(Value *v, Instruction *to_precede) {
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: @ ctrl",
-                "r,~{memory}", true);
+    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: @ ctrl", "r,~{memory}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "# ctrl", "r,~{memory}", true);
   }
