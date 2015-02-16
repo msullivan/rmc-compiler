@@ -284,7 +284,7 @@ void RealizeRMC::processEdge(CallInst *call) {
   if (srcName == "pre") {
     for (auto & dst : actions_) {
       if (dst.name != dstName) continue;
-      Action *src = makePrePostAction(dst.bb->getSinglePredecessor());
+      Action *src = makePrePostAction(dst.startBlock);
       registerEdge(edges_, edgeType, src, &dst);
     }
   }
@@ -393,10 +393,11 @@ void RealizeRMC::findActions() {
   numNormalActions_ = registrations.size();
   for (auto reg : registrations) {
     StringRef name = getStringArg(reg->getOperand(0));
+    BasicBlock *start = cast<BlockAddress>(reg->getOperand(1))->getBasicBlock();
     BasicBlock *main = cast<BlockAddress>(reg->getOperand(2))->getBasicBlock();
     BasicBlock *end = cast<BlockAddress>(reg->getOperand(3))->getBasicBlock();
 
-    actions_.emplace_back(main, end, name);
+    actions_.emplace_back(main, start, end, name);
     bb2action_[main] = &actions_.back();
 
     deleteRegisterCall(reg);

@@ -650,7 +650,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     unpack(unpack(src, dst), v) = entry;
     // XXX: this is a hack that depends on us only using actions in
     // usesData things
-    BasicBlock *pred = dst->getSinglePredecessor();
+    BasicBlock *pred = bb2action_[dst]->startBlock;
     cost = cost +
       boolToInt(v, kUseDataCost*weight(pred, dst));
   }

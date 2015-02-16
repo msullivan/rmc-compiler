@@ -47,9 +47,11 @@ enum ActionType {
   ActionSimpleRMW
 };
 struct Action {
-Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr,
+Action(BasicBlock *p_bb,
+       BasicBlock *p_startBlock = nullptr, BasicBlock *p_endBlock = nullptr,
        std::string p_name = "") :
     bb(p_bb),
+    startBlock(p_startBlock),
     endBlock(p_endBlock),
     name(p_name),
     type(ActionComplex),
@@ -61,6 +63,7 @@ Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr,
   Action(Action &&) = default; // move constructor!
 
   BasicBlock *bb;
+  BasicBlock *startBlock;
   BasicBlock *endBlock;
 
   std::string name;
