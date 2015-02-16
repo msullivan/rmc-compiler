@@ -239,27 +239,6 @@ void deleteRegisterCall(Instruction *i) {
 ///////////////////////////////////////////////////////////////////////////
 //// Actual code for the pass
 
-bool nameMatches(StringRef blockName, StringRef target,
-                 const char *prefix, APInt *id = nullptr) {
-  StringRef name = prefix + target.str() + "_";
-  if (!blockName.startswith(name)) return false;
-  // Now make sure the rest is an int
-  APInt dummy; APInt *out = id ? id : &dummy;
-  return !blockName.drop_front(name.size()).getAsInteger(10, *out);
-}
-
-bool blockMatches(const BasicBlock &block, StringRef target) {
-  if (!nameMatches(block.getName(), target, "_rmc_")) return false;
-  // Make sure that the block exit node is all in order: one exit, to the
-  // end block.
-  // We should maybe have a real error message at some point.
-  // We could also maybe do better than this?
-  //assert(nameMatches(getSingleSuccessor(&block)->getName(),
-  //                   target, "__rmc_end_") &&
-  //       "ERROR: Actions must not contain control flow!");
-  return true;
-}
-
 ////////////// RMC analysis routines
 
 Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
@@ -297,31 +276,27 @@ void RealizeRMC::processEdge(CallInst *call) {
   // them by name.
   // We could make this more efficient by building maps but I don't think
   // it is going to matter.
-  for (auto & srcBB : func_) {
-    if (!blockMatches(srcBB, srcName)) continue;
-    for (auto & dstBB : func_) {
-      if (!blockMatches(dstBB, dstName)) continue;
-      Action *src = bb2action_[&srcBB];
-      Action *dst = bb2action_[&dstBB];
-      registerEdge(edges_, edgeType, src, dst);
+  for (auto & src : actions_) {
+    if (src.name != srcName) continue;
+    for (auto & dst : actions_) {
+      if (dst.name != dstName) continue;
+      registerEdge(edges_, edgeType, &src, &dst);
     }
   }
 
   // Handle pre and post edges now
   if (srcName == "pre") {
-    for (auto & dstBB : func_) {
-      if (!blockMatches(dstBB, dstName)) continue;
-      Action *src = makePrePostAction(dstBB.getSinglePredecessor());
-      Action *dst = bb2action_[&dstBB];
-      registerEdge(edges_, edgeType, src, dst);
+    for (auto & dst : actions_) {
+      if (dst.name != dstName) continue;
+      Action *src = makePrePostAction(dst.bb->getSinglePredecessor());
+      registerEdge(edges_, edgeType, src, &dst);
     }
   }
   if (dstName == "post") {
-    for (auto & srcBB : func_) {
-      if (!blockMatches(srcBB, srcName)) continue;
-      Action *src = bb2action_[&srcBB];
-      Action *dst = makePrePostAction(src->endBlock);
-      registerEdge(edges_, edgeType, src, dst);
+    for (auto & src : actions_) {
+      if (src.name != srcName) continue;
+      Action *dst = makePrePostAction(src.endBlock);
+      registerEdge(edges_, edgeType, &src, dst);
     }
   }
 
@@ -421,10 +396,11 @@ void RealizeRMC::findActions() {
   actions_.reserve(3 * registrations.size());
   numNormalActions_ = registrations.size();
   for (auto reg : registrations) {
+    StringRef name = getStringArg(reg->getOperand(0));
     BasicBlock *main = cast<BlockAddress>(reg->getOperand(2))->getBasicBlock();
     BasicBlock *end = cast<BlockAddress>(reg->getOperand(3))->getBasicBlock();
 
-    actions_.emplace_back(main, end);
+    actions_.emplace_back(main, end, name);
     bb2action_[main] = &actions_.back();
 
     deleteRegisterCall(reg);

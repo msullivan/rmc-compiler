@@ -47,9 +47,11 @@ enum ActionType {
   ActionSimpleRMW
 };
 struct Action {
-Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr) :
+Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr,
+       std::string p_name = "") :
     bb(p_bb),
     endBlock(p_endBlock),
+    name(p_name),
     type(ActionComplex),
     isPush(false),
     stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr)
@@ -60,6 +62,8 @@ Action(BasicBlock *p_bb, BasicBlock *p_endBlock = nullptr) :
 
   BasicBlock *bb;
   BasicBlock *endBlock;
+
+  std::string name;
 
   // Some basic info about what sort of instructions live in the action
   ActionType type;
