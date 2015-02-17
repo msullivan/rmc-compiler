@@ -320,6 +320,8 @@ void RealizeRMC::findEdges() {
       processEdge(call);
     } else if (target->getName() == "__rmc_push") {
       processPush(call);
+    } else if (target->getName() == "__rmc_barrier") {
+      // Nothing, but delete.
     } else {
       continue;
     }

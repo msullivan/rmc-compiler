@@ -29,6 +29,7 @@ extern int __rmc_action_register(const char *name,
                                  void *entry, void *main, void *action);
 extern int __rmc_edge_register(int is_vis, const char *src, const char *dst);
 extern int __rmc_push(void);
+extern int __rmc_barrier(void);
 
 #ifdef __cplusplus
 }
