@@ -484,7 +484,8 @@ void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
   // insert dummy copies of the operands and a compiler barrier in the
   // target.
   hideOperands(icmp);
-  if (!isInstrBarrier(&next->front())) makeBarrier(&next->front());
+  Instruction *front = &*next->getFirstInsertionPt();
+  if (!isInstrBarrier(front)) makeBarrier(front);
 }
 
 ////////////// Program analysis that we use
@@ -698,7 +699,7 @@ void RealizeRMC::cutEdge(RMCEdge &edge) {
 
   // As a first pass, we just insert lwsyncs at the start of the destination.
   BasicBlock *bb = edge.dst->bb;
-  makeLwsync(&bb->front());
+  makeLwsync(&*bb->getFirstInsertionPt());
   // XXX: we need to make sure we can't ever fail to track a cut at one side
   // of a block because we inserted one at the other! Argh!
   cuts_[bb] = BlockCut(CutLwsync, true);
@@ -763,7 +764,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
 // This relies on isync's being processed before ctrls :/
 Instruction *getCutInstr(const EdgeCut &cut) {
   TerminatorInst *term = cut.src->getTerminator();
-  if (term->getNumSuccessors() > 1) return &cut.dst->front();
+  if (term->getNumSuccessors() > 1) return &*cut.dst->getFirstInsertionPt();
   if (cut.type == CutCtrl && isInstrIsync(getPrevInstr(term))) {
     return getPrevInstr(term);
   }
@@ -830,7 +831,7 @@ void RealizeRMC::cutPushes() {
   for (auto action : pushes_) {
     assert(action->isPush);
     BasicBlock *bb = action->bb;
-    makeSync(&bb->front());
+    makeSync(&*bb->getFirstInsertionPt());
     cuts_[bb] = BlockCut(CutSync, true);
     // XXX: since we can't actually handle cuts on the front and the
     // back and because the sync is the only thing in the block and so
