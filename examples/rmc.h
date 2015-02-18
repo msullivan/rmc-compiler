@@ -82,5 +82,46 @@ extern int __rmc_barrier(void);
 #define BARRIER_INTERNAL(l) do { L(l, PUSH); VEDGE(pre, l); XEDGE(l, post); } while (0)
 #define BARRIER() BARRIER_INTERNAL(XRCAT(__barrier_push, __COUNTER__))
 
+///////////////////////////////////////////////////////////////////////
+// Now define the RMC atomic op instructions. We do this by using the
+// C11 atomics at memory_order_relaxed and casting to add _Atomic.
+#include "stdatomic.h"
+
+#define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
+
+#define rmc_compare_exchange_strong(object, expected, desired)          \
+    atomic_compare_exchange_strong_explicit(                            \
+        __rmc_atomic_fixup(object), expected,                           \
+        desired, memory_order_relaxed, memory_order_relaxed)
+#define rmc_compare_exchange_weak(object, expected, desired)            \
+    atomic_compare_exchange_weak_explicit(                              \
+        __rmc_atomic_fixup(object), expected,                           \
+        desired, memory_order_relaxed, memory_order_relaxed)
+#define rmc_exchange(object, desired)                                   \
+    atomic_exchange_explicit(                                           \
+        __rmc_atomic_fixup(object), desired, memory_order_relaxed)
+#define rmc_fetch_add(object, operand)                               \
+    atomic_fetch_add_explicit(                                       \
+        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+#define rmc_fetch_and(object, operand)                               \
+    atomic_fetch_and_explicit(                                       \
+        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+#define rmc_fetch_or(object, operand)                                \
+    atomic_fetch_or_explicit(                                        \
+        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+#define rmc_fetch_sub(object, operand)                               \
+    atomic_fetch_sub_explicit(                                       \
+        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+#define rmc_fetch_xor(object, operand)                               \
+    atomic_fetch_xor_explicit(                                       \
+        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+// These aren't really necessary, but we might move towards them, and
+// I include them for completeness.
+#define rmc_store(object, desired)                                   \
+    atomic_store_explicit(                                           \
+        __rmc_atomic_fixup(object), desired, memory_order_relaxed)
+#define rmc_load(object)                                             \
+    atomic_load_explicit(                                            \
+        __rmc_atomic_fixup(object), memory_order_relaxed)
 
 #endif
