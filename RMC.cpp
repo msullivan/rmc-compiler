@@ -731,8 +731,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
       ActionType dt = dst->type;
       if (!(st == ActionPush || dt == ActionPush ||
             st == ActionNop || dt == ActionNop ||
-            (st == ActionSimpleWrites && dt == ActionSimpleRead) ||
-            (st == ActionSimpleWrites && dt == ActionSimpleWrites))) {
+            st == ActionSimpleWrites)) {
         src.execTransEdges.insert(dst);
       }
     }
