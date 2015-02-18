@@ -42,7 +42,10 @@ extern int __rmc_barrier(void);
 /* The semis after the labels are because declarations can't directly
  * follow labels, apparently. */
 #define LS_(name, label, stmt)                                   \
-    __rmc_action_register(#name, &&XRCAT(_rmc_entry_, label), &&XRCAT(_rmc_, label), &&XRCAT(_rmc_end_, label)); \
+    __rmc_action_register(#name,                                 \
+                          &&XRCAT(_rmc_entry_, label),           \
+                          &&XRCAT(_rmc_, label),                 \
+                          &&XRCAT(_rmc_end_, label));            \
     XRCAT(_rmc_entry_, label):                                   \
     XRCAT(_rmc_, label): ;                                       \
     stmt;                                                        \
@@ -52,11 +55,13 @@ extern int __rmc_barrier(void);
 
 #define PUSH __rmc_push()
 
-#else
+#else /* !HAS_RMC */
+/* The compiler doesn't support RMC, so we provide a low quality
+ * backup implementation.
+ * (Probably just as good on x86, to be honest!) */
 
 #include "atomic.h"
 
-/* Dummy version that should work. */
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
 /* Just stick a visibility barrier after every label. This isn't good
