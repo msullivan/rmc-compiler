@@ -13,6 +13,14 @@
 /* The "volatile" is due to gcc bugs */
 #define barrier() __asm__ __volatile__("":::"memory")
 
+#define launder_value(v) \
+    ({                                           \
+    __typeof__(v) __v = v;                       \
+    __asm__ __volatile__("" : "+r" (__v)::);     \
+    __v;                                         \
+    })
+
+
 #if defined(i386) || defined(__x86_64)
 
 #define x86_lfence() __asm__ __volatile__("lfence":::"memory")
