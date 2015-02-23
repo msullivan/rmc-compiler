@@ -195,11 +195,6 @@ StringRef getStringArg(Value *v) {
   return str.drop_back();
 }
 
-BasicBlock *getSingleSuccessor(const BasicBlock *bb) {
-  return bb->getTerminator()->getNumSuccessors() == 1 ?
-    bb->getTerminator()->getSuccessor(0) : nullptr;
-}
-
 Instruction *getNextInstr(Instruction *i) {
   BasicBlock::iterator I = *i;
   return ++I == i->getParent()->end() ? nullptr : &*I;
