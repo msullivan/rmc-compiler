@@ -153,9 +153,41 @@ synchronization operation will become visible to all other threads in a finite p
 This precludes (I think) transformations like (assuming mo_relaxed):
 x = 1; while (y); --> while (y); x = 1;
 
+We don't really have a story for this sort of thing. I was originally
+thinking that I wanted to use W->R execution order edges to prevent
+this, but I am less sure, now. Maybe it should just be a side condition
+in general that things "eventually" execute, "eventually" become visible.
+
+I don't think that this side condition is that much painful than the
+other, saves us annotations, and I *think* already fits our compiler
+strategy (since we are turning all our accesses into mo_relaxed).
+
+(RMW related things are complicating this analysis.)
+
 --
 
 Do we have a theory story for using weak cmpxchg?
+Maybe:
+weak_cmpxchg(p, ev, nv) = RMW(p, x. if x == ev && !spurious() then nv else x)
+Does this work? Is ordering stuff reasonable?
+Oh, it also doesn't quite work, since it needs to output whether it succeeded, which can't be
+divined from the value.
+
+XXX: Actually, does /strong/ cmpxchg work right in failure cases??
+The RW semantics in RMC /always/ does a write, but that won't actually
+be the case, right? Does this cause trouble?
+cmpxchg(p, ev, nv) = RMW(p, x. if x == ev then nv else x)
+
+Implementing CAS with RMW can result in rf edges that don't actually
+correspond with real rf edges in the hardware. I'm not totally sure
+what all implications this has. The most obvious one is that it can
+establish visibility in places where it might not make sense. I
+/think/ that is fixed on ARM by making sure that all xo edges /out/ of
+a CAS are dmbs (and not something dep based). On POWER it is a little worse:
+all vo edges into and xo edges out of need to be *sync* (not lwsync).
+
+This can be fixed by adding a new CAS directly to the language; like
+RMW, it will evaluate into RWs and speculations.
 
 ---
 
