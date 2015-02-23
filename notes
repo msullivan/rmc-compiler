@@ -227,4 +227,4 @@ optimizations. *Not* everything that is labeled needs to be atomic
 (e.g reads from an RCU-protected pointer, the data in a standard MP
 example) and some things that need to be atomic don't need to be
 labeled (esp. when using pre/post). Maybe the thing to do is to
-imitate C11 more and have rmc_store/rmc_load, maybe even _RMC/RMC<T>?
+imitate C11 more and have rmc_store/rmc_load, maybe even _Rmc/Rmc<T>?

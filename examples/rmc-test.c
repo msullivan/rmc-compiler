@@ -238,3 +238,10 @@ int recv_consume_twice(int *parray, int *pidx) {
     BARRIER();
     return rd;
 }
+
+// A test that uses rmc_store/rmc_load and _Rmc
+void mp_send_explicit(_Rmc(int) *flag, _Rmc(int) *data) {
+    VEDGE(wdata, wflga);
+    L(wdata, rmc_store(data, 42));
+    L(wflag, rmc_store(flag, 1));
+}

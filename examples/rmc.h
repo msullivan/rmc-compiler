@@ -92,6 +92,11 @@ extern int __rmc_barrier(void);
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
 #include "stdatomic.h"
 
+// An optional type qualifier in the style of _Atomic. If you use this,
+// you need to use rmc_store/rmc_load to access it. This may become
+// less optional in the future.
+#define _Rmc(t) t
+
 #define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
 
 #define rmc_compare_exchange_strong(object, expected, desired)          \
@@ -120,11 +125,17 @@ extern int __rmc_barrier(void);
 #define rmc_fetch_xor(object, operand)                               \
     atomic_fetch_xor_explicit(                                       \
         __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+
 // These aren't really necessary, but we might move towards them, and
 // I include them for completeness.
+
+// rmc_store needs to return a value to be used by L(). We don't
+// bother returning a useful one.
 #define rmc_store(object, desired)                                   \
-    atomic_store_explicit(                                           \
-        __rmc_atomic_fixup(object), desired, memory_order_relaxed)
+    ({atomic_store_explicit(                                         \
+        __rmc_atomic_fixup(object), desired, memory_order_relaxed);  \
+      0;})
+
 #define rmc_load(object)                                             \
     atomic_load_explicit(                                            \
         __rmc_atomic_fixup(object), memory_order_relaxed)
