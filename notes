@@ -38,10 +38,12 @@ Ignoring read-modify-writes, the algorithm is as follows:
 
 --
 pre and post edges we will just add the stuff and then try to notice it.
+ * False; we don't actually do it that way.
 
 honestly maybe that's what we should do for push also? although, won't
 actually be hard to do push right, but maybe not worth the state space
 blowup.
+ * But we do do it that way for push.
 
 Should be a little careful because probably a common idiom will be:
   L(push, PUSH); VEDGE(pre, push); XEDGE(push, post);
@@ -51,6 +53,7 @@ It will be common because I'll probably write a macro for it, so...
 
 Will actually need special handling of pre/push to posts even just for
 correctness!
+
 
 --
 I sort of dislike inserting all these barriers so early. I feel like
@@ -192,10 +195,11 @@ RMW, it will evaluate into RWs and speculations.
 ---
 
 
-*** Add some factor so that one lwsync is better than two, even if the
+DONE *** Add some factor so that one lwsync is better than two, even if the
     cost is the same. Reduces code size, maybe inhibits optimizations
-    less in certain cases? Myabe we should be more directly merging
-    things when all the edges out of a node are cut.
+    less in certain cases?
+*** Maybe we should be more directly merging
+things when all the edges out of a node are cut.
 
 
 ---
@@ -210,3 +214,17 @@ That's not true: we could get screwed on a comparison from a derived
 value.
  * Maybe obfuscate every time a value in the chain has multiple uses.
  * Maybe do some checking of how the values are used?
+
+These obfuscating copies /will/ actually cause extra register copies,
+etc, I think.
+
+ * hideAllUses - well, only need to hide N-1, really
+
+---
+
+*** Need to think more about the atomic/non-atomic distinction and
+optimizations. *Not* everything that is labeled needs to be atomic
+(e.g reads from an RCU-protected pointer, the data in a standard MP
+example) and some things that need to be atomic don't need to be
+labeled (esp. when using pre/post). Maybe the thing to do is to
+imitate C11 more and have rmc_store/rmc_load, maybe even _RMC/RMC<T>?
