@@ -195,4 +195,18 @@ RMW, it will evaluate into RWs and speculations.
 *** Add some factor so that one lwsync is better than two, even if the
     cost is the same. Reduces code size, maybe inhibits optimizations
     less in certain cases? Myabe we should be more directly merging
-    things wehn all the edges out of a node are cut.
+    things when all the edges out of a node are cut.
+
+
+---
+
+We /do/ need to do value obfuscation or some such on data-dep
+things. I suspected this but was hoping it wasn't true. It is going to
+be annoying and I worry it will hurt optimizations noticably.
+
+I /think/ that we can maybe get away with one obfuscation per chain,
+at the source value?
+That's not true: we could get screwed on a comparison from a derived
+value.
+ * Maybe obfuscate every time a value in the chain has multiple uses.
+ * Maybe do some checking of how the values are used?
