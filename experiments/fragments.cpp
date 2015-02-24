@@ -34,6 +34,43 @@ int double_sc(std::atomic<int> *x, std::atomic<int> *y) {
 	return z;
 }
 
+int load_relaxed(std::atomic<int> *x) {
+	return x->load(std::memory_order_relaxed);
+}
+void store_relaxed(std::atomic<int> *x) {
+	x->store(1, std::memory_order_relaxed);
+}
+
+int rmw_acquire(std::atomic<int> *x) {
+    return std::atomic_fetch_add_explicit(x, 1, std::memory_order_acquire);
+}
+int rmw_acq_rel(std::atomic<int> *x) {
+    return std::atomic_fetch_add_explicit(x, 1, std::memory_order_acq_rel);
+}
+int rmw_seq_cst(std::atomic<int> *x) {
+    return std::atomic_fetch_add_explicit(x, 1, std::memory_order_seq_cst);
+}
+
+int cas_rel__acq(std::atomic<int> *x) {
+    int exp = 0;
+    std::atomic_compare_exchange_strong_explicit(
+        x, &exp, 1, std::memory_order_release, std::memory_order_acquire);
+    return exp;
+}
+int cas_acq_rel__acq(std::atomic<int> *x) {
+    int exp = 0;
+    std::atomic_compare_exchange_strong_explicit(
+        x, &exp, 1, std::memory_order_acq_rel, std::memory_order_acquire);
+    return exp;
+}
+int cas_acq_rel__rlx(std::atomic<int> *x) {
+    int exp = 0;
+    std::atomic_compare_exchange_strong_explicit(
+        x, &exp, 1, std::memory_order_acq_rel, std::memory_order_relaxed);
+    return exp;
+}
+
+
 
 int main() { return 0; }
 }
