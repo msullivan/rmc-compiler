@@ -228,3 +228,8 @@ optimizations. *Not* everything that is labeled needs to be atomic
 example) and some things that need to be atomic don't need to be
 labeled (esp. when using pre/post). Maybe the thing to do is to
 imitate C11 more and have rmc_store/rmc_load, maybe even _Rmc/Rmc<T>?
+
+
+------
+
+We should think about ARMv8s acquire/release operations.
