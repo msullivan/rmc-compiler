@@ -293,7 +293,7 @@ void RealizeRMC::processEdge(CallInst *call) {
 }
 
 void RealizeRMC::processPush(CallInst *call) {
-  Action *a = bb2action_[call->getParent()];
+  Action *a = bb2action_[call->getParent()]; // This is dubious.
   pushes_.insert(a);
   a->isPush = true;
 }
@@ -315,8 +315,6 @@ void RealizeRMC::findEdges() {
       processEdge(call);
     } else if (target->getName() == "__rmc_push") {
       processPush(call);
-    } else if (target->getName() == "__rmc_barrier") {
-      // Nothing, but delete.
     } else {
       continue;
     }
@@ -388,28 +386,32 @@ void RealizeRMC::findActions() {
   actions_.reserve(3 * registrations.size());
   numNormalActions_ = registrations.size();
   for (auto reg : registrations) {
+    // FIXME: this scheme only works if we've run mem2reg. Otherwise we
+    // need to chase through the alloca...
+    assert(reg->hasOneUse());
+    Instruction *close = cast<Instruction>(*reg->user_begin());
+
     StringRef name = getStringArg(reg->getOperand(0));
-    BasicBlock *start = cast<BlockAddress>(reg->getOperand(1))->getBasicBlock();
-    BasicBlock *main = cast<BlockAddress>(reg->getOperand(2))->getBasicBlock();
-    BasicBlock *end = cast<BlockAddress>(reg->getOperand(3))->getBasicBlock();
+
+    // Now that we have found the start and the end of the action,
+    // split the action into its own (group of) basic blocks so that
+    // we can work with it more easily.
+
+    // Split once to make a start block
+    BasicBlock *start = SplitBlock(reg->getParent(), reg, underlyingPass_);
+    start->setName("_rmc_start_" + name);
+    // Split it again so the start block is empty and we have our main block
+    BasicBlock *main = SplitBlock(start, reg, underlyingPass_);
+    main->setName("_rmc_" + name);
+    // Now split the end to get our tail block
+    BasicBlock *end = SplitBlock(close->getParent(), close, underlyingPass_);
+    end->setName("_rmc_end_" + name);
 
     actions_.emplace_back(main, start, end, name);
     bb2action_[main] = &actions_.back();
 
     deleteRegisterCall(reg);
-  }
-
-  // If this function uses RMC, look for a bogus "indirectgoto" block
-  // and remove it.
-  // XXX: how does this interact with actually using indirectgoto??
-  if (numNormalActions_) {
-    for (auto & block : func_) {
-      if (block.getName() == "indirectgoto" &&
-          pred_begin(&block) == pred_end(&block)) {
-        DeleteDeadBlock(&block);
-        break;
-      }
-    }
+    deleteRegisterCall(close);
   }
 }
 
@@ -918,7 +920,7 @@ public:
   virtual bool runOnFunction(Function &F) {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo &li = getAnalysis<LoopInfo>();
-    RealizeRMC rmc(F, dom, li, useSMT_);
+    RealizeRMC rmc(F, this, dom, li, useSMT_);
     return rmc.run();
   }
 
@@ -926,7 +928,6 @@ public:
     AU.addRequiredID(BreakCriticalEdgesID);
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<LoopInfo>();
-    AU.setPreservesCFG();
   }
 };
 

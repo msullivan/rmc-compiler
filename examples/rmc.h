@@ -3,18 +3,19 @@
 
 #ifdef HAS_RMC
 
-/* We signal our labels and edges to our LLVM pass in a *really* hacky
- * way to avoid needing to modify the frontend.  Labelled statements
- * are wrapped in three goto labels to force them into their own basic
- * block (labelled statements don't fundamentally *need* to be in
- * their own basic block, but it makes things convenient) and edges
+/* We signal our labels and edges to our LLVM pass in a fairly hacky
+ * way to avoid needing to modify the frontend. Labelled statements
+ * are bracketed by calls to the dummy functions __rmc_action_register
+ * and __rmc_action_close which indicate the extent of the action and
+ * associate it with a name. __rmc_action_close is passed the (bogus)
+ * return value from __rmc_action_register in order to make them easy
+ * to associate (even if they are duplicated by an optimizer). Edges
  * are specified by calling a dummy function __rmc_edge_register with
- * the names of the labels as arguments. __rmc_action_register is passed
- * pointers to the labels as well as the name, in order to associate them.
+ * the names of the labels as arguments.
  *
- * This is really quite fragile; optimization passes will easily
- * destroy this information. The RMC pass should be run *before* any
- * real optimization passes are run but *after* mem2reg. */
+ * I'm not totally sure how fragile this is at this point. The pass
+ * should definitely be run after mem2reg and I suspect that it is
+ * actually fairly robust to other optimizations. */
 
 
 /* C. */
@@ -25,11 +26,10 @@
 extern "C" {
 #endif
 
-extern int __rmc_action_register(const char *name,
-                                 void *entry, void *main, void *action);
+extern int __rmc_action_register(const char *name);
+extern int __rmc_action_close(int x);
 extern int __rmc_edge_register(int is_vis, const char *src, const char *dst);
 extern int __rmc_push(void);
-extern int __rmc_barrier(void);
 
 #ifdef __cplusplus
 }
@@ -39,17 +39,11 @@ extern int __rmc_barrier(void);
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
 /* This is unhygenic in a nasty way. */
-/* The semis after the labels are because declarations can't directly
- * follow labels, apparently. */
+/* Maybe we should throw some barrier()s in also, to be on the safe side? */
 #define LS_(name, label, stmt)                                   \
-    __rmc_action_register(#name,                                 \
-                          &&XRCAT(_rmc_entry_, label),           \
-                          &&XRCAT(_rmc_, label),                 \
-                          &&XRCAT(_rmc_end_, label));            \
-    XRCAT(_rmc_entry_, label):                                   \
-    XRCAT(_rmc_, label): ;                                       \
+    int XRCAT(______lt, label) = __rmc_action_register(#name);   \
     stmt;                                                        \
-    XRCAT(_rmc_end_, label): ;
+    __rmc_action_close(XRCAT(______lt, label));
 
 #define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 

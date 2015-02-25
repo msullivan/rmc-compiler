@@ -158,6 +158,7 @@ bool addrDepsOn(Instruction *instr, Value *load,
 class RealizeRMC {
 private:
   Function &func_;
+  Pass *underlyingPass_;
   DominatorTree &domTree_;
   LoopInfo &loopInfo_;
   bool useSMT_;
@@ -196,9 +197,11 @@ private:
   std::vector<EdgeCut> smtAnalyze();
 
 public:
-  RealizeRMC(Function &F, DominatorTree &domTree,
+  RealizeRMC(Function &F, Pass *underlyingPass,
+           DominatorTree &domTree,
              LoopInfo &loopInfo, bool useSMT)
-    : func_(F), domTree_(domTree), loopInfo_(loopInfo),
+    : func_(F), underlyingPass_(underlyingPass),
+      domTree_(domTree), loopInfo_(loopInfo),
       useSMT_(useSMT), numNormalActions_(0) { }
   ~RealizeRMC() { }
   bool run();
