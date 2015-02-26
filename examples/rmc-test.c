@@ -76,7 +76,7 @@ int sb_test1(int *p, int *q) {
     VEDGE(write, push); XEDGE(push, read);
 
     L(write, *p = 1);
-    L(push, PUSH);
+    L(push, rmc_push());
     int x = L(read, *q);
 
     return x;
@@ -87,7 +87,7 @@ int sb_test2(int *p, int *q) {
     VEDGE(pre, push); XEDGE(post, read);
 
     *p = 1;
-    L(push, PUSH);
+    L(push, rmc_push());
     int x = *q;
 
     return x;
@@ -131,7 +131,7 @@ void push_redundant_test(int *p, int *q) {
     VEDGE(a, b);
 
     L(a, *p = 1);
-    L(push, PUSH);
+    L(push, rmc_push());
     L(b, *q = 2);
 }
 
@@ -201,7 +201,7 @@ int recv_consume(int **pdata) {
     int rd = L(rdata, *p);
     // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
     // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    BARRIER();
+    rmc_push_here();
     return rd;
 }
 
@@ -212,7 +212,7 @@ int recv_consume2(int *parray, int *pidx) {
     int rd = L(rdata, parray[idx]);
     // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
     // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    BARRIER();
+    rmc_push_here();
     return rd;
 }
 
@@ -235,7 +235,7 @@ int recv_consume_twice(int *parray, int *pidx) {
     rd = L(rdata2, parray[rd]);
     // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
     // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    BARRIER();
+    rmc_push_here();
     return rd;
 }
 

@@ -80,7 +80,7 @@ typedef struct list_head_c11_t {
 
 
 #define rcu_read_lock() do { } while (0)
-#define rcu_read_unlock() LS(__dummy_awful_hack, PUSH)
+#define rcu_read_unlock() LS(__dummy_awful_hack, rmc_push())
 
 
 /////

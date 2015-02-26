@@ -47,7 +47,7 @@ extern int __rmc_push(void);
 
 #define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 
-#define PUSH __rmc_push()
+#define rmc_push() __rmc_push()
 
 #else /* !HAS_RMC */
 /* The compiler doesn't support RMC, so we provide a low quality
@@ -63,7 +63,7 @@ extern int __rmc_push(void);
 /* This is unhygenic in a nasty way. */
 #define LS(label, stmt) stmt; vis_barrier()
 
-#define PUSH smp_mb()
+#define rmc_push() ({ smp_mb(); 0; })
 
 #endif /* HAS_RMC */
 
@@ -78,8 +78,8 @@ extern int __rmc_push(void);
 #define L(label, stmt) LR(label, stmt)
 #endif
 
-#define BARRIER_INTERNAL(l) do { L(l, PUSH); VEDGE(pre, l); XEDGE(l, post); } while (0)
-#define BARRIER() BARRIER_INTERNAL(XRCAT(__barrier_push, __COUNTER__))
+#define rmc_push_here_internal(l) do { L(l, rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
+#define rmc_push_here() rmc_push_here_internal(XRCAT(__barrier_push, __COUNTER__))
 
 ///////////////////////////////////////////////////////////////////////
 // Now define the RMC atomic op instructions. We do this by using the

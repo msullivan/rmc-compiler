@@ -21,7 +21,7 @@ macro_rules! L {
     }}
 }
 
-macro_rules! PUSH { () => { __rmc_push() } }
+macro_rules! rmc_push { () => { __rmc_push() } }
 
 macro_rules! RMC_EDGE {
     ($sort:expr, $src:ident, $dst:ident) => {
