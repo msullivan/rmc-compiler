@@ -30,7 +30,6 @@ do
 			break
 	esac
 done
-export RMC_PLATFORM #export it so our pass will pick it up; ew.
 
 
 NAME=$(basename $1 .c)

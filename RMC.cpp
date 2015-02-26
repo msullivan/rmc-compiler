@@ -885,23 +885,23 @@ private:
 public:
   static char ID;
   RealizeRMCPass() : FunctionPass(ID) {
-    // This is definitely not the right way to do this.
-    char *target_cstr = getenv("RMC_PLATFORM");
-    std::string target_env = target_cstr ? target_cstr : "";
-    if (target_env == "x86") {
-      target = TargetX86;
-    } else if (target_env == "arm") {
-      target = TargetARM;
-    } else {
-      assert(false && "not given a supported target");
-    }
-
     // OK, do we want to use SMT?
     useSMT_ = getenv("RMC_USE_SMT") != nullptr;
   }
   ~RealizeRMCPass() { }
 
   virtual bool doInitialization(Module &M) {
+    // Pull the platform out of the target triple and then sort of bogusly
+    // stick it in a global variable
+    std::string triple = M.getTargetTriple();
+    if (triple.find("x86") == 0) {
+      target = TargetX86;
+    } else if (triple.find("arm") == 0) {
+      target = TargetARM;
+    } else {
+      assert(false && "not given a supported target");
+    }
+
     // This is a bogus hack that we use to suppress testing all but a
     // particular function; this is purely for debugging purposes
     char *only_test = getenv("RMC_ONLY_TEST");
