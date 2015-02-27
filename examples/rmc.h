@@ -86,12 +86,16 @@ extern int __rmc_push(void);
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
 #include "stdatomic.h"
 
-// An optional type qualifier in the style of _Atomic. If you use this,
-// you need to use rmc_store/rmc_load to access it. This may become
-// less optional in the future.
+// If REQUIRE_EXPLICIT_ATOMICS is set, then atomic locations need
+// to be tagged with _Rmc() in the type and rmc_store/rmc_load should
+// be used to use them.
+#if REQUIRE_EXPLICIT_ATOMICS
+#define _Rmc(t) _Atomic(t)
+#define __rmc_atomic_fixup(e) (e)
+#else
 #define _Rmc(t) t
-
 #define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
+#endif
 
 #define rmc_compare_exchange_strong(object, expected, desired)          \
     atomic_compare_exchange_strong_explicit(                            \
