@@ -61,10 +61,11 @@ extern int __rmc_push(void);
 
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
-/* Just stick a visibility barrier after every label. This isn't good
- * or anything, but it probably works. */
+/* Just stick a visibility barrier before and after every label. This
+ * isn't good or anything, but it probably works. (Have to do both
+ * before and after because of pre/post.) */
 /* This is unhygenic in a nasty way. */
-#define LS(label, stmt) stmt; vis_barrier()
+#define LS(label, stmt) vis_barrier(); stmt; vis_barrier()
 
 #define rmc_push() ({ smp_mb(); 0; })
 
