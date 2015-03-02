@@ -15,7 +15,10 @@
  *
  * I'm not totally sure how fragile this is at this point. The pass
  * should definitely be run after mem2reg and I suspect that it is
- * actually fairly robust to other optimizations. */
+ * actually fairly robust to other optimizations. There certainly are
+ * *valid* program transformations that would break things; I'm not
+ * sure how likely they are, though, and we can probably detect them
+ * and fall back to inserting barriers after all the labels... */
 
 
 /* C. */
