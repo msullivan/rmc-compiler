@@ -134,6 +134,7 @@ void minimize(SmtSolver &s, SmtExpr &costVar) {
 typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
 typedef PathID PathKey;
 typedef std::pair<BasicBlock *, PathID> BlockPathKey;
+typedef std::pair<EdgeKey, PathID> EdgePathKey;
 typedef std::pair<BasicBlock *, EdgeKey> BlockEdgeKey;
 EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
   return std::make_pair(src, dst);
@@ -143,6 +144,9 @@ PathKey makePathKey(PathID path) {
 }
 BlockPathKey makeBlockPathKey(BasicBlock *block, PathID path) {
   return std::make_pair(block, path);
+}
+EdgePathKey makeEdgePathKey(BasicBlock *src, BasicBlock *dst, PathID path) {
+  return std::make_pair(makeEdgeKey(src, dst), path);
 }
 BlockEdgeKey makeBlockEdgeKey(BasicBlock *block,
                               BasicBlock *src, BasicBlock *dst) {
@@ -299,8 +303,8 @@ struct VarMaps {
 
   // The edge here isn't actually a proper edge in that it isn't
   // necessarily two blocks connected in the CFG
-  DeclMap<EdgeKey> usesData;
-  DeclMap<BlockPathKey> pathData;
+  DeclMap<EdgePathKey> usesData;
+  DeclMap<std::pair<PathID, BlockPathKey>> pathData;
 };
 
 // Generalized it.
@@ -439,7 +443,7 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
   Action *tail = m.bb2action[dst];
   if (src && tail && src->soleLoad && tail->soleLoad &&
       addrDepsOn(tail->soleLoad, src->soleLoad, &m.pc, path))
-    return getEdgeFunc(m.usesData, src->bb, tail->bb);
+    return getFunc(m.usesData, makeEdgePathKey(src->bb, tail->bb, path));
 
   return s.ctx().bool_val(false);
 }
@@ -454,14 +458,15 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
   // XXX: we can maybe be more granular about things.
   if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
 
-  return forAllPathEdges(
+   return forAllPathEdges(
     s, m, fullPath,
+    // We need to include both the fullPath and the postfix because
+    // we don't want to share postfixes incorrectly.
     [&] (PathID path, bool *b) {
-      return getFunc(m.pathData, makeBlockPathKey(dep, path), b); },
+      return getFunc(m.pathData,
+                     std::make_pair(fullPath, makeBlockPathKey(dep, path)), b);
+    },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      // XXX: I think using fullPath here causes trouble! I think we can
-      // get in trouble because postfixes can be shared when they
-      // shouldn't be. XXX: BUG
       SmtExpr cut = makeData(s, m, dep, dst, fullPath);
       path = m.pc.getTail(path);
       if (dst != tail->bb) {
@@ -592,8 +597,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
 
-    DeclMap<EdgeKey>(c.bool_sort(), "uses_data"),
-    DeclMap<BlockPathKey>(c.bool_sort(), "path_data"),
+    DeclMap<EdgePathKey>(c.bool_sort(), "uses_data"),
+    DeclMap<std::pair<PathID, BlockPathKey>>(c.bool_sort(), "path_data"),
   };
 
   // Compute the capacity function
@@ -647,7 +652,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
       boolToInt(v, ctrlWeight*weight(src, dst));
   }
   for (auto & entry : m.usesData.map) {
-    unpack(unpack(src, dst), v) = entry;
+    PathID path;
+    unpack(unpack(unpack(src, dst), path), v) = entry;
     // XXX: this is a hack that depends on us only using actions in
     // usesData things
     BasicBlock *pred = bb2action_[dst]->startBlock;
