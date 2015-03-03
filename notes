@@ -233,3 +233,31 @@ imitate C11 more and have rmc_store/rmc_load, maybe even _Rmc/Rmc<T>?
 ------
 
 We should think about ARMv8s acquire/release operations.
+
+
+-----
+
+Running optimizations early can cause us some trouble, since inlining
+might cause collision between label names, which could cause bad
+codegen. Maybe we need a uniqifying pass that runs early or
+something... but that's not great.
+
+Actually, wait. What is the relationship between inlining and cross
+function call edges.
+
+-----
+Wait again. What is the relationship between /recursion/ and cross
+call edges. Consider:
+int f(int x, int y) {
+	VEDGE(a, b);
+	if (x) { L(a, ...); }
+	if (something) { f(0, 1); }
+	if (y) { L(b, ...); }
+}
+Honestly, most reasonable compilation things seem like they'll just
+work fine, but...
+
+I guess we could add edges from all function calls that could possibly
+invoke us recursively... but that sounds annoying.
+
+I think for now we will not support this.
