@@ -53,7 +53,10 @@ else
     DEF_FLAGS="-DNO_TEST -DONLY_RMC"
 fi
 
-clang --std=gnu11 $PLATFORM_FLAGS $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre.bc $1
+clang --std=gnu11 $PLATFORM_FLAGS $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
+llvm-dis $NAME.pre0.bc
+
+opt -mem2reg $NAME.pre0.bc -o $NAME.pre.bc
 llvm-dis $NAME.pre.bc
 
 if [ $RUN_GDB ]; then
