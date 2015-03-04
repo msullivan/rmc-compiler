@@ -93,7 +93,8 @@ void transitiveClosure(Range &actions,
 
 enum RMCTarget {
   TargetX86,
-  TargetARM
+  TargetARM,
+  TargetPOWER
 };
 // It is sort of bogus to make this global.
 RMCTarget target;
@@ -132,6 +133,8 @@ Instruction *makeSync(Instruction *to_precede) {
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
     a = makeAsm(f_ty, "dmb @ sync", "~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "sync # sync", "~{memory}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "mfence # sync", "~{memory}", true);
   }
@@ -143,6 +146,8 @@ Instruction *makeLwsync(Instruction *to_precede) {
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
     a = makeAsm(f_ty, "dmb @ lwsync", "~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "lwsync # lwsync", "~{memory}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "# lwsync", "~{memory}", true);
   }
@@ -155,6 +160,8 @@ Instruction *makeIsync(Instruction *to_precede) {
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
     a = makeAsm(f_ty, "isb @ isync", "~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "isync # isync", "~{memory}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "# isync", "~{memory}", true);
   }
@@ -167,6 +174,8 @@ Instruction *makeCtrl(Value *v, Instruction *to_precede) {
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
     a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: @ ctrl", "r,~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "cmpw $0, $0;beq 1f;1: # ctrl", "r,~{memory}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "# ctrl", "r,~{memory}", true);
   }
@@ -911,6 +920,8 @@ public:
       target = TargetX86;
     } else if (triple.find("arm") == 0) {
       target = TargetARM;
+    } else if (triple.find("powerpc") == 0) {
+      target = TargetPOWER;
     } else {
       assert(false && "not given a supported target");
     }

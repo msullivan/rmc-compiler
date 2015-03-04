@@ -18,6 +18,10 @@ do
 			shift
 			RMC_PLATFORM=arm
 			;;
+		--power)
+			shift
+			RMC_PLATFORM=power
+			;;
 		--smt)
 			shift
 			export RMC_USE_SMT=1 # export so pass gets it; ew
@@ -41,6 +45,11 @@ case $RMC_PLATFORM in
 #		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
 		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
 		LINKER=arm-linux-gnueabihf-gcc
+		;;
+	power)
+		PLATFORM_FLAGS="--target=powerpc"
+		INCLUDE_FLAGS="-I /usr/powerpc-linux-gnu/include/"
+		LINKER=powerpc-linux-gnu-gcc
 		;;
 	x86)
 		LINKER=clang
