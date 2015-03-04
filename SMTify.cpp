@@ -318,7 +318,7 @@ SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
                     BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
   SmtExpr allPaths = s.ctx().bool_val(true);
-  PathList paths = m.pc.findAllSimplePaths(src, dst, true);
+  PathList paths = m.pc.findAllSimplePaths(src, dst, true, true);
   for (auto & path : paths) {
     allPaths = allPaths && func(path);
   }

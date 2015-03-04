@@ -19,6 +19,7 @@ class PathCache {
 public:
   void clear() { entries_.clear(); cache_.clear(); }
   PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
+                              bool includeReturnLoop,
                               bool allowSelfCycle = false);
   Path extractPath(PathID k) const;
 
@@ -44,6 +45,7 @@ private:
 
   typedef SmallPtrSet<BasicBlock *, 8> GreySet;
   PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
+                              bool includeReturnLoop,
                               bool allowSelfCycle = false);
 };
 

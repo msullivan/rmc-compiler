@@ -45,6 +45,7 @@ Path PathCache::extractPath(PathID k) const {
 
 PathList PathCache::findAllSimplePaths(GreySet *grey,
                                        BasicBlock *src, BasicBlock *dst,
+                                       bool includeReturnLoop,
                                        bool allowSelfCycle) {
   PathList paths;
   if (src == dst && !allowSelfCycle) {
@@ -58,13 +59,13 @@ PathList PathCache::findAllSimplePaths(GreySet *grey,
 
   // We consider all exits from a function to loop back to the start
   // edge, so we need to handle that unfortunate case.
-  if (isa<ReturnInst>(src->getTerminator())) {
+  if (includeReturnLoop && isa<ReturnInst>(src->getTerminator())) {
     BasicBlock *entry = &src->getParent()->getEntryBlock();
-    paths = findAllSimplePaths(grey, entry, dst);
+    paths = findAllSimplePaths(grey, entry, dst, includeReturnLoop);
   }
   // Go search all the normal successors
   for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllSimplePaths(grey, *i, dst);
+    PathList subpaths = findAllSimplePaths(grey, *i, dst, includeReturnLoop);
     std::move(subpaths.begin(), subpaths.end(), std::back_inserter(paths));
   }
 
@@ -84,9 +85,10 @@ PathList PathCache::findAllSimplePaths(GreySet *grey,
 }
 
 PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
+                                       bool includeReturnLoop,
                                        bool allowSelfCycle) {
   GreySet grey;
-  return findAllSimplePaths(&grey, src, dst, allowSelfCycle);
+  return findAllSimplePaths(&grey, src, dst, includeReturnLoop, allowSelfCycle);
 }
 
 ////
