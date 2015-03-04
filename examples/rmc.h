@@ -71,6 +71,14 @@ extern int __rmc_push(void);
 
 #endif /* HAS_RMC */
 
+// To require that the labels in a function be bound "outside" of it,
+// we annotate it with "noinline". Inlining would cause us to be
+// unable to do this properly, so we want to prevent it. As a hack we
+// can then detect whether the function is noinline.
+#define RMC_BIND_OUTSIDE_ATTR noinline
+#define RMC_BIND_OUTSIDE __attribute__ ((RMC_BIND_OUTSIDE_ATTR))
+
+
 // Nice way to extract a value directly from a named read
 // without needing to manually stick it in a temporary.
 #define LE(label, expr) ({LS(label, typeof(expr) _______t = expr); _______t;})

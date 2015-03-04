@@ -474,7 +474,7 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
  *
  */
 
-int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
+RMC_BIND_OUTSIDE int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
 {
     XEDGE(e_check, insert);
     VEDGE(insert, e_update);
@@ -491,7 +491,7 @@ int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
     return enqueued;
 }
 
-int buf_dequeue_rmc(ring_buf_t *buf)
+RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_t *buf)
 {
     XEDGE(d_check, read);
     XEDGE(read, d_update);

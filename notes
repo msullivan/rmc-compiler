@@ -243,7 +243,19 @@ codegen. Maybe we need a uniqifying pass that runs early or
 something... but that's not great.
 
 Actually, wait. What is the relationship between inlining and cross
-function call edges.
+function call edges. I think this can cause us problems:
+void f() { L(a, FOO); VEDGE(a, a); }
+void g() { f(); f_caller(); f(); }
+could compile to
+void f() { FOO; dmb; }
+void g() { FOO; f_caller(); dmb; FOO; dmb; }
+which is wrong.
+
+... maybe make __attribute__((noinline)) the way we indicate that we
+want outside binding...
+RMC_BIND_OUTSIDE
+
+
 
 -----
 Wait again. What is the relationship between /recursion/ and cross
@@ -260,4 +272,4 @@ work fine, but...
 I guess we could add edges from all function calls that could possibly
 invoke us recursively... but that sounds annoying.
 
-I think for now we will not support this.
+* I think for now we will not support this???
