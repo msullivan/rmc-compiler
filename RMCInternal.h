@@ -163,6 +163,8 @@ private:
   LoopInfo &loopInfo_;
   bool useSMT_;
 
+  bool actionsBoundOutside_;
+
   int numNormalActions_;
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
@@ -202,7 +204,7 @@ public:
              LoopInfo &loopInfo, bool useSMT)
     : func_(F), underlyingPass_(underlyingPass),
       domTree_(domTree), loopInfo_(loopInfo),
-      useSMT_(useSMT), numNormalActions_(0) { }
+      useSMT_(useSMT), actionsBoundOutside_(false), numNormalActions_(0) { }
   ~RealizeRMC() { }
   bool run();
 };

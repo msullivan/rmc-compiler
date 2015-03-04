@@ -286,6 +286,7 @@ struct VarMaps {
   PathCache &pc;
   DenseMap<BasicBlock *, Action *> &bb2action;
   DominatorTree &domTree;
+  bool actionsBoundOutside;
 
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> vcut;
@@ -318,7 +319,8 @@ SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
                     BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
   SmtExpr allPaths = s.ctx().bool_val(true);
-  PathList paths = m.pc.findAllSimplePaths(src, dst, true, true);
+  PathList paths = m.pc.findAllSimplePaths(src, dst,
+                                           m.actionsBoundOutside, true);
   for (auto & path : paths) {
     allPaths = allPaths && func(path);
   }
@@ -582,6 +584,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     pc_,
     bb2action_,
     domTree_,
+    actionsBoundOutside_,
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "xcut"),

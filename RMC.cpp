@@ -666,7 +666,7 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
   PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb,
-                                          true, true);
+                                          actionsBoundOutside_, true);
   //pc_.dumpPaths(paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(edge, path,
@@ -852,6 +852,8 @@ void RealizeRMC::cutPushes() {
 
 
 bool RealizeRMC::run() {
+  actionsBoundOutside_ = func_.hasFnAttribute(Attribute::NoInline);
+
   findActions();
   findEdges();
 
