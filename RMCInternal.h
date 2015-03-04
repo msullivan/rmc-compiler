@@ -198,7 +198,7 @@ private:
 
 public:
   RealizeRMC(Function &F, Pass *underlyingPass,
-           DominatorTree &domTree,
+             DominatorTree &domTree,
              LoopInfo &loopInfo, bool useSMT)
     : func_(F), underlyingPass_(underlyingPass),
       domTree_(domTree), loopInfo_(loopInfo),

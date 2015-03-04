@@ -315,7 +315,7 @@ typedef std::function<SmtExpr (BasicBlock *src, BasicBlock *dst, PathID path)>
   EdgeFunc;
 
 SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
-                     BasicBlock *src, BasicBlock *dst, PathFunc func) {
+                    BasicBlock *src, BasicBlock *dst, PathFunc func) {
   // Now try all the paths
   SmtExpr allPaths = s.ctx().bool_val(true);
   PathList paths = m.pc.findAllSimplePaths(src, dst, true);
@@ -326,9 +326,9 @@ SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
-                         PathID path,
-                         GetPathVarFunc getVar,
-                         EdgeFunc func) {
+                        PathID path,
+                        GetPathVarFunc getVar,
+                        EdgeFunc func) {
   SmtContext &c = s.ctx();
 
   PathID rest;
@@ -353,7 +353,7 @@ SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
 //// Real stuff now: the definitions of all the functions
 // XXX: there is a lot of duplication...
 SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
-                  BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
+                 BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
   // We can only add a ctrl dep in locations that are dominated by the
   // load.
   //
@@ -370,7 +370,7 @@ SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makePathIsync(SmtSolver &s, VarMaps &m,
-                       PathID path) {
+                      PathID path) {
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) { return getPathFunc(m.pathIsync, path, b); },
@@ -380,7 +380,7 @@ SmtExpr makePathIsync(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makePathCtrlIsync(SmtSolver &s, VarMaps &m,
-                           PathID path) {
+                          PathID path) {
   SmtContext &c = s.ctx();
   if (m.pc.isEmpty(path)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(path);
@@ -416,7 +416,7 @@ SmtExpr makePathCtrl(SmtSolver &s, VarMaps &m, PathID path) {
 }
 
 SmtExpr makeAllPathsCtrl(SmtSolver &s, VarMaps &m,
-                          BasicBlock *src, BasicBlock *dst) {
+                         BasicBlock *src, BasicBlock *dst) {
   SmtExpr isCtrl = getEdgeFunc(m.allPathsCtrl, src, dst);
   SmtExpr allPaths = forAllPaths(
     s, m, src, dst,
@@ -437,8 +437,8 @@ SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makeData(SmtSolver &s, VarMaps &m,
-                  BasicBlock *dep, BasicBlock *dst,
-                  PathID path) {
+                 BasicBlock *dep, BasicBlock *dst,
+                 PathID path) {
   Action *src = m.bb2action[dep];
   Action *tail = m.bb2action[dst];
   if (src && tail && src->soleLoad && tail->soleLoad &&
@@ -450,7 +450,7 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
 
 // Does it make sense for this to be a path variable at all???
 SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
-                         PathID fullPath, Action *tail) {
+                        PathID fullPath, Action *tail) {
   SmtContext &c = s.ctx();
   if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(fullPath);
@@ -479,7 +479,7 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
-                      BasicBlock *src, BasicBlock *dst) {
+                     BasicBlock *src, BasicBlock *dst) {
   // Instead of generating a notion of push edges and making sure that
   // they are cut by syncs, we just insert syncs exactly where PUSHes
   // are written. We want to actually take advantage of these syncs,
@@ -497,7 +497,7 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
 
 
 SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
-                      PathID path) {
+                     PathID path) {
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) { return getPathFunc(m.pathVcut, path, b); },
@@ -510,7 +510,7 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst);
 
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
-                      PathID path, Action *tail) {
+                     PathID path, Action *tail) {
   bool alreadyMade;
   SmtExpr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
   if (alreadyMade) return isCut;
