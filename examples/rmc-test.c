@@ -199,9 +199,6 @@ int recv_consume(int **pdata) {
     XEDGE(rp, rdata);
     int *p = L(rp, *pdata);
     int rd = L(rdata, *p);
-    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
-    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    rmc_push_here();
     return rd;
 }
 
@@ -210,9 +207,6 @@ int recv_consume2(int *parray, int *pidx) {
     XEDGE(rp, rdata);
     int idx = L(rp, *pidx);
     int rd = L(rdata, parray[idx]);
-    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
-    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    rmc_push_here();
     return rd;
 }
 
@@ -233,9 +227,6 @@ int recv_consume_twice(int *parray, int *pidx) {
     int idx = L(rp, *pidx);
     int rd = L(rdata, parray[idx]);
     rd = L(rdata2, parray[rd]);
-    // THIS IS A HACK TO MAKE USING DATA DEP THING POSSIBLE
-    // SO THAT THERE IS A dmb ON THE rp -> rp LOOP PATH
-    rmc_push_here();
     return rd;
 }
 
