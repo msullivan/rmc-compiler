@@ -331,6 +331,11 @@ void RealizeRMC::findEdges() {
 void analyzeAction(Action &info) {
   // Don't analyze the dummy pre/post actions!
   if (info.type == ActionPrePost) return;
+  // If the action has multiple basic blocks, call it Complex
+  if (info.endBlock->getSinglePredecessor() != info.bb) {
+    info.type = ActionComplex;
+    return;
+  }
 
   LoadInst *soleLoad = nullptr;
   for (auto & i : *info.bb) {
