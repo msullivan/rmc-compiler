@@ -118,7 +118,8 @@ enum CutType {
   CutCtrl,
   CutIsync,
   CutLwsync,
-  CutSync
+  CutSync,
+  CutData
 };
 struct BlockCut {
   BlockCut() : type(CutNone), isFront(false), read(nullptr) {}
@@ -130,14 +131,17 @@ struct BlockCut {
 };
 
 struct EdgeCut {
-  EdgeCut() : type(CutNone), src(nullptr), dst(nullptr), read(nullptr) {}
+  EdgeCut() : type(CutNone), src(nullptr), dst(nullptr),
+    read(nullptr), path(PathCache::kEmptyPath) {}
   EdgeCut(CutType ptype, BasicBlock *psrc, BasicBlock *pdst,
-          Value *pread = nullptr)
-    : type(ptype), src(psrc), dst(pdst), read(pread) {}
+          Value *pread = nullptr,
+          PathID ppath = PathCache::kEmptyPath)
+    : type(ptype), src(psrc), dst(pdst), read(pread), path(ppath) {}
   CutType type;
   BasicBlock *src;
   BasicBlock *dst;
   Value *read;
+  PathID path;
 };
 
 enum CutStrength {

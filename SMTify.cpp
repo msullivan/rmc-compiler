@@ -697,6 +697,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     Value *read = bb2action_[dep]->soleLoad;
     cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
   });
+  processMap<EdgePathKey>(m.usesData, model, [&] (EdgePathKey &entry) {
+    BasicBlock *src, *dst; PathID path;
+    unpack(unpack(src, dst), path) = entry;
+    Value *read = bb2action_[src]->soleLoad;
+    cuts.push_back(EdgeCut(CutData, src, dst, read, path));
+  });
+
+
   if (debugSpew) errs() << "\n";
 
   return cuts;

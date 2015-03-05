@@ -814,6 +814,11 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     }
     break;
   }
+  case CutData:
+  {
+    // TODO: actually enforce data cuts!
+    break;
+  }
   default:
     assert(false && "Unimplemented insertCut case");
   }
