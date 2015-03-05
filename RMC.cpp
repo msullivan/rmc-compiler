@@ -249,7 +249,6 @@ Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
 
   actions_.emplace_back(bb);
   Action *a = &actions_.back();
-  // This will trip if something is pre/post'd more than once
   bb2action_[bb] = a;
   a->type = ActionPrePost;
   return a;
