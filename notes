@@ -218,6 +218,8 @@ value.
 
 These obfuscating copies /will/ actually cause extra register copies,
 etc, I think. Yeah, they definitely do!
+*** Could we run another pass that removes all of our obfuscating
+    copies? Or do they keep the backend stuff honest as well?
 
  * hideAllUses - well, only need to hide N-1, really
 
