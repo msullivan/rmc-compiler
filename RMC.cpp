@@ -566,11 +566,12 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   Instruction *instr = dyn_cast<Instruction>(pointer);
   if (!instr) return false;
 
-  // We trace through GEPs and BitCasts.
+  // We trace through GEP, BitCast, IntToPtr.
   // I wish we weren't recursive. Maybe we should restrict how we
   // trace through GEPs?
   // TODO: less heavily restrict what we use?
-  if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr)) {
+  if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
+      isa<IntToPtrInst>(instr)) {
     for (auto v : instr->operand_values()) {
       if (addrDepsOnSearch(v, load, cache, path)) {
         return true;
