@@ -213,10 +213,11 @@ at the source value?
 That's not true: we could get screwed on a comparison from a derived
 value.
  * Maybe obfuscate every time a value in the chain has multiple uses.
- * Maybe do some checking of how the values are used?
+ * Maybe do some checking of how the values are used? Seems
+   tricky. May need to follow far.
 
 These obfuscating copies /will/ actually cause extra register copies,
-etc, I think.
+etc, I think. Yeah, they definitely do!
 
  * hideAllUses - well, only need to hide N-1, really
 

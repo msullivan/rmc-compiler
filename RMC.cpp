@@ -496,6 +496,21 @@ void hideOperands(Instruction *instr) {
   }
 }
 
+void hideUse(Instruction *instr, Use &use) {
+  Instruction *dummyCopy = makeCopy(instr, getNextInstr(instr));
+  use.set(dummyCopy);
+}
+
+void hideUses(Instruction *instr, User *skip) {
+  for (auto is = instr->use_begin(), ie = instr->use_end(); is != ie;) {
+    Use &use = *is++; // Grab and advance, so we can delete
+    if (use.getUser() != skip) {
+      hideUse(instr, use);
+    }
+  }
+}
+
+//
 void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
   // In order to keep LLVM from optimizing our stuff away we
   // insert dummy copies of the operands and a compiler barrier in the
@@ -503,6 +518,14 @@ void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
   hideOperands(icmp);
   Instruction *front = &*next->getFirstInsertionPt();
   if (!isInstrBarrier(front)) makeBarrier(front);
+}
+
+void enforceAddrDeps(Instruction *end, std::vector<Instruction *> &trail) {
+  for (auto is = trail.begin(), ie = trail.end(); is != ie; is++) {
+    // Hide all the uses except for the other ones in the dep chain
+    Instruction *next = is+1 != ie ? *(is+1) : end;
+    hideUses(*is, next);
+  }
 }
 
 ////////////// Program analysis that we use
@@ -556,14 +579,19 @@ bool branchesOn(BasicBlock *bb, Value *load,
 
 // Look for address dependencies on a read.
 bool addrDepsOnSearch(Value *pointer, Value *load,
-                      PathCache *cache, PathID path) {
-  if (pointer == load) {
-    return true;
-  } else if (getBSCopy(pointer)) {
-    return addrDepsOnSearch(getRealValue(pointer), load, cache, path);
-  }
+                      PathCache *cache, PathID path,
+                      std::vector<Instruction *> *trail) {
   Instruction *instr = dyn_cast<Instruction>(pointer);
   if (!instr) return false;
+
+  if (pointer == load) {
+    if (trail) trail->push_back(instr);
+    return true;
+  } else if (getBSCopy(pointer)) {
+    bool succ=addrDepsOnSearch(getRealValue(pointer), load, cache, path, trail);
+    if (succ && trail) trail->push_back(instr);
+    return succ;
+  }
 
   // We trace through GEP, BitCast, IntToPtr.
   // I wish we weren't recursive. Maybe we should restrict how we
@@ -572,7 +600,8 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
       isa<IntToPtrInst>(instr)) {
     for (auto v : instr->operand_values()) {
-      if (addrDepsOnSearch(v, load, cache, path)) {
+      if (addrDepsOnSearch(v, load, cache, path, trail)) {
+        if (trail) trail->push_back(instr);
         return true;
       }
     }
@@ -581,8 +610,10 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   // path we took to get here
   if (PHINode *phi = dyn_cast<PHINode>(instr)) {
     if (BasicBlock *pred = getPathPred(cache, path, phi->getParent())) {
-      return addrDepsOnSearch(phi->getIncomingValueForBlock(pred),
-                              load, cache, path);
+      bool succ = addrDepsOnSearch(phi->getIncomingValueForBlock(pred),
+                                   load, cache, path, trail);
+      if (succ && trail) trail->push_back(instr);
+      return succ;
     }
   }
 
@@ -592,9 +623,10 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
 
 // Look for address dependencies on a read.
 bool addrDepsOn(Instruction *instr, Value *load,
-                PathCache *cache, PathID path) {
+                PathCache *cache, PathID path,
+                std::vector<Instruction *> *trail) {
   Value *pointer = instr->getOperand(0);
-  return addrDepsOnSearch(pointer, load, cache, path);
+  return addrDepsOnSearch(pointer, load, cache, path, trail);
 }
 
 }
@@ -662,9 +694,14 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   // Try a data cut
   // See if we have a data dep in a very basic way.
   // FIXME: Should be able to handle writes also!
+  std::vector<Instruction *> trail;
+  auto trailp = enforceSoft ? &trail : nullptr;
   if (edge.src->soleLoad && edge.dst->soleLoad &&
       addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad,
-                 &pc_, pathid)) {
+                 &pc_, pathid, trailp)) {
+    if (enforceSoft) {
+      enforceAddrDeps(edge.dst->soleLoad, trail);
+    }
     return DataCut;
   }
 
@@ -691,11 +728,11 @@ bool RealizeRMC::isCut(const RMCEdge &edge) {
   case HardCut: return true;
   case NoCut: return false;
   case DataCut:
-    // FIXME: Do we need to enforce?
     // We need to make sure we have a cut from src->src but it *isn't*
     // enough to just check ctrl!
     if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, false)
         > NoCut) {
+      isEdgeCut(edge, true, false);
       isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, false);
       return true;
     } else {
@@ -815,7 +852,12 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   }
   case CutData:
   {
-    // TODO: actually enforce data cuts!
+    std::vector<Instruction *> trail;
+    Instruction *end = bb2action_[cut.dst]->soleLoad;
+    bool deps = addrDepsOn(end, cut.read,
+                           &pc_, cut.path, &trail);
+    assert(deps);
+    enforceAddrDeps(end, trail);
     break;
   }
   default:
