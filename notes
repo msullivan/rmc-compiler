@@ -257,7 +257,7 @@ which is wrong.
 ... maybe make __attribute__((noinline)) the way we indicate that we
 want outside binding...
 RMC_BIND_OUTSIDE
-
+* DONE
 
 
 -----
@@ -276,3 +276,10 @@ I guess we could add edges from all function calls that could possibly
 invoke us recursively... but that sounds annoying.
 
 * I think for now we will not support this???
+
+-----
+
+*** Treat CAS operations as having a built in control dependency??
+*** Could cut down on how many dummy copies we have when doing control
+    dep stuff. Could LLVM merge two relaxed loads? That could cause us
+    trouble. (But mark it volatile?)

@@ -38,7 +38,7 @@ int bogus_ctrl_dep3(int *p, int *q) {
     XEDGE(read, write);
 
     int r = L(read, *p);
-    if (r) {};
+    if (r) {}
 
     L(write, *q = 1);
 
@@ -69,6 +69,19 @@ int bogus_ctrl_dep5(unsigned *p, unsigned *q) {
 
     return r;
 }
+
+// Another one
+int bogus_ctrl_dep6(unsigned short *p, unsigned *q) {
+    XEDGE(read, write);
+
+    unsigned short r = L(read, *p);
+    if (r != 10000000) {
+        L(write, *q = 1);
+    }
+
+    return r;
+}
+
 
 //// Some push tests
 // Regular store buffering test
