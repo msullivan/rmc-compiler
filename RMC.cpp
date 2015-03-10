@@ -466,18 +466,19 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
 
 ////////////// Chicanary to handle disguising operands
 
-// Return the CallInst if the value is a bs copy, otherwise null
-CallInst *getBSCopy(Value *v) {
+// Return the copied value if the value is a bs copy, otherwise null
+Value *getBSCopyValue(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
   // This is kind of dubious
-  return call->getName().startswith("__rmc_bs_copy") ? call : nullptr;
+  return call->getName().startswith("__rmc_bs_copy") ?
+    call->getOperand(0) : nullptr;
 }
 
 // Look through a possible bs copy to find the real underlying value
 Value *getRealValue(Value *v) {
-  CallInst *copy = getBSCopy(v);
-  return copy ? copy->getOperand(0) : v;
+  Value *copyVal = getBSCopyValue(v);
+  return copyVal ? copyVal : v;
 }
 
 // Rewrite an instruction so that an operand is a dummy copy to
@@ -485,7 +486,7 @@ Value *getRealValue(Value *v) {
 void hideOperand(Instruction *instr, int i) {
   Value *v = instr->getOperand(i);
   // Only put in the copy if we haven't done it already.
-  if (!getBSCopy(v)) {
+  if (!getBSCopyValue(v)) {
     Instruction *dummyCopy = makeCopy(v, instr);
     instr->setOperand(i, dummyCopy);
   }
@@ -596,7 +597,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   if (pointer == load) {
     if (trail) trail->push_back(instr);
     return true;
-  } else if (getBSCopy(pointer)) {
+  } else if (getBSCopyValue(pointer)) {
     bool succ=addrDepsOnSearch(getRealValue(pointer), load, cache, path, trail);
     if (succ && trail) trail->push_back(instr);
     return succ;
@@ -1014,3 +1015,40 @@ public:
 
 char RealizeRMCPass::ID = 0;
 RegisterPass<RealizeRMCPass> X("realize-rmc", "Compile RMC annotations");
+
+// A very simple pass that deletes all of the dummy copies that RMC
+// inserted.  My hope is that this can be safely inserted at the very
+// end of compilation in order to remove the register allocation and
+// instruction selection penalties from the dummy copies.
+//
+// Is this guaranteed to not get broken by post-IR peepholing and the
+// like? FSVO "guarantee"?
+// Nope: on POWER with -O=3, it optimizes out the deps in dep1 and dep5
+// Disabled. On ARM it seems to work, with 3.6.0.
+class CleanupCopiesPass : public BasicBlockPass {
+public:
+  static char ID;
+  CleanupCopiesPass() : BasicBlockPass(ID) { }
+  ~CleanupCopiesPass() { }
+
+  virtual bool runOnBasicBlock(BasicBlock &BB) {
+    bool changed = false;
+    for (auto is = BB.begin(), ie = BB.end(); is != ie; ) {
+      Instruction *i = is++;
+      if (Value *v = getBSCopyValue(i)) {
+        i->replaceAllUsesWith(v);
+        i->eraseFromParent();
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesCFG();
+  }
+};
+
+
+char CleanupCopiesPass::ID = 0;
+RegisterPass<CleanupCopiesPass> Y("cleanup-copies", "Remove some RMC crud at the end");

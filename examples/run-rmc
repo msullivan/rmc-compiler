@@ -72,6 +72,7 @@ llvm-dis $NAME.pre0.bc
 # -instcombine is useful for annoying reasons; __c11_atomic_load
 # generates code that indirects through an alloca without it
 opt -mem2reg -instcombine $NAME.pre0.bc -o $NAME.pre.bc
+#opt -mem2reg $NAME.pre0.bc -o $NAME.pre.bc
 llvm-dis $NAME.pre.bc
 
 if [ $RUN_GDB ]; then
@@ -85,7 +86,11 @@ llvm-dis $NAME.bc
 clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
 llvm-dis $NAME.opt.bc
 
-llc "-mtriple=$TRIPLE" -O=1 -o $NAME.s $NAME.opt.bc
+cp $NAME.opt.bc $NAME.fin.bc
+#opt -load ../RMC.so -cleanup-copies $NAME.opt.bc -o $NAME.fin.bc
+llvm-dis $NAME.fin.bc
+
+llc "-mtriple=$TRIPLE" -O=3 -o $NAME.s $NAME.fin.bc
 
 if [ $BUILD_EXE ]; then
     $LINKER -pthread $NAME.s -o $NAME
