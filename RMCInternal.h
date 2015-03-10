@@ -75,7 +75,7 @@ Action(BasicBlock *p_bb,
   int loads;
   int RMWs;
   int calls;
-  LoadInst *soleLoad;
+  Instruction *soleLoad;
 
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?

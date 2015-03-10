@@ -345,11 +345,11 @@ void analyzeAction(Action &info) {
     return;
   }
 
-  LoadInst *soleLoad = nullptr;
+  Instruction *soleLoad = nullptr;
   for (auto & i : *info.bb) {
-    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
+    if (isa<LoadInst>(i)) {
       ++info.loads;
-      soleLoad = load;
+      soleLoad = &i;
     } else if (isa<StoreInst>(i)) {
       ++info.stores;
     // What else counts as a call? I'm counting fences I guess.
@@ -357,7 +357,7 @@ void analyzeAction(Action &info) {
       ++info.calls;
     } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
       ++info.RMWs;
-      soleLoad = load;
+      soleLoad = &i;
     }
   }
   // Try to characterize what this action does.
@@ -512,6 +512,7 @@ void hideUses(Instruction *instr, User *skip) {
 
 //
 void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
+  if (!icmp) return;
   // In order to keep LLVM from optimizing our stuff away we
   // insert dummy copies of the operands and a compiler barrier in the
   // target.
@@ -552,6 +553,14 @@ namespace llvm {
 // Look for control dependencies on a read.
 bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut, int *outIdx) {
+  // XXX: make this platform configured; on some platforms maybe an
+  // atomic cmpxchg does /not/ behave like it branches on the old value
+  if (isa<AtomicCmpXchgInst>(load) || isa<AtomicRMWInst>(load)) {
+    if (icmpOut) *icmpOut = nullptr;
+    if (outIdx) *outIdx = 0;
+    return true;
+  }
+
   // TODO: we should be able to follow values through phi nodes,
   // since we are path dependent anyways.
   BranchInst *br = dyn_cast<BranchInst>(bb->getTerminator());
