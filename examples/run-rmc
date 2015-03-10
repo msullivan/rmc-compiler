@@ -41,20 +41,24 @@ PATH=../../build/Debug+Asserts/bin/:$PATH
 
 case $RMC_PLATFORM in
 	arm)
-		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=hard"
+#		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=hard"
+		TRIPLE="armv7a-linux-gnueabihf"
 #		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
 		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
 		LINKER=arm-linux-gnueabihf-gcc
 		;;
 	power)
-		PLATFORM_FLAGS="--target=powerpc"
+		TRIPLE="powerpc-linux-gnu"
 		INCLUDE_FLAGS="-I /usr/powerpc-linux-gnu/include/"
 		LINKER=powerpc-linux-gnu-gcc
 		;;
 	x86)
+		TRIPLE="x86_64-unknown-linux-gnu"
 		LINKER=clang
 		;;
 esac
+
+PLATFORM_FLAGS="-target $TRIPLE"
 
 if [ $BUILD_EXE ]; then
     DEF_FLAGS=""
@@ -81,7 +85,7 @@ llvm-dis $NAME.bc
 clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
 llvm-dis $NAME.opt.bc
 
-clang $PLATFORM_FLAGS -O -S -o $NAME.s $NAME.opt.bc
+llc "-mtriple=$TRIPLE" -O=1 -o $NAME.s $NAME.opt.bc
 
 if [ $BUILD_EXE ]; then
     $LINKER -pthread $NAME.s -o $NAME
