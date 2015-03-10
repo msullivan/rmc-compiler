@@ -283,3 +283,6 @@ invoke us recursively... but that sounds annoying.
 *** Could cut down on how many dummy copies we have when doing control
     dep stuff. Could LLVM merge two relaxed loads? That could cause us
     trouble. (But mark it volatile?)
+
+*** But actually maybe we need *more* copies. Maybe we need to
+    hideAllUses of the load to avoid other data getting pulled in...
