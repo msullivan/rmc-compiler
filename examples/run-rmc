@@ -80,9 +80,9 @@ opt -mem2reg -instcombine $NAME.pre0.bc -o $NAME.pre.bc
 llvm-dis $NAME.pre.bc
 
 if [ $RUN_GDB ]; then
-	gdb --args opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+	gdb --args opt -load ../RMC.so -drop-funs -realize-rmc $NAME.pre.bc -o $NAME.bc
 else
-	time opt -load ../RMC.so -mem2reg -realize-rmc $NAME.pre.bc -o $NAME.bc
+	time opt -load ../RMC.so -drop-funs -realize-rmc $NAME.pre.bc -o $NAME.bc
 fi
 
 llvm-dis $NAME.bc

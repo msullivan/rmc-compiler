@@ -982,21 +982,7 @@ public:
     } else {
       assert(false && "not given a supported target");
     }
-
-    // This is a bogus hack that we use to suppress testing all but a
-    // particular function; this is purely for debugging purposes
-    char *only_test = getenv("RMC_ONLY_TEST");
-    if (!only_test) return false;
-    for (auto i = M.begin(), e = M.end(); i != e;) {
-      Function *F = &*i++;
-      if (F->getName() != only_test) {
-        F->deleteBody();
-        // Remove instead of erase can leak, but there might be
-        // references and this is just a debugging hack anyways.
-        F->removeFromParent();
-      }
-    }
-    return true;
+    return false;
   }
   virtual bool runOnFunction(Function &F) {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
@@ -1053,3 +1039,34 @@ public:
 
 char CleanupCopiesPass::ID = 0;
 RegisterPass<CleanupCopiesPass> Y("cleanup-copies", "Remove some RMC crud at the end");
+
+// A super bogus pass that deletes all functions except one
+class DropFunsPass : public ModulePass {
+public:
+  static char ID;
+  DropFunsPass() : ModulePass(ID) { }
+  ~DropFunsPass() { }
+
+  virtual bool runOnModule(Module &M) {
+    // This is a bogus hack that we use to suppress testing all but a
+    // particular function; this is purely for debugging purposes
+    char *only_test = getenv("RMC_ONLY_TEST");
+    if (!only_test) return false;
+    for (auto i = M.begin(), e = M.end(); i != e;) {
+      Function *F = &*i++;
+      if (F->getName() != only_test) {
+        F->deleteBody();
+        // Remove instead of erase can leak, but there might be
+        // references and this is just a debugging hack anyways.
+        F->removeFromParent();
+      }
+    }
+    return true;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {}
+};
+
+
+char DropFunsPass::ID = 0;
+RegisterPass<DropFunsPass> Z("drop-funs", "Drop all but specified functions ");
