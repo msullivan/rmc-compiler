@@ -24,7 +24,7 @@ do
 			;;
 		--smt)
 			shift
-			export RMC_USE_SMT=1 # export so pass gets it; ew
+			USE_SMT=1
 			;;
 		--cleanup)
 			shift
@@ -79,10 +79,14 @@ opt -mem2reg -instcombine $NAME.pre0.bc -o $NAME.pre.bc
 #opt -mem2reg $NAME.pre0.bc -o $NAME.pre.bc
 llvm-dis $NAME.pre.bc
 
+if [ $USE_SMT ]; then
+	SMT_FLAGS=-rmc-use-smt
+fi
+
 if [ $RUN_GDB ]; then
-	gdb --args opt -load ../RMC.so -drop-funs -realize-rmc $NAME.pre.bc -o $NAME.bc
+	gdb --args opt -load ../RMC.so -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
 else
-	time opt -load ../RMC.so -drop-funs -realize-rmc $NAME.pre.bc -o $NAME.bc
+	time opt -load ../RMC.so -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
 fi
 
 llvm-dis $NAME.bc

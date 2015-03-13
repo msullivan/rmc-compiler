@@ -33,6 +33,8 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+#include <llvm/Support/CommandLine.h>
+
 #include <ostream>
 #include <fstream>
 #include <sstream>
@@ -955,18 +957,15 @@ bool RealizeRMC::run() {
   return true;
 }
 
+cl::opt<bool> UseSMT("rmc-use-smt",
+                     cl::desc("Use an SMT solver to realize RMC"));
+
 // The actual pass. It has a bogus setup routine and otherwise
 // calls out to RealizeRMC.
 class RealizeRMCPass : public FunctionPass {
-private:
-  bool useSMT_;
-
 public:
   static char ID;
-  RealizeRMCPass() : FunctionPass(ID) {
-    // OK, do we want to use SMT?
-    useSMT_ = getenv("RMC_USE_SMT") != nullptr;
-  }
+  RealizeRMCPass() : FunctionPass(ID) { }
   ~RealizeRMCPass() { }
 
   virtual bool doInitialization(Module &M) {
@@ -987,7 +986,7 @@ public:
   virtual bool runOnFunction(Function &F) {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo &li = getAnalysis<LoopInfo>();
-    RealizeRMC rmc(F, this, dom, li, useSMT_);
+    RealizeRMC rmc(F, this, dom, li, UseSMT);
     return rmc.run();
   }
 
