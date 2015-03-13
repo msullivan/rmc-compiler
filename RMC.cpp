@@ -1024,7 +1024,8 @@ RegisterPass<RealizeRMCPass> X("realize-rmc", "Compile RMC annotations");
 // Is this guaranteed to not get broken by post-IR peepholing and the
 // like? FSVO "guarantee"?
 // Nope: on POWER with -O=3, it optimizes out the deps in dep1 and dep5
-// Disabled. On ARM it seems to work, with 3.6.0.
+// Actually, for POWER, it gets broken by pre-IR optimizations that
+// are enabled in a POWER specific way as part of the backend...
 class CleanupCopiesPass : public BasicBlockPass {
 public:
   static char ID;

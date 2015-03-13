@@ -26,6 +26,10 @@ do
 			shift
 			export RMC_USE_SMT=1 # export so pass gets it; ew
 			;;
+		--cleanup)
+			shift
+			DO_CLEANUP=1
+			;;
 		--exe)
 			shift
 			BUILD_EXE=1
@@ -87,10 +91,15 @@ clang $PLATFORM_FLAGS -O -emit-llvm -c -o $NAME.opt.bc $NAME.bc
 llvm-dis $NAME.opt.bc
 
 cp $NAME.opt.bc $NAME.fin.bc
-#opt -load ../RMC.so -cleanup-copies $NAME.opt.bc -o $NAME.fin.bc
+if [ $DO_CLEANUP ]; then
+	opt -load ../RMC.so -cleanup-copies $NAME.opt.bc -o $NAME.fin.bc
+fi
 llvm-dis $NAME.fin.bc
 
-llc "-mtriple=$TRIPLE" -O=3 -o $NAME.s $NAME.fin.bc
+# Run on -O2 because on POWER, -O3 runs an IR CSE pass as one of its
+# target specific passes. Can we find a way to hook cleanup-copies into
+# the target specific stuff?
+llc "-mtriple=$TRIPLE" -O2 -o $NAME.s $NAME.fin.bc
 
 if [ $BUILD_EXE ]; then
     $LINKER -pthread $NAME.s -o $NAME

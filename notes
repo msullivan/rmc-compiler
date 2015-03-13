@@ -222,6 +222,8 @@ etc, I think. Yeah, they definitely do!
     copies? Or do they keep the backend stuff honest as well?
     It does seem necessary, at least to keep the POWER backend on -O3
 	honest.
+	Aha! It is not done on a post-IR level, though! The POWER backend
+	on -O3 runs some extra IR level optimizations.
 
  * hideAllUses - well, only need to hide N-1, really
 
