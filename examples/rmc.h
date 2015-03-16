@@ -102,12 +102,20 @@ extern int __rmc_push(void);
 // to be tagged with _Rmc() in the type and rmc_store/rmc_load should
 // be used to use them.
 #if REQUIRE_EXPLICIT_ATOMICS
-#define _Rmc(t) _Atomic(t)
-#define __rmc_atomic_fixup(e) (e)
+// We wrap RMC variables in structs so they have to be used through
+// the interface.
+#define _Rmc(T)	struct { _Atomic(__typeof__(T)) __val; }
+#define __rmc_atomic_fixup(e) (&(e)->__val)
 #else
 #define _Rmc(t) t
 #define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
 #endif
+
+// Should have more I suppose
+typedef _Rmc(int)               rmc_int;
+typedef _Rmc(unsigned int)      rmc_uint;
+
+
 
 #define rmc_compare_exchange_strong(object, expected, desired)          \
     atomic_compare_exchange_strong_explicit(                            \
