@@ -1,3 +1,4 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 // Some test cases that required some bogosity to not have the branches get
@@ -6,12 +7,12 @@
 // Also, if r doesn't get used usefully, that load gets optimized away.
 // I can't decide whether that is totally fucked or not.
 
-int bogus_ctrl_dep1(int *p, int *q) {
+int bogus_ctrl_dep1(rmc_int *p, rmc_int *q) {
     XEDGE(read, write);
 
-    int r = L(read, *p);
+    int r = L(read, rmc_load(p));
     if (r == r) {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     }
 
     return r;
@@ -20,38 +21,38 @@ int bogus_ctrl_dep1(int *p, int *q) {
 // Do basically the same thing in each branch
 // Looks like llvm sinks the write out of the branches but preserves
 // the branches. That's fine.
-int bogus_ctrl_dep2(int *p, int *q) {
+int bogus_ctrl_dep2(rmc_int *p, rmc_int *q) {
     XEDGE(read, write);
 
-    int r = L(read, *p);
+    int r = L(read, rmc_load(p));
     if (r) {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     } else {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     }
 
     return r;
 }
 
 // Have a totally ignored ctrl dep
-int bogus_ctrl_dep3(int *p, int *q) {
+int bogus_ctrl_dep3(rmc_int *p, rmc_int *q) {
     XEDGE(read, write);
 
-    int r = L(read, *p);
+    int r = L(read, rmc_load(p));
     if (r) {}
 
-    L(write, *q = 1);
+    L(write, rmc_store(q, 1));
 
     return r;
 }
 
 // Have a ctrl dep that is redundant
-int bogus_ctrl_dep4(int *p, int *q) {
+int bogus_ctrl_dep4(rmc_int *p, rmc_int *q) {
     XEDGE(read, write);
 
-    int r = L(read, *p);
+    int r = L(read, rmc_load(p));
     if (r || 1) {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     }
 
     return r;
@@ -59,24 +60,24 @@ int bogus_ctrl_dep4(int *p, int *q) {
 
 // A tautological comparison that we can't disguise just by disguising
 // the input.
-int bogus_ctrl_dep5(unsigned *p, unsigned *q) {
+int bogus_ctrl_dep5(rmc_uint *p, rmc_uint *q) {
     XEDGE(read, write);
 
-    unsigned r = L(read, *p);
+    unsigned r = L(read, rmc_load(p));
     if (r >= 0) {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     }
 
     return r;
 }
 
 // Another one
-int bogus_ctrl_dep6(unsigned short *p, unsigned *q) {
+int bogus_ctrl_dep6(_Rmc(unsigned short) *p, rmc_uint *q) {
     XEDGE(read, write);
 
-    unsigned short r = L(read, *p);
+    unsigned short r = L(read, rmc_load(p));
     if (r != 10000000) {
-        L(write, *q = 1);
+        L(write, rmc_store(q, 1));
     }
 
     return r;
@@ -85,77 +86,77 @@ int bogus_ctrl_dep6(unsigned short *p, unsigned *q) {
 
 //// Some push tests
 // Regular store buffering test
-int sb_test1(int *p, int *q) {
+int sb_test1(rmc_int *p, rmc_int *q) {
     VEDGE(write, push); XEDGE(push, read);
 
-    L(write, *p = 1);
+    L(write, rmc_store(p, 1));
     L(push, rmc_push());
-    int x = L(read, *q);
+    int x = L(read, rmc_load(q));
 
     return x;
 }
 
 // Store buffering test using pre/post
-int sb_test2(int *p, int *q) {
+int sb_test2(rmc_int *p, rmc_int *q) {
     VEDGE(pre, push); XEDGE(post, read);
 
-    *p = 1;
+    rmc_store(p, 1);
     L(push, rmc_push());
-    int x = *q;
+    int x = rmc_load(q);
 
     return x;
 }
 
 
-// Some tests of pre and post. Really I should get some RW/RMW support...
-void store_release(int *ptr, int val) {
+// Some tests of pre and post.
+void store_release(rmc_int *ptr, int val) {
     VEDGE(pre, store);
-    L(store, *ptr = val);
+    L(store, rmc_store(ptr, val));
 }
-int load_acquire(int *ptr) {
+int load_acquire(rmc_int *ptr) {
     XEDGE(load, post);
-    int val = L(load, *ptr);
+    int val = L(load, rmc_load(ptr));
     return val;
 }
 
 // A test where we have some overlapping things but could just do one
 // cut
-void overlapping(int *ptr) {
+void overlapping(rmc_int *ptr) {
     VEDGE(a, c); VEDGE(b, d);
-    L(a, *ptr = 1);
-    L(b, *ptr = 2);
-    L(c, *ptr = 3);
-    L(d, *ptr = 4);
+    L(a, rmc_store(ptr, 1));
+    L(b, rmc_store(ptr, 2));
+    L(c, rmc_store(ptr, 3));
+    L(d, rmc_store(ptr, 4));
 }
 
 // cost 3 - make sure we can binary search down for the costs
-void binarysearch_test(int *ptr) {
+void binarysearch_test(rmc_int *ptr) {
     VEDGE(a, b); VEDGE(b, c); VEDGE(c, d);
-    L(a, *ptr = 1);
-    L(b, *ptr = 2);
-    L(c, *ptr = 3);
-    L(d, *ptr = 4);
+    L(a, rmc_store(ptr, 1));
+    L(b, rmc_store(ptr, 2));
+    L(c, rmc_store(ptr, 3));
+    L(d, rmc_store(ptr, 4));
 }
 
 // Have a push and also a vo edge so we can make sure we take
 // advantage of the push.
-void push_redundant_test(int *p, int *q) {
+void push_redundant_test(rmc_int *p, rmc_int *q) {
     VEDGE(a, push); XEDGE(push, b);
     VEDGE(a, b);
 
-    L(a, *p = 1);
+    L(a, rmc_store(p, 1));
     L(push, rmc_push());
-    L(b, *q = 2);
+    L(b, rmc_store(q, 2));
 }
 
 // When we insert a dependency we need to make sure that the
 // thing being depended on dominates the use we insert!
 // This is sort of tricky to test, though.
-void ctrl_dom_test(int *p, int *q, int bs) {
+void ctrl_dom_test(rmc_int *p, rmc_int *q, int bs) {
     XEDGE(a, b);
 
     if (bs & 1) {
-        int x = L(a, *p);
+        int x = L(a, rmc_load(p));
         (void)x;
     }
 
@@ -163,23 +164,23 @@ void ctrl_dom_test(int *p, int *q, int bs) {
     // gets inserted down by the use.
     if (bs & 2) {
         if (bs & 4) {
-            L(b, *q = 1);
+            L(b, rmc_store(q, 1));
         }
     }
 
     // Put in an edge that puts in an lwsync so that keeping the ctrl dep
     // close to the a load isn't useful for ensuring cross call ordering.
     VEDGE(pre, fuckoff);
-    L(fuckoff, *p = 1);
+    L(fuckoff, rmc_store(p, 1));
 }
 
 
 // Looping MP recv test.
-int mp_recv(int *flag, int *data) {
+int mp_recv(rmc_int *flag, int *data) {
     int rf;
     XEDGE(rflag, rdata);
     do {
-        LS(rflag, rf = *flag);
+        LS(rflag, rf = rmc_load(flag));
     } while (rf == 0);
     LS(rdata, int rd = *data);
     return rd;
@@ -188,56 +189,56 @@ int mp_recv(int *flag, int *data) {
 // XXX: We fail to use an isync here because the very restricted
 // pattern matching we use to detect control deps doesn't find
 // this. We should be less bad.
-int mp_recv_bang(int *flag, int *data) {
+int mp_recv_bang(rmc_int *flag, int *data) {
     int rf;
     XEDGE(rflag, rdata);
     do {
-        L(rflag, rf = *flag);
+        L(rflag, rf = rmc_load(flag));
     } while (!rf);
     int rd = L(rdata, *data);
     return rd;
 }
 
 // Hm. This is nicer.
-int mp_recv_le(int *flag, int *data) {
+int mp_recv_le(rmc_int *flag, int *data) {
     XEDGE(rflag, rdata);
-    while (L(rflag, *flag) == 0)
+    while (L(rflag, rmc_load(flag)) == 0)
         continue;
     return L(rdata, *data);
 }
 
 
 // Consume style stuff
-int recv_consume(int **pdata) {
+int recv_consume(_Rmc(int *)*pdata) {
     XEDGE(rp, rdata);
-    int *p = L(rp, *pdata);
+    int *p = L(rp, rmc_load(pdata));
     int rd = L(rdata, *p);
     return rd;
 }
 
 // Same as above but indexing
-int recv_consume2(int *parray, int *pidx) {
+int recv_consume2(int *parray, rmc_int *pidx) {
     XEDGE(rp, rdata);
-    int idx = L(rp, *pidx);
+    int idx = L(rp, rmc_load(pidx));
     int rd = L(rdata, parray[idx]);
     return rd;
 }
 
-int recv_consume_loop(int **pdata) {
+int recv_consume_loop(_Rmc(int *)*pdata) {
     XEDGE(rp, rdata);
     int *p;
-    while ((p = L(rp, *pdata)) == 0)
+    while ((p = L(rp, rmc_load(pdata))) == 0)
         ;
     int rd = L(rdata, *p);
     return rd;
 }
 
-int recv_consume_twice(int *parray, int *pidx) {
+int recv_consume_twice(int *parray, rmc_int *pidx) {
     // We don't handle this well yet because of how we handle transitivity
     // in the SMT version.
     XEDGE(rp, rdata);
     XEDGE(rdata, rdata2);
-    int idx = L(rp, *pidx);
+    int idx = L(rp, rmc_load(pidx));
     int rd = L(rdata, parray[idx]);
     rd = L(rdata2, parray[rd]);
     return rd;
