@@ -1,4 +1,3 @@
-#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 int load_acquire(rmc_int *ptr) {

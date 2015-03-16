@@ -1,4 +1,3 @@
-#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "atomic.h"
 #include "rmc.h"
 

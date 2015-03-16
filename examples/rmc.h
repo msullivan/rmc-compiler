@@ -98,19 +98,18 @@ extern int __rmc_push(void);
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
 #include "stdatomic.h"
 
-// If REQUIRE_EXPLICIT_ATOMICS is set, then atomic locations need
-// to be tagged with _Rmc() in the type and rmc_store/rmc_load should
-// be used to use them.
-#if REQUIRE_EXPLICIT_ATOMICS
+// If NO_REQUIRE_EXPLICIT_ATOMICS is set, then atomic operations can
+// be done on any variables, not just _Rmc ones.
+#if NO_REQUIRE_EXPLICIT_ATOMICS
+#define _Rmc(t) t
+#define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
+#define RMC_VAR_INIT(value) (value)
+#else
 // We wrap RMC variables in structs so they have to be used through
 // the interface.
 #define _Rmc(T)	struct { _Atomic(__typeof__(T)) __val; }
 #define __rmc_atomic_fixup(e) (&(e)->__val)
 #define RMC_VAR_INIT(value) { .__val = ATOMIC_VAR_INIT(value) }
-#else
-#define _Rmc(t) t
-#define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
-#define RMC_VAR_INIT(value) (value)
 #endif
 
 // Should have more I suppose

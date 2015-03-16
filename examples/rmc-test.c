@@ -1,4 +1,3 @@
-#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 // Some test cases that required some bogosity to not have the branches get
