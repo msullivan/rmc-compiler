@@ -1,12 +1,13 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 extern int coin(void);
 
 // A test that should be really bad because exponents.
 // Only takes like a minute or so!
-void welp(int *p, int *q) {
+void welp(rmc_int *p, rmc_int *q) {
     VEDGE(a, b);
-    L(a, *p = 1);
+    L(a, rmc_store(p, 1));
 
     if (coin()){}
     if (coin()){}
@@ -30,5 +31,5 @@ void welp(int *p, int *q) {
     if (coin()){}
     // 16
 
-    L(b, *q = 1);
+    L(b, rmc_store(q, 1));
 }

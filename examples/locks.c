@@ -1,7 +1,8 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 typedef struct mutex_t {
-    int locked;
+    rmc_int locked;
 } mutex_t;
 
 void mutex_lock_bad(mutex_t *lock)
@@ -27,17 +28,17 @@ void mutex_lock(mutex_t *lock)
 void mutex_unlock(mutex_t *lock)
 {
     VEDGE(pre, unlock);
-    L(unlock, lock->locked = 0);
+    L(unlock, rmc_store(&lock->locked, 0));
 }
 
-int nus(int *x) {
+int nus(rmc_int *x) {
     return rmc_fetch_and(x, 1337);
 }
 
 /// Ticket taking ones
 typedef struct mutex2_t {
-    int next;
-    int owner;
+    rmc_int next;
+    rmc_int owner;
 } mutex2_t;
 
 void mutex2_lock_bad(mutex2_t *lock)
@@ -45,7 +46,7 @@ void mutex2_lock_bad(mutex2_t *lock)
     XEDGE(take, check);
     XEDGE(check, post);
     int ticket = L(take, rmc_fetch_add(&lock->next, 1));
-    while (ticket != L(check, lock->owner)) {}
+    while (ticket != L(check, rmc_load(&lock->owner))) {}
 }
 
 void mutex2_lock(mutex2_t *lock)
@@ -55,12 +56,12 @@ void mutex2_lock(mutex2_t *lock)
     XEDGE(loop_out, post);
 
     int ticket = L(take, rmc_fetch_add(&lock->next, 1));
-    while (ticket != L(check, lock->owner)) {}
+    while (ticket != L(check, rmc_load(&lock->owner))) {}
     L(loop_out, 0);
 }
 
 void mutex2_unlock(mutex2_t *lock)
 {
     VEDGE(pre, unlock);
-    L(unlock, lock->owner++);
+    L(unlock, rmc_store(&lock->owner, rmc_load(&lock->owner)+1));
 }

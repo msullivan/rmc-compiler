@@ -1,3 +1,4 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "rmc.h"
 
 struct mutex_t;
@@ -14,19 +15,19 @@ extern mutex_t *foo_lock;
 
 
 foo_t *get_foo(void) {
-    static foo_t *single_foo = 0;
+    static _Rmc(foo_t *) single_foo = RMC_VAR_INIT(NULL);
 
     XEDGE(read, post);
     VEDGE(construct, update);
 
-    foo_t *r = L(read, single_foo);
+    foo_t *r = L(read, rmc_load(&single_foo));
     if (r != 0) return r;
 
     mutex_lock(foo_lock);
-    L(read, r = single_foo);
+    L(read, r = rmc_load(&single_foo));
     if (r == 0) {
         L(construct, r = new_foo());
-        L(update, single_foo = r);
+        L(update, rmc_store(&single_foo, r));
     }
     mutex_unlock(foo_lock);
     return r;
