@@ -1,5 +1,4 @@
 #include "atomic.h"
-#include "rmc.h"
 #include <unistd.h>
 
 // Testing with some different lock implementations.
