@@ -1,3 +1,4 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include <stddef.h>
 #include "atomic.h"
 #include "rmc.h"
@@ -35,9 +36,19 @@ typedef struct list_head_t {
          &pos->member != &(head)->head; \
          pos = list_entry_rcu_linux(pos->member.next, typeof(*pos), member))
 
+// Now rmc
+typedef struct list_node_rmc_t {
+    _Rmc(struct list_node_rmc_t *) next;
+    _Rmc(struct list_node_rmc_t *) prev;
+} list_node_rmc_t;
+typedef struct list_head_rmc_t {
+    list_node_rmc_t head;
+} list_head_rmc_t;
+
+
 
 #define list_entry_rcu_rmc(ptr, type, member, tag)  \
-    container_of(L(tag, ptr), type, member)
+    container_of(L(tag, rmc_load(&ptr)), type, member)
 
 #define list_for_each_entry_rcu_rmc2(pos, head, member, tag_a, tag_b) \
     XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b); \
@@ -54,19 +65,18 @@ typedef struct list_head_t {
 // offset of and stuff.
 #ifdef DO_C11
 
-// FIXME: This will work in gcc but not that well
 #include "stdatomic.h"
 
 typedef struct list_node_c11_t {
-    _Atomic (struct list_node_c11_t *)next;
-    _Atomic (struct list_node_c11_t *)prev;
+    _Atomic(struct list_node_c11_t *) next;
+    _Atomic(struct list_node_c11_t *)prev;
 } list_node_c11_t;
 typedef struct list_head_c11_t {
     list_node_c11_t head;
 } list_head_c11_t;
 
 #define list_entry_rcu_c11(ptr, type, member) \
-    container_of(atomic_load_explicit(&ptr, memory_order_acquire), type, member)
+    container_of(atomic_load_explicit(&ptr, memory_order_consume), type, member)
 
 #define list_for_each_entry_rcu_c11(pos, head, member) \
     for (pos = list_entry_rcu_c11((head)->head.next, typeof(*pos), member); \
@@ -85,10 +95,16 @@ typedef struct list_head_c11_t {
 
 /////
 typedef struct noob_node_t {
-    struct noob_node_t *next;
+    _Rmc(struct noob_node_t*) next;
     int key;
     int val;
 } noob_node_t;
+
+typedef struct test_node_rmc_t {
+    int key;
+    int val;
+    list_node_rmc_t l;
+} test_node_rmc_t;
 
 typedef struct test_node_t {
     int key;
@@ -100,13 +116,14 @@ typedef struct test_node_t {
 
 ////////////
 
-int noob_search_rmc(noob_node_t **head, int key) {
+int noob_search_rmc(_Rmc(noob_node_t *) *head, int key) {
     int res = -1;
     XEDGE(a, b);
     XEDGE(a, a);
 
     rcu_read_lock();
-    for (noob_node_t *node = L(a, *head); node; node = L(a, node->next)) {
+    for (noob_node_t *node = L(a, rmc_load(head)); node;
+         node = L(a, rmc_load(&node->next))) {
         if (L(b, node->key) == key) {
             res = L(b, node->val);
             break;
@@ -118,9 +135,9 @@ int noob_search_rmc(noob_node_t **head, int key) {
 }
 
 
-int list_search_rmc(list_head_t *head, int key) {
+int list_search_rmc(list_head_rmc_t *head, int key) {
     int res = -1;
-    test_node_t *node;
+    test_node_rmc_t *node;
     rcu_read_lock();
     list_for_each_entry_rcu_rmc(node, head, l, r) {
         if (L(r, node->key) == key) {
