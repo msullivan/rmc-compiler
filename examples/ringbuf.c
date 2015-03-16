@@ -1,3 +1,4 @@
+#define REQUIRE_EXPLICIT_ATOMICS 1
 #include "atomic.h"
 #include "rmc.h"
 
@@ -416,6 +417,12 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
 
 /******************* try an rmc version..... ****************************/
 
+typedef struct ring_buf_rmc_t {
+    unsigned char buf[KBD_BUF_SIZE];
+    rmc_uint front, back;
+} ring_buf_rmc_t;
+
+
 /* The important things are:
  *
  * * We never read data that hasn't actually been written.
@@ -474,35 +481,35 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
  *
  */
 
-RMC_BIND_OUTSIDE int buf_enqueue_rmc(ring_buf_t *buf, unsigned char c)
+RMC_BIND_OUTSIDE int buf_enqueue_rmc(ring_buf_rmc_t *buf, unsigned char c)
 {
     XEDGE(e_check, insert);
     VEDGE(insert, e_update);
 
-    unsigned back = buf->back;
-    unsigned front = L(e_check, buf->front);
+    unsigned back = rmc_load(&buf->back);
+    unsigned front = L(e_check, rmc_load(&buf->front));
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
         L(insert, buf->buf[back] = c);
-        L(e_update, buf->back = ring_inc(back));
+        L(e_update, rmc_store(&buf->back, ring_inc(back)));
         enqueued = 1;
     }
     return enqueued;
 }
 
-RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_t *buf)
+RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_rmc_t *buf)
 {
     XEDGE(d_check, read);
     XEDGE(read, d_update);
 
-    unsigned front = buf->front;
-    unsigned back = L(d_check, buf->back);
+    unsigned front = rmc_load(&buf->front);
+    unsigned back = L(d_check, rmc_load(&buf->back));
 
     int c = -1;
     if (front != back) {
         L(read, c = buf->buf[front]);
-        L(d_update, buf->front = ring_inc(front));
+        L(d_update, rmc_store(&buf->front, ring_inc(front)));
     }
 
     return c;
@@ -556,7 +563,7 @@ void *enqueuer(void *p)
 
     while (i < iterations) {
         unsigned char c = i % MODULUS;
-        int success = buf_enqueue(&test_buf, c);
+        int success = buf_enqueue((void *)&test_buf, c);
         if (!success) {
             full_count++;
         } else {
@@ -574,7 +581,7 @@ void *dequeuer(void *p)
     int i = 0;
 
     while (i < iterations) {
-        int c = buf_dequeue(&test_buf);
+        int c = buf_dequeue((void *)&test_buf);
         if (c < 0) {
             empty_count++;
         } else {
