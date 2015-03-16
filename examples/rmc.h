@@ -106,9 +106,11 @@ extern int __rmc_push(void);
 // the interface.
 #define _Rmc(T)	struct { _Atomic(__typeof__(T)) __val; }
 #define __rmc_atomic_fixup(e) (&(e)->__val)
+#define RMC_VAR_INIT(value) { .__val = ATOMIC_VAR_INIT(value) }
 #else
 #define _Rmc(t) t
 #define __rmc_atomic_fixup(e) ((_Atomic(__typeof__(*e))*)(e))
+#define RMC_VAR_INIT(value) (value)
 #endif
 
 // Should have more I suppose
@@ -144,8 +146,9 @@ typedef _Rmc(unsigned int)      rmc_uint;
     atomic_fetch_xor_explicit(                                       \
         __rmc_atomic_fixup(object), operand, memory_order_relaxed)
 
-// These aren't really necessary, but we might move towards them, and
-// I include them for completeness.
+#define rmc_init(object, desired)                               \
+    atomic_init(                                                \
+        __rmc_atomic_fixup(object), desired)
 
 // rmc_store needs to return a value to be used by L(). We don't
 // bother returning a useful one.
