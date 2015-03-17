@@ -16,7 +16,7 @@ Ignoring read-modify-writes, the algorithm is as follows:
     b. Every W->W and R->W visibility edge is cut by a sync or lwsync.
     c. Every R->R edge is cut by a sync, lwsync,
        control-isync, or data/address dependency.
-    d. Every R->W and execution edge is cut by a sync, lwsync,
+    d. Every R->W execution edge is cut by a sync, lwsync,
        control-isync, data/address dependency, or control dependency.
 
     Doing so is interesting, particularly when edges cross from one

@@ -41,8 +41,8 @@ extern int __rmc_push(void);
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
-/* This is unhygenic in a nasty way. */
-/* Maybe we should throw some barrier()s in also, to be on the safe side? */
+// This is unhygenic in a nasty way.
+// Maybe we should throw some barrier()s in also, to be on the safe side?
 #define LS_(name, label, stmt)                                   \
     int XRCAT(______lt, label) = __rmc_action_register(#name);   \
     stmt;                                                        \
@@ -52,22 +52,27 @@ extern int __rmc_push(void);
 
 #define rmc_push() __rmc_push()
 
+// What orders to use for the atomic ops. Always relaxed in the real version.
+#define __rmc_load_order memory_order_relaxed
+#define __rmc_store_order memory_order_relaxed
+#define __rmc_rmw_order memory_order_relaxed
+
 #else /* !HAS_RMC */
-/* The compiler doesn't support RMC, so we provide a low quality
- * backup implementation.
- * (Probably just as good on x86, to be honest!) */
+// The compiler doesn't support RMC, so we provide a backup implementation
+// based on making all atomic loads/stores acquires/releases.
 
 #include "atomic.h"
 
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
-/* Just stick a visibility barrier before and after every label. This
- * isn't good or anything, but it probably works. (Have to do both
- * before and after because of pre/post.) */
-/* This is unhygenic in a nasty way. */
-#define LS(label, stmt) vis_barrier(); stmt; vis_barrier()
+#define LS(label, stmt) stmt
 
 #define rmc_push() ({ smp_mb(); 0; })
+
+// What orders to use for the atomic ops. Always release/acquire
+#define __rmc_load_order memory_order_acquire
+#define __rmc_store_order memory_order_release
+#define __rmc_rmw_order memory_order_acq_rel
 
 #endif /* HAS_RMC */
 
@@ -121,29 +126,29 @@ typedef _Rmc(unsigned int)      rmc_uint;
 #define rmc_compare_exchange_strong(object, expected, desired)          \
     atomic_compare_exchange_strong_explicit(                            \
         __rmc_atomic_fixup(object), expected,                           \
-        desired, memory_order_relaxed, memory_order_relaxed)
+        desired, __rmc_rmw_order, __rmc_load_order)
 #define rmc_compare_exchange_weak(object, expected, desired)            \
     atomic_compare_exchange_weak_explicit(                              \
         __rmc_atomic_fixup(object), expected,                           \
-        desired, memory_order_relaxed, memory_order_relaxed)
+        desired, __rmc_rmw_order, __rmc_load_order)
 #define rmc_exchange(object, desired)                                   \
     atomic_exchange_explicit(                                           \
-        __rmc_atomic_fixup(object), desired, memory_order_relaxed)
+        __rmc_atomic_fixup(object), desired, __rmc_rmw_order)
 #define rmc_fetch_add(object, operand)                               \
     atomic_fetch_add_explicit(                                       \
-        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+        __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 #define rmc_fetch_and(object, operand)                               \
     atomic_fetch_and_explicit(                                       \
-        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+        __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 #define rmc_fetch_or(object, operand)                                \
     atomic_fetch_or_explicit(                                        \
-        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+        __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 #define rmc_fetch_sub(object, operand)                               \
     atomic_fetch_sub_explicit(                                       \
-        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+        __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 #define rmc_fetch_xor(object, operand)                               \
     atomic_fetch_xor_explicit(                                       \
-        __rmc_atomic_fixup(object), operand, memory_order_relaxed)
+        __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 
 #define rmc_init(object, desired)                               \
     atomic_init(                                                \
@@ -153,11 +158,11 @@ typedef _Rmc(unsigned int)      rmc_uint;
 // bother returning a useful one.
 #define rmc_store(object, desired)                                   \
     ({atomic_store_explicit(                                         \
-        __rmc_atomic_fixup(object), desired, memory_order_relaxed);  \
+        __rmc_atomic_fixup(object), desired, __rmc_store_order);     \
       0;})
 
 #define rmc_load(object)                                             \
     atomic_load_explicit(                                            \
-        __rmc_atomic_fixup(object), memory_order_relaxed)
+        __rmc_atomic_fixup(object), __rmc_load_order)
 
 #endif
