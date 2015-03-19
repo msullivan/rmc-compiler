@@ -168,3 +168,48 @@ int main() {
         *p2 = &b; } }}};
   return 0;
 }
+
+
+///////////////////////
+
+// ok wait why can't SC fences save us?
+
+// IRIW with fences
+// the question is whether the reading threads have
+// to see the writes to x and y in the same order.
+// How about rel/acq plus SC fences
+// Ok well it easts shit, huh
+int main() {
+  atomic_int x = 0; atomic_int y = 0;
+  {{{ { x.store(1, memory_order_release);
+        atomic_thread_fence(memory_order_seq_cst); }
+  ||| { y.store(1, memory_order_release);
+        atomic_thread_fence(memory_order_seq_cst); }
+  ||| { r1=x.load(memory_order_acquire).readsvalue(1);
+        atomic_thread_fence(memory_order_seq_cst);
+        r2=y.load(memory_order_acquire).readsvalue(0);
+        atomic_thread_fence(memory_order_seq_cst); }
+  ||| { r3=y.load(memory_order_acquire).readsvalue(1);
+        atomic_thread_fence(memory_order_seq_cst);
+        r4=x.load(memory_order_acquire).readsvalue(0);
+        atomic_thread_fence(memory_order_seq_cst); }
+  }}};
+  return 0; }
+
+// Drop fences that shouldn't help
+int main() {
+  atomic_int x = 0; atomic_int y = 0;
+  {{{ { x.store(1, memory_order_release);
+                  /*atomic_thread_fence(memory_order_seq_cst);*/ }
+  ||| { y.store(1, memory_order_release);
+                  /*atomic_thread_fence(memory_order_seq_cst);*/ }
+  ||| { r1=x.load(memory_order_acquire).readsvalue(1);
+        atomic_thread_fence(memory_order_seq_cst);
+        r2=y.load(memory_order_acquire).readsvalue(0);
+        /*atomic_thread_fence(memory_order_seq_cst); */}
+  ||| { r3=y.load(memory_order_acquire).readsvalue(1);
+        atomic_thread_fence(memory_order_seq_cst);
+        r4=x.load(memory_order_acquire).readsvalue(0);
+        /*atomic_thread_fence(memory_order_seq_cst); */}
+  }}};
+  return 0; }

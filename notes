@@ -298,3 +298,21 @@ We could actually use regular store/load notation for RMC atomics in C
 monotonic... We could maybe turn it on per module?
 (We can probably turn things on conditionally by declaring magic
 extern functions that the pass detects...)
+
+
+-------
+
+C++ seq cst fences:
+ * early drafts said that fences synchronized-with the next fence in
+   the SC order
+ * change in language intended to *strengthen* SC fences, it seems?
+   well, it also weakens them
+ * The reason that SC fences can't be to recover SC behavior is that
+   they don't push out everything they have seen.
+   In acq/rel IRIW, it is exactly because they don't synchronize-with
+   each other that we don't get SC
+ * Even if we added the synchronizes-with thing, though, I think
+   relaxed IRIW would not be SC, since even if we observed the write
+   we aren't synchronizing with it.
+
+IN GENERAL, WE HAVE STRONGER TRANSITIVE VISIBILITY PROPERTIES.
