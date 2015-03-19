@@ -61,13 +61,16 @@ extern int __rmc_push(void);
 // The compiler doesn't support RMC, so we provide a backup implementation
 // based on making all atomic loads/stores acquires/releases.
 
-#include "atomic.h"
-
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
 #define LS(label, stmt) stmt
 
-#define rmc_push() ({ smp_mb(); 0; })
+// Use __sync_synchronize instead of a C11 SC fence because I felt bad
+// relying on details of the implementation of SC fences on our platforms
+// (SC fences aren't actually as strong as pushes). Of course, the
+// interactions between __sync_synchronize() (which is a "full sync")
+// and C11 atomics are totally unspecified, so...
+#define rmc_push() ({ __sync_synchronize(); 0; })
 
 // What orders to use for the atomic ops. Always release/acquire
 #define __rmc_load_order memory_order_acquire

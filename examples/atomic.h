@@ -9,8 +9,6 @@
 
 #define nop() do { } while(0)
 
-/* Optimization barrier */
-/* The "volatile" is due to gcc bugs */
 #define barrier() __asm__ __volatile__("":::"memory")
 
 #define launder_value(v) \
@@ -19,7 +17,6 @@
     __asm__ __volatile__("" : "+r" (__v)::);     \
     __v;                                         \
     })
-
 
 #if defined(i386) || defined(__x86_64)
 
@@ -31,7 +28,6 @@
 #define smp_wmb() barrier()
 #define smp_read_barrier_depends() nop()
 
-/* These are for x86 */
 #define smp_store_release(p, v)                  \
     do {                                         \
         barrier();                               \
@@ -77,12 +73,12 @@
 // In the one simple test I tried, using ctrl_isync didn't seem any better
 #define USE_CTRL_ACQUIRE 1
 
-/* These are for ARM */
 #define smp_store_release(p, v)                  \
     do {                                         \
         smp_mb();                                \
         ACCESS_ONCE(*p) = v;                     \
     } while (0)
+
 #if USE_CTRL_ACQUIRE
 /* Use ctrlisync to do acquire */
 #define smp_load_acquire(p)                      \
