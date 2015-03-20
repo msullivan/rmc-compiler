@@ -1,3 +1,7 @@
+// Copyright (c) 2014-2015 Michael J. Sullivan
+// Use of this source code is governed by an MIT-style license that can be
+// found in the LICENSE file.
+
 // BUG: this whole thing depends on the specifics of how the clang version I
 // am using emits llvm bitcode for the hacky RMC protocol.
 
