@@ -539,7 +539,6 @@ void enforceAddrDeps(Instruction *end, std::vector<Instruction *> &trail) {
 ////////////// Program analysis that we use
 
 BasicBlock *getPathPred(PathCache *cache, PathID path, BasicBlock *block) {
-  // XXX: is this the right way to handle self loops?
   //errs() << "looking for " << block->getName() << "\n";
   if (!cache) return nullptr;
   BasicBlock *pred = nullptr;

@@ -258,8 +258,9 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     }
     // Populate the capacities for the fictional back edges to the
     // function entry point.
-    // XXX: we don't bother establishing the equation holds on the
+    // N.B: we don't bother establishing the equation holds on the
     // *other* side, but I think it should work out OK.
+    // Blocks that don't have anny succesors end in a return or the like.
     if (childCount == 0) {
       s.add(getEdgeFunc(edgeCapM, &block, &F.getEntryBlock()) == nodeCap);
     }
@@ -269,7 +270,6 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   s.add(getFunc(nodeCapM, &F.getEntryBlock()) > c.int_val(0));
 
   //// Extract a solution.
-  // XXX: will this get returned efficiently?
   DenseMap<EdgeKey, int> caps;
 
   doCheck(s);
