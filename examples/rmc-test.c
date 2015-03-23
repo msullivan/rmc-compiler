@@ -173,6 +173,12 @@ void ctrl_dom_test(rmc_int *p, rmc_int *q, int bs) {
     L(fuckoff, rmc_store(p, 1));
 }
 
+// MP sending
+void mp_send(rmc_int *flag, rmc_int *data) {
+    VEDGE(wdata, wflag);
+    L(wdata, rmc_store(data, 42));
+    L(wflag, rmc_store(flag, 1));
+}
 
 // Looping MP recv test.
 int mp_recv(rmc_int *flag, int *data) {
@@ -241,11 +247,4 @@ int recv_consume_twice(int *parray, rmc_int *pidx) {
     int rd = L(rdata, parray[idx]);
     rd = L(rdata2, parray[rd]);
     return rd;
-}
-
-// A test that uses rmc_store/rmc_load and _Rmc
-void mp_send_explicit(_Rmc(int) *flag, _Rmc(int) *data) {
-    VEDGE(wdata, wflga);
-    L(wdata, rmc_store(data, 42));
-    L(wflag, rmc_store(flag, 1));
 }
