@@ -108,7 +108,7 @@ extern int __rmc_push(void);
 ///////////////////////////////////////////////////////////////////////
 // Now define the RMC atomic op instructions. We do this by using the
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
-#include "stdatomic.h"
+#include <stdatomic.h>
 
 // If NO_REQUIRE_EXPLICIT_ATOMICS is set, then atomic operations can
 // be done on any variables, not just _Rmc ones.
