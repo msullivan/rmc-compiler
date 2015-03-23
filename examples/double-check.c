@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 struct mutex_t;
 struct foo_t;

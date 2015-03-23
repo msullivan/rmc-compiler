@@ -1,5 +1,5 @@
 #include "atomic.h"
-#include "rmc.h"
+#include <rmc.h>
 
 
 /* Lockfree ringbuffers: works if there is at most one writer,

@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include "atomic.h"
-#include "rmc.h"
+#include <rmc.h>
 
 #define DO_C11 1
 

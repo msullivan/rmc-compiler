@@ -68,13 +68,15 @@ esac
 
 PLATFORM_FLAGS="-target $TRIPLE"
 
+RMC_INCLUDE_DIR=.
+
 if [ $BUILD_EXE ]; then
     DEF_FLAGS=""
 else
     DEF_FLAGS="-DNO_TEST -DONLY_RMC"
 fi
 
-clang --std=gnu11 $PLATFORM_FLAGS $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
+clang --std=gnu11 $PLATFORM_FLAGS -I "$RMC_INCLUDE_DIR" $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
 llvm-dis $NAME.pre0.bc
 
 # -instcombine is useful for annoying reasons; __c11_atomic_load

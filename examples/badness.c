@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 extern int coin(void);
 

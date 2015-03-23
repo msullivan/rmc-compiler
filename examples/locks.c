@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 typedef struct mutex_t {
     rmc_int locked;

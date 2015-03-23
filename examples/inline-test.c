@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 int load_acquire(rmc_int *ptr) {
     XEDGE(load, post);

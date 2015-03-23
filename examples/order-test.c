@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 int lol1(int *p) {
     L(a, 0);

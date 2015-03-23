@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 void bogus_action(int *p, int *q, int a, int b) {
     VEDGE(w1, w2);

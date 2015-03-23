@@ -1,4 +1,4 @@
-#include "rmc.h"
+#include <rmc.h>
 
 // Some test cases that required some bogosity to not have the branches get
 // optimized away.
