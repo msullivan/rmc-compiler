@@ -1,18 +1,14 @@
-#include <rmc.h>
+#include <rmc++.h>
 
-// Ok first make sure the regular old C ones still work
-void mp_send(rmc_int *flag, rmc_int *data) {
+void mp_send(rmc<int> *flag, rmc<int> *data) {
     VEDGE(wdata, wflag);
-    L(wdata, rmc_store(data, 42));
-    L(wflag, rmc_store(flag, 1));
+    L(wdata, *data = 42);
+    L(wflag, *flag = 1);
 }
 
-int mp_recv(rmc_int *flag, int *data) {
-    int rf;
+int mp_recv(rmc<int> *flag, int *data) {
     XEDGE(rflag, rdata);
-    do {
-        LS(rflag, rf = rmc_load(flag));
-    } while (rf == 0);
-    LS(rdata, int rd = *data);
-    return rd;
+    while (L(rflag, *flag) == 0)
+        continue;
+    return L(rdata, *data);
 }
