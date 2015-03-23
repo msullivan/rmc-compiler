@@ -76,7 +76,7 @@ esac
 
 PLATFORM_FLAGS="-target $TRIPLE"
 
-RMC_INCLUDE_DIR=.
+RMC_INCLUDE_DIR=../include/
 
 if [ $BUILD_EXE ]; then
     DEF_FLAGS=""

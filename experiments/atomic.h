@@ -1,1 +1,1 @@
-../examples/atomic.h
+../include/atomic.h
