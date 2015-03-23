@@ -176,7 +176,7 @@ Does this work? Is ordering stuff reasonable?
 Oh, it also doesn't quite work, since it needs to output whether it succeeded, which can't be
 divined from the value.
 
-XXX: Actually, does /strong/ cmpxchg work right in failure cases??
+Actually, does /strong/ cmpxchg work right in failure cases??
 The RW semantics in RMC /always/ does a write, but that won't actually
 be the case, right? Does this cause trouble?
 cmpxchg(p, ev, nv) = RMW(p, x. if x == ev then nv else x)
@@ -190,7 +190,8 @@ a CAS are dmbs (and not something dep based). On POWER it is a little worse:
 all vo edges into and xo edges out of need to be *sync* (not lwsync).
 
 This can be fixed by adding a new CAS directly to the language; like
-RMW, it will evaluate into RWs and speculations.
+RMW, it will evaluate into RWs and speculations; two rules: one for
+success, one for failure.
 
 ---
 
