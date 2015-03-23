@@ -8,6 +8,8 @@
 // Define the core RMC stuff
 #include "rmc-core.h"
 
+#define __rmc_typeof(e) __typeof__(e)
+
 // Now define the RMC atomic op instructions. We do this by using the
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
 #include <stdatomic.h>

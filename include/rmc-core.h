@@ -93,7 +93,11 @@ extern int __rmc_push(void);
 
 // Nice way to extract a value directly from a named read
 // without needing to manually stick it in a temporary.
-#define LE(label, expr) ({LS(label, typeof(expr) _______t = expr); _______t;})
+// __rmc_typeof is defined in the C and C++ support files:
+// in C++ we do template magic to turn rmc<T> into T, which will
+// force the dereference.
+#define LE(label, expr)                                         \
+  ({LS(label, __rmc_typeof(expr) _______t = expr); _______t;})
 #define LR(label, expr) LE(label, expr)
 
 #ifdef OLD_L_BEHAVIOR
