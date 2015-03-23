@@ -171,7 +171,11 @@ typedef enum memory_order memory_order;
  * 7.17.6 Atomic integer types.
  */
 
+#ifdef __cplusplus
+typedef _Atomic(bool)			atomic_bool;
+#else
 typedef _Atomic(_Bool)			atomic_bool;
+#endif
 typedef _Atomic(char)			atomic_char;
 typedef _Atomic(signed char)		atomic_schar;
 typedef _Atomic(unsigned char)		atomic_uchar;

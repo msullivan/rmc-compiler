@@ -76,7 +76,7 @@ else
     DEF_FLAGS="-DNO_TEST -DONLY_RMC"
 fi
 
-clang --std=gnu11 $PLATFORM_FLAGS -I "$RMC_INCLUDE_DIR" $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
+clang $PLATFORM_FLAGS -I "$RMC_INCLUDE_DIR" $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
 llvm-dis $NAME.pre0.bc
 
 # -instcombine is useful for annoying reasons; __c11_atomic_load
