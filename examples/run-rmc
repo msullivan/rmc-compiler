@@ -59,13 +59,19 @@ case $RMC_PLATFORM in
 	arm)
 #		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=hard"
 		TRIPLE="armv7a-linux-gnueabihf"
-#		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/c++/4.8.2/ -I /usr/arm-linux-gnueabihf/include/c++/4.8.2/arm-linux-gnueabihf/"
+		# clang should maybe be able to automatically determine some of this!
 		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
+		if [ $IS_CPP ]; then
+			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/ -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/arm-linux-gnueabihf/"
+		fi
 		LINKER=arm-linux-gnueabihf-gcc
 		;;
 	power)
 		TRIPLE="powerpc-linux-gnu"
 		INCLUDE_FLAGS="-I /usr/powerpc-linux-gnu/include/"
+		if [ $IS_CPP ]; then
+			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/powerpc-linux-gnu/include/c++/4.9.1/ -I /usr/powerpc-linux-gnu/include/c++/4.9.1/powerpc-linux-gnu/"
+		fi
 		LINKER=powerpc-linux-gnu-gcc
 		;;
 	x86)
