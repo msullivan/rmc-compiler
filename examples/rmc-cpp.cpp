@@ -12,3 +12,17 @@ int mp_recv(rmc<int> *flag, int *data) {
         continue;
     return L(rdata, *data);
 }
+
+
+int cas(rmc<int> *p) {
+    int i = 0;
+    return p->compare_exchange_strong(i, 1);
+}
+
+int xadd_int(rmc<int> *p) {
+    return p->fetch_add(10);
+}
+
+int *xadd_ptr(rmc<int *> *p) {
+    return p->fetch_add(10);
+}
