@@ -41,6 +41,14 @@ void store_relaxed(std::atomic<int> *x) {
 	x->store(1, std::memory_order_relaxed);
 }
 
+int rmw_and_acquire(std::atomic<int> *x) {
+    return std::atomic_fetch_and_explicit(x, 1, std::memory_order_acquire);
+}
+void rmw_and_ignore_res(std::atomic<int> *x) {
+    std::atomic_fetch_and_explicit(x, 1, std::memory_order_relaxed);
+}
+
+
 int rmw_acquire(std::atomic<int> *x) {
     return std::atomic_fetch_add_explicit(x, 1, std::memory_order_acquire);
 }
@@ -70,6 +78,12 @@ int cas_acq_rel__rlx(std::atomic<int> *x) {
     return exp;
 }
 
+int cas_weak(std::atomic<int> *x) {
+    int exp = 0;
+    std::atomic_compare_exchange_weak_explicit(
+        x, &exp, 1, std::memory_order_acq_rel, std::memory_order_acquire);
+    return exp;
+}
 
 
 int main() { return 0; }
