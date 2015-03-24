@@ -18,6 +18,9 @@
 template<typename T>
 class rmc {
 private:
+  using arith_arg_type = typename
+    std::conditional<std::is_pointer<T>::value, std::ptrdiff_t, T>::type;
+
   std::atomic<T> val;
 
 public:
@@ -44,28 +47,11 @@ public:
     return val.exchange(desired, std::__rmc_rmw_order);
   }
 
-  // Pointer arithmetic RMWs
-  template<
-    typename U = T,
-    typename std::enable_if<std::is_pointer<U>::value>::type* = nullptr>
-  T fetch_add(std::ptrdiff_t arg) noexcept {
-    static_assert(std::is_same<U, T>::value, "invalid specialization");
+  // Arithmetic RMWs. Will fail if the underlying type isn't integral or pointer
+  T fetch_add(arith_arg_type arg) noexcept {
     return val.fetch_add(arg, std::__rmc_rmw_order);
   }
-  template<
-    typename U = T,
-    typename std::enable_if<std::is_pointer<U>::value>::type* = nullptr>
-  T fetch_sub(std::ptrdiff_t arg) noexcept {
-    static_assert(std::is_same<U, T>::value, "invalid specialization");
-    return val.fetch_sub(arg, std::__rmc_rmw_order);
-  }
-
-
-  // Arithmetic RMWs. Will fail if the underlying thing isn't integral
-  T fetch_add(T arg) noexcept {
-    return val.fetch_add(arg, std::__rmc_rmw_order);
-  }
-  T fetch_sub(T arg) noexcept {
+  T fetch_sub(arith_arg_type arg) noexcept {
     return val.fetch_sub(arg, std::__rmc_rmw_order);
   }
   T fetch_and(T arg) noexcept {
