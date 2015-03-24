@@ -9,6 +9,8 @@
 #include "rmc-core.h"
 #include <atomic>
 
+#include <type_traits>
+
 // XXX: namespacing?
 
 // Main rmc implementation, for non pointers
@@ -20,6 +22,7 @@ private:
 
 public:
   rmc() = default;
+  ~rmc() = default;
   constexpr rmc(T desired) noexcept : val(desired) {}
   rmc(const rmc&) = delete;
   rmc& operator=(const rmc&) = delete;
@@ -41,6 +44,23 @@ public:
     return val.exchange(desired, std::__rmc_rmw_order);
   }
 
+  // Pointer arithmetic RMWs
+  template<
+    typename U = T,
+    typename std::enable_if<std::is_pointer<U>::value>::type* = nullptr>
+  T fetch_add(std::ptrdiff_t arg) noexcept {
+    static_assert(std::is_same<U, T>::value, "invalid specialization");
+    return val.fetch_add(arg, std::__rmc_rmw_order);
+  }
+  template<
+    typename U = T,
+    typename std::enable_if<std::is_pointer<U>::value>::type* = nullptr>
+  T fetch_sub(std::ptrdiff_t arg) noexcept {
+    static_assert(std::is_same<U, T>::value, "invalid specialization");
+    return val.fetch_sub(arg, std::__rmc_rmw_order);
+  }
+
+
   // Arithmetic RMWs. Will fail if the underlying thing isn't integral
   T fetch_add(T arg) noexcept {
     return val.fetch_add(arg, std::__rmc_rmw_order);
@@ -48,7 +68,6 @@ public:
   T fetch_sub(T arg) noexcept {
     return val.fetch_sub(arg, std::__rmc_rmw_order);
   }
-
   T fetch_and(T arg) noexcept {
     return val.fetch_and(arg, std::__rmc_rmw_order);
   }
@@ -63,48 +82,6 @@ public:
   // of it in this circumstance.
 };
 
-template<typename T>
-class rmc<T*> {
-private:
-  std::atomic<T*> val;
-
-public:
-  rmc() = default;
-  constexpr rmc(T* desired) noexcept : val(desired) {}
-  rmc(const rmc&) = delete;
-  rmc& operator=(const rmc&) = delete;
-  T* operator=(T* desired) noexcept { store(desired); return desired; }
-  operator T*() const noexcept { return load(); }
-
-  void store(T *desired) noexcept { val.store(desired, std::__rmc_load_order); }
-  T* load() const noexcept { return val.load(std::__rmc_store_order); }
-
-  bool compare_exchange_weak(T*& expected, T* desired) noexcept {
-    return val.compare_exchange_weak(
-      expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
-  }
-  bool compare_exchange_strong(T*& expected, T* desired) noexcept {
-    return val.compare_exchange_strong(
-      expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
-  }
-  T* exchange(T* desired) noexcept {
-    return val.exchange(desired, std::__rmc_rmw_order);
-  }
-
-  // Arithmetic RMWs.
-  T* fetch_add(std::ptrdiff_t arg) noexcept {
-    return val.fetch_add(arg, std::__rmc_rmw_order);
-  }
-  T* fetch_sub(std::ptrdiff_t arg) noexcept {
-    return val.fetch_sub(arg, std::__rmc_rmw_order);
-  }
-
-  // We could add operator overloading, but I'm not sure if I approve
-  // of it in this circumstance.
-};
-
-
-#include <type_traits>
 template<class T> struct remove_rmc           {typedef T type;};
 template<class T> struct remove_rmc<rmc<T>>   {typedef T type;};
 // Strip references and rmc<> things out of the type inferred for an
