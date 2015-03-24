@@ -214,6 +214,15 @@ Instruction *getNextInstr(Instruction *i) {
   BasicBlock::iterator I = *i;
   return ++I == i->getParent()->end() ? nullptr : &*I;
 }
+
+Instruction *getNextInsertionPt(Instruction *i) {
+  BasicBlock::iterator I = *i;
+  ++I;
+  while (isa<LandingPadInst>(I) || isa<PHINode>(I)) ++I;
+  return &*I;
+}
+
+
 Instruction *getPrevInstr(Instruction *i) {
   BasicBlock::iterator I = *i;
   return I == i->getParent()->begin() ? nullptr : &*--I;
@@ -504,7 +513,7 @@ void hideOperands(Instruction *instr) {
 }
 
 void hideUse(Instruction *instr, Use &use) {
-  Instruction *dummyCopy = makeCopy(instr, getNextInstr(instr));
+  Instruction *dummyCopy = makeCopy(instr, getNextInsertionPt(instr));
   use.set(dummyCopy);
 }
 
