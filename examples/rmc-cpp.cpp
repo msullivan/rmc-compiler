@@ -26,3 +26,10 @@ int xadd_int(rmc<int> *p) {
 int *xadd_ptr(rmc<int *> *p) {
     return p->fetch_add(10);
 }
+
+// Make sure it works with longs also... (long overlaps with
+// fetch_add on pointers so this depends on doing something to
+// avoid the overlap)
+long xadd_long(rmc<long> *p) {
+    return p->fetch_add(10);
+}
