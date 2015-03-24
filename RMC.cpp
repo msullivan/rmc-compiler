@@ -512,16 +512,17 @@ void hideOperands(Instruction *instr) {
   }
 }
 
-void hideUse(Instruction *instr, Use &use) {
-  Instruction *dummyCopy = makeCopy(instr, getNextInsertionPt(instr));
-  use.set(dummyCopy);
-}
-
 void hideUses(Instruction *instr, User *skip) {
+  Instruction *dummyCopy = nullptr;
   for (auto is = instr->use_begin(), ie = instr->use_end(); is != ie;) {
     Use &use = *is++; // Grab and advance, so we can delete
-    if (use.getUser() != skip) {
-      hideUse(instr, use);
+    if (use.getUser() != skip && !getBSCopyValue(use.getUser())) {
+      if (!dummyCopy) {
+        dummyCopy = makeCopy(instr, getNextInsertionPt(instr));
+      }
+      //errs() << "Hiding " << instr->getName() << " as "
+      //       << dummyCopy->getName() << " in " << *use.getUser() << "\n";
+      use.set(dummyCopy);
     }
   }
 }
@@ -538,6 +539,7 @@ void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
 }
 
 void enforceAddrDeps(Instruction *end, std::vector<Instruction *> &trail) {
+  //errs() << "enforcing for: " << *end << "\n";
   for (auto is = trail.begin(), ie = trail.end(); is != ie; is++) {
     // Hide all the uses except for the other ones in the dep chain
     Instruction *next = is+1 != ie ? *(is+1) : end;
