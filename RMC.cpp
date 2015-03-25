@@ -322,8 +322,12 @@ void RealizeRMC::processEdge(CallInst *call) {
 
 void RealizeRMC::processPush(CallInst *call) {
   Action *a = bb2action_[call->getParent()]; // This is dubious.
-  pushes_.insert(a);
-  a->isPush = true;
+  // Ignore pushes not in actions. Needed to deal with having an
+  // rmc_push() function in rust.
+  if (a) {
+    pushes_.insert(a);
+    a->isPush = true;
+  }
 }
 
 void RealizeRMC::findEdges() {
