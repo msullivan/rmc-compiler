@@ -7,14 +7,18 @@ extern {
     fn __rmc_push() -> i32;
 }
 
+#[inline(always)]
 pub fn push() { unsafe { __rmc_push(); } }
 
+#[inline(always)]
 pub fn _action_register(name: *const u8) -> i32 {
     unsafe { __rmc_action_register(name) }
 }
+#[inline(always)]
 pub fn _action_close(reg_id: i32) -> i32 {
     unsafe { __rmc_action_close(reg_id) }
 }
+#[inline(always)]
 pub fn _edge_register(is_vis: i32, src: *const u8, dst: *const u8) -> i32 {
     unsafe { __rmc_edge_register(is_vis, src, dst) }
 }
