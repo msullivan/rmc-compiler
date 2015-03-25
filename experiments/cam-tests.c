@@ -139,6 +139,21 @@ exists
 // Example adapted from http://dl.acm.org/citation.cfm?id=2618134 to
 // work under http://svr-pes20-cppmem.cl.cam.ac.uk/cppmem/index.html
 
+// Regular OOTA - can be fixed by making them release/acquire or rel/consume
+int main() {
+  atomic_int a, b;
+  int l1, l2;
+
+  a = 0; b = 0;
+
+  {{{ { l1 = a.load(memory_order_relaxed).readsvalue(42);
+        b.store(l1, memory_order_relaxed); }
+  ||| { l2 = b.load(memory_order_relaxed);
+        a.store(l2, memory_order_relaxed); } }}};
+  return 0;
+}
+
+
 
 // Can wind up with an = &b, bn = &a!
 int main() {
