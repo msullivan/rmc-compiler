@@ -1,7 +1,7 @@
 use std::sync::atomic::{Ordering, AtomicUsize};
 
 #[macro_use]
-mod rmc;
+extern crate rmc;
 
 
 pub unsafe fn mp_send_test(data: *mut AtomicUsize, flag: *mut AtomicUsize) {

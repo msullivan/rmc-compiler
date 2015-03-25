@@ -1,0 +1,10 @@
+[package]
+
+name = "rmc"
+version = "0.0.1"
+authors = ["Michael Sullivan <sully@msully.net>"]
+
+[lib]
+
+name = "rmc"
+crate-type = ["rlib"]
