@@ -56,33 +56,33 @@ macro_rules! VEDGE {
 }
 
 // RMC objects
-pub static STORE_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
-pub static LOAD_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
-pub static RMW_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
+pub const STORE_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
+pub const LOAD_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
+pub const RMW_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
 
 
 macro_rules! atomic_methods {
     ($ty:ty, $outty:ty, $rmc_name:ident, $atomic_name:ident) => [
-    pub fn new(v: $ty) -> $outty { $rmc_name { v: $atomic_name::new(v) } }
-    pub fn load(&self) -> $ty { self.v.load(LOAD_ORDER) }
-    pub fn store(&self, val: $ty) { self.v.store(val, STORE_ORDER) }
-    pub fn swap(&self, val: $ty) -> $ty { self.v.swap(val, RMW_ORDER) }
-    pub fn compare_and_swap(&self, old: $ty, new: $ty) -> $ty {
+    #[inline] pub fn new(v: $ty) -> $outty { $rmc_name { v: $atomic_name::new(v) } }
+    #[inline] pub fn load(&self) -> $ty { self.v.load(LOAD_ORDER) }
+    #[inline] pub fn store(&self, val: $ty) { self.v.store(val, STORE_ORDER) }
+    #[inline] pub fn swap(&self, val: $ty) -> $ty { self.v.swap(val, RMW_ORDER) }
+    #[inline] pub fn compare_and_swap(&self, old: $ty, new: $ty) -> $ty {
         self.v.compare_and_swap(old, new, RMW_ORDER)
     }
     ]
 }
 macro_rules! atomic_methods_arithmetic {
     ($ty:ty) => [
-    pub fn fetch_add(&self, val: $ty) -> $ty { self.v.fetch_add(val, RMW_ORDER) }
-    pub fn fetch_sub(&self, val: $ty) -> $ty { self.v.fetch_sub(val, RMW_ORDER) }
+    #[inline] pub fn fetch_add(&self, val: $ty) -> $ty { self.v.fetch_add(val, RMW_ORDER) }
+    #[inline] pub fn fetch_sub(&self, val: $ty) -> $ty { self.v.fetch_sub(val, RMW_ORDER) }
     ]
 }
 macro_rules! atomic_methods_logical {
     ($ty:ty) => [
-    pub fn fetch_and(&self, val: $ty) -> $ty { self.v.fetch_and(val, RMW_ORDER) }
-    pub fn fetch_or(&self, val: $ty) -> $ty { self.v.fetch_or(val, RMW_ORDER) }
-    pub fn fetch_xor(&self, val: $ty) -> $ty { self.v.fetch_xor(val, RMW_ORDER) }
+    #[inline] pub fn fetch_and(&self, val: $ty) -> $ty { self.v.fetch_and(val, RMW_ORDER) }
+    #[inline] pub fn fetch_or(&self, val: $ty) -> $ty { self.v.fetch_or(val, RMW_ORDER) }
+    #[inline] pub fn fetch_xor(&self, val: $ty) -> $ty { self.v.fetch_xor(val, RMW_ORDER) }
     ]
 }
 
