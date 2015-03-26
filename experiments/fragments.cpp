@@ -13,8 +13,6 @@ void store64(std::atomic<long long> *x, long long y) {
 	return x->store(y, std::memory_order_relaxed);
 }
 
-
-
 int load_acquire(std::atomic<int> *x) {
 	return x->load(std::memory_order_acquire);
 }
@@ -94,6 +92,17 @@ int cas_weak(std::atomic<int> *x) {
         x, &exp, 1, std::memory_order_acq_rel, std::memory_order_acquire);
     return exp;
 }
+
+void fence_acquire() {
+    std::atomic_thread_fence(std::memory_order_acquire);
+}
+void fence_release() {
+    std::atomic_thread_fence(std::memory_order_release);
+}
+void fence_sc() {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
 
 
 int main() { return 0; }
