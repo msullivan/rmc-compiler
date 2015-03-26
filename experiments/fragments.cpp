@@ -5,6 +5,16 @@ extern "C" {
 }
 #endif
 
+long long load64(std::atomic<long long> *x) {
+	return x->load(std::memory_order_relaxed);
+}
+
+void store64(std::atomic<long long> *x, long long y) {
+	return x->store(y, std::memory_order_relaxed);
+}
+
+
+
 int load_acquire(std::atomic<int> *x) {
 	return x->load(std::memory_order_acquire);
 }
