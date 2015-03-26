@@ -1,11 +1,10 @@
-use std::sync::atomic::{Ordering, AtomicUsize};
-
 #[macro_use]
 extern crate rmc;
 
+use rmc::RmcUsize;
 
-pub unsafe fn mp_send_test(data: *mut AtomicUsize, flag: *mut AtomicUsize) {
+pub fn mp_send_test(data: &RmcUsize, flag: &RmcUsize) {
     VEDGE!(wdata, wflag);
-    L!(wdata, (*data).store(42, Ordering::Relaxed));
-    L!(wflag, (*flag).store(1, Ordering::Relaxed));
+    L!(wdata, data.store(42));
+    L!(wflag, flag.store(1));
 }
