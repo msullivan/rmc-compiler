@@ -11,7 +11,7 @@ endif
 
 LLVM_LOC=../build/Debug+Asserts/
 CXX=clang++
-CXXFLAGS = -Wall -Werror -Wno-unused-function $(shell $(LLVM_LOC)/bin/llvm-config --cxxflags | sed s/-fno-exceptions//) $(DEFINES) -g -O0
+CXXFLAGS = -Wall -Wno-unused-function $(shell $(LLVM_LOC)/bin/llvm-config --cxxflags | sed s/-fno-exceptions//) $(DEFINES) -g -O0
 
 RMC.o: RMC.cpp RMCInternal.h PathCache.h
 PathCache.o: PathCache.cpp PathCache.h
