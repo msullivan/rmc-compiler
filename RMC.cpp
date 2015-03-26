@@ -964,7 +964,7 @@ public:
   RealizeRMCPass() : FunctionPass(ID) { }
   ~RealizeRMCPass() { }
 
-  virtual bool doInitialization(Module &M) {
+  virtual bool doInitialization(Module &M) override {
     // Pull the platform out of the target triple and then sort of bogusly
     // stick it in a global variable
     std::string triple = M.getTargetTriple();
@@ -979,7 +979,7 @@ public:
     }
     return false;
   }
-  virtual bool runOnFunction(Function &F) {
+  virtual bool runOnFunction(Function &F) override {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo &li = getAnalysis<LoopInfo>();
     RealizeRMC rmc(F, this, dom, li, UseSMT);
@@ -1013,7 +1013,7 @@ public:
   CleanupCopiesPass() : BasicBlockPass(ID) { }
   ~CleanupCopiesPass() { }
 
-  virtual bool runOnBasicBlock(BasicBlock &BB) {
+  virtual bool runOnBasicBlock(BasicBlock &BB) override {
     bool changed = false;
     for (auto is = BB.begin(), ie = BB.end(); is != ie; ) {
       Instruction *i = is++;
@@ -1042,7 +1042,7 @@ public:
   DropFunsPass() : ModulePass(ID) { }
   ~DropFunsPass() { }
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
     // This is a bogus hack that we use to suppress testing all but a
     // particular function; this is purely for debugging purposes
     char *only_test = getenv("RMC_ONLY_TEST");
