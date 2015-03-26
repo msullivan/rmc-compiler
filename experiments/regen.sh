@@ -16,5 +16,5 @@ LLVM_ARM_FLAGS="--target=armv7a -mfloat-abi=hard -I /usr/arm-linux-gnueabihf/inc
 ../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.s
 
 ../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp -o fragments-llvm-x86.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS $LLVM_POWER_FLAGS -o fragments-llvm-power.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS $LLVM_ARM_FLAGS -o fragments-llvm-arm.ll -emit-llvm
+../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_POWER_FLAGS -o fragments-llvm-power.ll -emit-llvm
+../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.ll -emit-llvm
