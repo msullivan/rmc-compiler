@@ -5,8 +5,17 @@
 
 set -e
 
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+LLVM_DIR="$DIR/../build/Debug+Asserts/bin/"
+RMC_INCLUDE_DIR="$DIR/include/"
+RMC_LIB="$DIR/RMC.so"
+
+PATH="$LLVM_DIR:$PATH"
+
+# Argument defaults
 RMC_PLATFORM=arm
 
+# Argument handling
 while true
 do
 	case "$1" in
@@ -47,6 +56,7 @@ do
 	esac
 done
 
+# Figure out C vs. C++ from filename
 if [ "$(basename $1 .cpp).cpp" = "$(basename $1)" ]; then
 	IS_CPP=1
 	NAME=$(basename $1 .cpp)
@@ -57,11 +67,9 @@ else
 fi
 
 
-PATH=../../build/Debug+Asserts/bin/:$PATH
-
+# Figure out platform details
 case $RMC_PLATFORM in
 	arm)
-#		PLATFORM_FLAGS="--target=armv7a -mfloat-abi=hard"
 		TRIPLE="armv7a-linux-gnueabihf"
 		# clang should maybe be able to automatically determine some of this!
 		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
@@ -86,8 +94,6 @@ esac
 
 PLATFORM_FLAGS="-target $TRIPLE"
 
-RMC_INCLUDE_DIR=../include/
-
 if [ $BUILD_EXE ]; then
     DEF_FLAGS=""
 else
@@ -100,7 +106,6 @@ llvm-dis $NAME.pre0.bc
 # -instcombine is useful for annoying reasons; __c11_atomic_load
 # generates code that indirects through an alloca without it
 opt -mem2reg -instcombine $NAME.pre0.bc -o $NAME.pre.bc
-#opt -mem2reg $NAME.pre0.bc -o $NAME.pre.bc
 llvm-dis $NAME.pre.bc
 
 if [ $USE_SMT ]; then
@@ -108,9 +113,9 @@ if [ $USE_SMT ]; then
 fi
 
 if [ $RUN_GDB ]; then
-	gdb --args opt -load ../RMC.so -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
+	gdb --args opt -load $RMC_LIB -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
 else
-	time opt -load ../RMC.so -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
+	time opt -load $RMC_LIB -drop-funs -realize-rmc $SMT_FLAGS $NAME.pre.bc -o $NAME.bc
 fi
 
 llvm-dis $NAME.bc
