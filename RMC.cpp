@@ -1020,9 +1020,12 @@ struct RMCInit {
   RMCInit() { initializeRealizeRMCPassPass(*PassRegistry::getPassRegistry()); }
 } init;
 
+cl::opt<bool> DoRMC("rmc-pass",
+                    cl::desc("Enable the RMC pass in the pass manager"));
+
 static void registerRMCPass(const PassManagerBuilder &,
                             legacy::PassManagerBase &PM) {
-  PM.add(new RealizeRMCPass());
+  if (DoRMC) { PM.add(new RealizeRMCPass()); }
 }
 // LoopOptimizerEnd seems to be a fairly reasonable place to stick
 // this.  We want it after inlining and some basic optimizations, but
@@ -1078,9 +1081,7 @@ cl::opt<bool> DoCleanupCopies("rmc-cleanup-copies",
 
 static void registerCleanupPass(const PassManagerBuilder &,
                                legacy::PassManagerBase &PM) {
-  if (DoCleanupCopies) {
-    PM.add(new CleanupCopiesPass());
-  }
+  if (DoCleanupCopies) { PM.add(new CleanupCopiesPass()); }
 }
 static RegisterStandardPasses
     RegisterCleanup(PassManagerBuilder::EP_OptimizerLast,
