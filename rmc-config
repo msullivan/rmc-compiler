@@ -1,0 +1,50 @@
+#!/bin/bash
+# Copyright (c) 2014-2015 Michael J. Sullivan
+# Use of this source code is governed by an MIT-style license that can be
+# found in the LICENSE file.
+
+# Dumb little script to output the command line flags that clang needs
+# to use RMC.
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+RMC_INCLUDE_DIR="$DIR/include/"
+RMC_LIB="$DIR/RMC.so"
+
+# Argument handling
+while true
+do
+	case "$1" in
+		--smt)
+			shift
+			USE_SMT=1
+			;;
+		--cleanup)
+			shift
+			DO_CLEANUP=1
+			;;
+		--cflags)
+			shift
+			PRINT_CFLAGS=1
+			;;
+		--cxxflags)
+			shift
+			PRINT_CXXFLAGS=1
+			;;
+		*)
+			break
+	esac
+done
+
+if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
+   printf -- "-DHAS_RMC=1 -I %q " "$RMC_INCLUDE_DIR"
+   printf -- "-Xclang -load -Xclang %q " "$RMC_LIB"
+   printf -- "-Xclang -mllvm -Xclang -rmc-pass "
+
+   if [ $USE_SMT ]; then
+   printf -- "-Xclang -mllvm -Xclang -rmc-use-smt "
+   fi
+
+   if [ $USE_CLEANUP ]; then
+   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
+   fi
+fi
