@@ -39,6 +39,9 @@
 
 #include <llvm/Support/CommandLine.h>
 
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/IR/LegacyPassManager.h>
+
 #include <ostream>
 #include <fstream>
 #include <sstream>
@@ -993,9 +996,44 @@ public:
   }
 };
 
-
 char RealizeRMCPass::ID = 0;
-RegisterPass<RealizeRMCPass> X("realize-rmc", "Compile RMC annotations");
+
+namespace llvm { void initializeRealizeRMCPassPass(PassRegistry&); }
+
+// Create the pass init routine, registering the dependencies. We
+// can't use RegisterPass because then we wind up with the deps not
+// being initialized. I'm not totally sure why this wasn't a problem
+// when I was just using opt instead of trying to have it plugged into
+// clang, but...
+INITIALIZE_PASS_BEGIN(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
+                      false, false)
+INITIALIZE_PASS_DEPENDENCY(BreakCriticalEdges)
+INITIALIZE_PASS_DEPENDENCY(LoopInfo)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_END(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
+                    false, false)
+
+// Dummy class so we can trigger our pass initialization with a static
+// initializer. We can't use RegisterPass because we need to be able
+// to specify dependencies.
+struct RMCInit {
+  RMCInit() { initializeRealizeRMCPassPass(*PassRegistry::getPassRegistry()); }
+} init;
+
+static void registerRMCPass(const PassManagerBuilder &,
+                            legacy::PassManagerBase &PM) {
+  PM.add(new RealizeRMCPass());
+}
+// LoopOptimizerEnd seems to be a fairly reasonable place to stick
+// this.  We want it after inlining and some basic optimizations, but
+// our markers inhibit code motion and so we want to let the optimizer
+// have a go afterwards.  LoopOptimizerEnd seems like the earliest
+// place we can put it and have this work.  An atrocious hack that
+// might be worth considering is putting it at EP_Peephole, which gets
+// called multiple times, and only doing it at the "right" one.
+static RegisterStandardPasses
+    RegisterRMC(PassManagerBuilder::EP_LoopOptimizerEnd,
+                registerRMCPass);
 
 // A very simple pass that deletes all of the dummy copies that RMC
 // inserted.  My hope is that this can be safely inserted at the very
@@ -1034,6 +1072,20 @@ public:
 
 char CleanupCopiesPass::ID = 0;
 RegisterPass<CleanupCopiesPass> Y("cleanup-copies", "Remove some RMC crud at the end");
+
+cl::opt<bool> DoCleanupCopies("rmc-cleanup-copies",
+                              cl::desc("Enable the RMC copy cleanup phase"));
+
+static void registerCleanupPass(const PassManagerBuilder &,
+                               legacy::PassManagerBase &PM) {
+  if (DoCleanupCopies) {
+    PM.add(new CleanupCopiesPass());
+  }
+}
+static RegisterStandardPasses
+    RegisterCleanup(PassManagerBuilder::EP_OptimizerLast,
+                    registerCleanupPass);
+
 
 // A super bogus pass that deletes all functions except one
 class DropFunsPass : public ModulePass {
