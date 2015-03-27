@@ -628,7 +628,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   // trace through GEPs?
   // TODO: less heavily restrict what we use?
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
-      isa<IntToPtrInst>(instr)) {
+      isa<SExtInst>(instr) ||isa<IntToPtrInst>(instr)) {
     for (auto v : instr->operand_values()) {
       if (addrDepsOnSearch(v, load, cache, path, trail)) {
         if (trail) trail->push_back(instr);
