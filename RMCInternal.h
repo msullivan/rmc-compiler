@@ -189,7 +189,7 @@ private:
   void findEdges();
   Action *makePrePostAction(BasicBlock *bb);
   void processEdge(CallInst *call);
-  void processPush(CallInst *call);
+  bool processPush(CallInst *call);
 
   // Shared compilation
   void cutPushes();

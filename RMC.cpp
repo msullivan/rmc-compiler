@@ -323,13 +323,20 @@ void RealizeRMC::processEdge(CallInst *call) {
 
 }
 
-void RealizeRMC::processPush(CallInst *call) {
+bool RealizeRMC::processPush(CallInst *call) {
   Action *a = bb2action_[call->getParent()]; // This is dubious.
-  // Ignore pushes not in actions. Needed to deal with having an
-  // rmc_push() function in rust.
+  // Ignore pushes not in actions. Needed to deal with having wrapper
+  // push functions in Rust/C++. Indicate that we should leave the
+  // __rmc_push call in place so that if this function gets RMC'd and
+  // then inlined into another function before it has been RMC'd, it
+  // properly sees the __rmc_push. Any function that wraps an
+  // __rmc_push without it being in an action must be always_inline.
   if (a) {
     pushes_.insert(a);
     a->isPush = true;
+    return true;
+  } else {
+    return false;
   }
 }
 
@@ -349,7 +356,7 @@ void RealizeRMC::findEdges() {
     if (target->getName() == "__rmc_edge_register") {
       processEdge(call);
     } else if (target->getName() == "__rmc_push") {
-      processPush(call);
+      if (!processPush(call)) continue;
     } else {
       continue;
     }
