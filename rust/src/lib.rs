@@ -1,5 +1,4 @@
 use std::sync::atomic;
-use std::sync::atomic::{AtomicUsize,AtomicIsize,AtomicBool,AtomicPtr};
 
 // Core RMC
 extern {
@@ -62,8 +61,8 @@ pub const RMW_ORDER: atomic::Ordering = atomic::Ordering::Relaxed;
 
 
 macro_rules! atomic_methods {
-    ($ty:ty, $outty:ty, $rmc_name:ident, $atomic_name:ident) => [
-    #[inline] pub fn new(v: $ty) -> $outty { $rmc_name { v: $atomic_name::new(v) } }
+    ($ty:ty, $outty:ty, $rmc_name:ident, $atomic_name:path) => [
+    #[inline] pub fn new(v: $ty) -> $outty { $rmc_name { v: $atomic_name(v) } }
     #[inline] pub fn load(&self) -> $ty { self.v.load(LOAD_ORDER) }
     #[inline] pub fn store(&self, val: $ty) { self.v.store(val, STORE_ORDER) }
     #[inline] pub fn swap(&self, val: $ty) -> $ty { self.v.swap(val, RMW_ORDER) }
@@ -86,32 +85,32 @@ macro_rules! atomic_methods_logical {
     ]
 }
 
-pub struct RmcUsize { v: AtomicUsize, }
-unsafe impl Sync for RmcUsize {}
-impl RmcUsize {
-    atomic_methods!(usize, RmcUsize, RmcUsize, AtomicUsize);
+pub struct AtomicUsize { v: atomic::AtomicUsize, }
+unsafe impl Sync for AtomicUsize {}
+impl AtomicUsize {
+    atomic_methods!(usize, AtomicUsize, AtomicUsize, atomic::AtomicUsize::new);
     atomic_methods_arithmetic!(usize);
     atomic_methods_logical!(usize);
 }
 
-pub struct RmcIsize { v: AtomicIsize, }
-unsafe impl Sync for RmcIsize {}
-impl RmcIsize {
-    atomic_methods!(isize, RmcIsize, RmcIsize, AtomicIsize);
+pub struct AtomicIsize { v: atomic::AtomicIsize, }
+unsafe impl Sync for AtomicIsize {}
+impl AtomicIsize {
+    atomic_methods!(isize, AtomicIsize, AtomicIsize, atomic::AtomicIsize::new);
     atomic_methods_arithmetic!(isize);
     atomic_methods_logical!(isize);
 }
 
-pub struct RmcBool { v: AtomicBool, }
-unsafe impl Sync for RmcBool {}
-impl RmcBool {
-    atomic_methods!(bool, RmcBool, RmcBool, AtomicBool);
+pub struct AtomicBool { v: atomic::AtomicBool, }
+unsafe impl Sync for AtomicBool {}
+impl AtomicBool {
+    atomic_methods!(bool, AtomicBool, AtomicBool, atomic::AtomicBool::new);
     atomic_methods_logical!(bool);
     pub fn fetch_nand(&self, val: bool) -> bool { self.v.fetch_nand(val, RMW_ORDER) }
 }
 
-pub struct RmcPtr<T> { v: atomic::AtomicPtr<T>, }
-unsafe impl<T> Sync for RmcPtr<T> {}
-impl<T> RmcPtr<T> {
-    atomic_methods!(*mut T, RmcPtr<T>, RmcPtr, AtomicPtr);
+pub struct AtomicPtr<T> { v: atomic::AtomicPtr<T>, }
+unsafe impl<T> Sync for AtomicPtr<T> {}
+impl<T> AtomicPtr<T> {
+    atomic_methods!(*mut T, AtomicPtr<T>, AtomicPtr, atomic::AtomicPtr::new);
 }
