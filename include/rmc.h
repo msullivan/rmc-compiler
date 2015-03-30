@@ -10,6 +10,9 @@
 
 #define __rmc_typeof(e) __typeof__(e)
 
+#define rmc_push() __rmc_push()
+#define rmc_push_here() __rmc_push_here()
+
 // Now define the RMC atomic op instructions. We do this by using the
 // C11 atomics at memory_order_relaxed and casting to add _Atomic.
 #include <stdatomic.h>

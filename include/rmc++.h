@@ -11,14 +11,14 @@
 
 #include <type_traits>
 
-// XXX: namespacing?
+namespace rmc {
 
 // A value that can be concurrently accessed by multiple threads
 // safely, in the RMC atomics framework.
 // Implemented as a wrapper around std::atomic that uses different
 // memory orders.
 template<typename T>
-class rmc {
+class atomic {
 private:
   // If the underlying type is a pointer, then we use ptrdiff_t as the
   // argument to fetch_add and fetch_sub; otherwise we use the type
@@ -29,11 +29,11 @@ private:
   std::atomic<T> val;
 
 public:
-  rmc() = default;
-  ~rmc() = default;
-  constexpr rmc(T desired) noexcept : val(desired) {}
-  rmc(const rmc&) = delete;
-  rmc& operator=(const rmc&) = delete;
+  atomic() = default;
+  ~atomic() = default;
+  constexpr atomic(T desired) noexcept : val(desired) {}
+  atomic(const atomic&) = delete;
+  atomic& operator=(const atomic&) = delete;
   T operator=(T desired) noexcept { store(desired); return desired; }
   operator T() const noexcept { return load(); }
 
@@ -73,14 +73,20 @@ public:
   // of it in this circumstance.
 };
 
-template<class T> struct remove_rmc           {typedef T type;};
-template<class T> struct remove_rmc<rmc<T>>   {typedef T type;};
-// Strip references and rmc<> things out of the type inferred for an
-// L() action. This forces coercions and loads to happen inside the
-// action.
+
+template<class T> struct remove_rmc              {typedef T type;};
+template<class T> struct remove_rmc<atomic<T>>   {typedef T type;};
+// Strip references and rmc::atomic<> things out of the type inferred
+// for an L() action. This forces coercions and loads to happen inside
+// the action.
 #define __rmc_typeof(e)                                         \
-  remove_rmc<std::remove_reference<decltype(e)>::type>::type
+  ::rmc::remove_rmc<std::remove_reference<decltype(e)>::type>::type
 
+__attribute__((always_inline))
+static inline int push() { return __rmc_push(); }
+__attribute__((always_inline))
+static inline void push_here() { __rmc_push_here(); }
 
+}
 
 #endif

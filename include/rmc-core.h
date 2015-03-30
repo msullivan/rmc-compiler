@@ -54,8 +54,6 @@ extern int __rmc_push(void);
 
 #define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 
-#define rmc_push() __rmc_push()
-
 // What orders to use for the atomic ops. Always relaxed in the real version.
 #define __rmc_load_order memory_order_relaxed
 #define __rmc_store_order memory_order_relaxed
@@ -74,7 +72,7 @@ extern int __rmc_push(void);
 // (SC fences aren't actually as strong as pushes). Of course, the
 // interactions between __sync_synchronize() (which is a "full sync")
 // and C11 atomics are totally unspecified, so...
-#define rmc_push() ({ __sync_synchronize(); 0; })
+#define __rmc_push() ({ __sync_synchronize(); 0; })
 
 // What orders to use for the atomic ops. Always release/acquire
 #define __rmc_load_order memory_order_acquire
@@ -106,7 +104,7 @@ extern int __rmc_push(void);
 #define L(label, stmt) LR(label, stmt)
 #endif
 
-#define rmc_push_here_internal(l) do { L(l, rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
-#define rmc_push_here() rmc_push_here_internal(XRCAT(__barrier_push, __COUNTER__))
+#define __rmc_push_here_internal(l) do { L(l, __rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
+#define __rmc_push_here() __rmc_push_here_internal(XRCAT(__barrier_push, __COUNTER__))
 
 #endif
