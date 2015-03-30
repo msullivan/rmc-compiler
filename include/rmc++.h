@@ -13,11 +13,16 @@
 
 // XXX: namespacing?
 
-// Main rmc implementation, for non pointers
-// This duplication is annoying.
+// A value that can be concurrently accessed by multiple threads
+// safely, in the RMC atomics framework.
+// Implemented as a wrapper around std::atomic that uses different
+// memory orders.
 template<typename T>
 class rmc {
 private:
+  // If the underlying type is a pointer, then we use ptrdiff_t as the
+  // argument to fetch_add and fetch_sub; otherwise we use the type
+  // itself.
   using arith_arg_type = typename
     std::conditional<std::is_pointer<T>::value, std::ptrdiff_t, T>::type;
 
