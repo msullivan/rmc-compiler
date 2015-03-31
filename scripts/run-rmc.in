@@ -6,9 +6,10 @@
 set -e
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-LLVM_DIR="$DIR/../build/Debug+Asserts/bin/"
 RMC_INCLUDE_DIR="$DIR/include/"
 RMC_LIB="$DIR/RMC.so"
+
+LLVM_DIR=$(@CFG_LLVM_CONFIG@ --bindir)
 
 PATH="$LLVM_DIR:$PATH"
 
