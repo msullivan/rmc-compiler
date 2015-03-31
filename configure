@@ -547,7 +547,8 @@ VAL_OPTIONS=""
 opt optimize 0 "build optimized library"
 opt z3-opt 0 "use z3's opt branch"
 
-valopt_nosave llvm-root "" "set LLVM root"
+valopt z3-location "" "set Z3 root"
+valopt_nosave llvm-location "" "set LLVM location"
 opt_nosave clang 0 "prefer clang to gcc"
 valopt_nosave prefix "/usr/local" "set installation prefix"
 
@@ -654,8 +655,8 @@ then
     putvar CFG_ENABLE_CLANG
 fi
 
-if [ ! -z "$CFG_LLVM_ROOT" ]; then
-	CFG_LLVM_CONFIG="$CFG_LLVM_ROOT/bin/llvm-config"
+if [ ! -z "$CFG_LLVM_LOCATION" ]; then
+	CFG_LLVM_CONFIG="$CFG_LLVM_LOCATION/bin/llvm-config"
 else
 	probe CFG_LLVM_CONFIG llvm-config
 fi

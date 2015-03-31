@@ -1,4 +1,4 @@
-all: RMC.so run-rmc
+
 
 SRCS=RMC.cpp PathCache.cpp SMTify.cpp
 
@@ -8,6 +8,10 @@ include config.mk
 CONFIG_FILES=Makefile config.mk
 
 OBJDIR=build
+
+DEFINES :=
+INCLUDE_PATHS :=
+LIB_PATHS :=
 
 ifeq ($(CFG_ENABLE_Z3_OPT),1)
 DEFINES += -DUSE_Z3_OPTIMIZER=1
@@ -19,8 +23,24 @@ endif
 
 LIBS=-lz3
 
+ifdef CFG_Z3_LOCATION
+INCLUDE_PATHS += -I "$(CFG_Z3_LOCATION)/include"
+LIB_PATHS += -L "$(CFG_Z3_LOCATION)/lib"
+endif
+
 LLVM_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --cxxflags | sed s/-fno-exceptions//)
-CXXFLAGS=-Wall -Wno-unused-function $(LLVM_FLAGS) $(DEFINES) -g $(OPT_LEVEL)
+LLVM_LD_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --system-libs)
+CXXFLAGS=-Wall -Wno-unused-function -g \
+	$(LLVM_FLAGS) $(INCLUDE_PATHS) $(DEFINES) $(OPT_LEVEL)
+
+ifeq ($(CFG_OSTYPE),apple-darwin)
+LD_ARGS=-rdynamic -dynamiclib -Wl,-flat_namespace -Wl,-undefined,suppress
+else
+LD_ARGS=-shared
+endif
+
+all: RMC.so run-rmc
+
 
 # Rebuilding the makefile
 # FIXME: this doesn't work quite as expected; I need to figure out how
@@ -28,6 +48,8 @@ CXXFLAGS=-Wall -Wno-unused-function $(LLVM_FLAGS) $(DEFINES) -g $(OPT_LEVEL)
 Makefile config.mk: config.stamp
 config.stamp: configure Makefile.in
 	./configure $(CFG_CONFIGURE_ARGS)
+	make
+
 
 # Generic rules and build stuff
 CXX=$(CFG_CC)
@@ -41,14 +63,16 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 
 -include $(patsubst %.cpp, $(OBJDIR)/%.d, $(SRCS))
 
+
 RMC.so: $(OBJ_FILES) $(CONFIG_FILES)
-	$(CXX) -shared $(OBJ_FILES) -o $@ $(LIBS)
+	$(CXX) $(LIB_PATHS) $(LD_ARGS) $(OBJ_FILES) -o $@ $(LIBS) $(LLVM_LD_FLAGS)
 
 
 # Scripts that need to have some variables set in them. Should make
 # this more general. Autoconf would make this easy...
 run-rmc: scripts/run-rmc.in $(CONFIG_FILES)
 	sed "s|@CFG_LLVM_CONFIG@|$(CFG_LLVM_CONFIG)|" $< > $@
+	chmod +x $@
 
 clean:
 	rm -rf *~ *.so $(OBJDIR) run-rmc

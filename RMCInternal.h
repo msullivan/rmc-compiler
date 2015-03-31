@@ -30,6 +30,15 @@ constexpr std::tuple<Types&&...> unpack(Types&&... args) {
   return std::tuple<Types&&...>(std::forward<Types>(args)...);
 }
 
+// Force a pair to be viewed as just a std::pair and not as any weird
+// LLVM internal thing like DenseMapPair. I needed to do this on OS X
+// but not on linux, presumbably because of differences in the
+// pair/tuple implementations?
+template<class T1, class T2>
+constexpr std::pair<T1, T2> fix_pair(std::pair<T1, T2> x) {
+  return x;
+}
+
 namespace llvm {
 
 //// Indicator for edge types

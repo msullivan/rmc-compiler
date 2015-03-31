@@ -641,18 +641,18 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   // Find the lwsyncs we are inserting
   for (auto & entry : m.lwsync.map) {
-    unpack(unpack(src, dst), v) = entry;
+    unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
       boolToInt(v, kLwsyncCost*weight(src, dst)+1);
   }
   for (auto & entry : m.isync.map) {
-    unpack(unpack(src, dst), v) = entry;
+    unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
       boolToInt(v, kIsyncCost*weight(src, dst)+1);
   }
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
-    unpack(unpack(dep, unpack(src, dst)), v) = entry;
+    unpack(unpack(dep, unpack(src, dst)), v) = fix_pair(entry);
     auto ctrlWeight =
       branchesOn(src, bb2action_[dep]->soleLoad) ? kUseCtrlCost : kAddCtrlCost;
     cost = cost +
@@ -660,7 +660,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   }
   for (auto & entry : m.usesData.map) {
     PathID path;
-    unpack(unpack(unpack(src, dst), path), v) = entry;
+    unpack(unpack(unpack(src, dst), path), v) = fix_pair(entry);
     // XXX: this is a hack that depends on us only using actions in
     // usesData things
     BasicBlock *pred = bb2action_[dst]->startBlock;
