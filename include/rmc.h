@@ -8,14 +8,19 @@
 // Define the core RMC stuff
 #include "rmc-core.h"
 
+#if RMC_USE_SYSTEM_STDATOMIC
+#include <stdatomic.h>
+#else
+#include <rmc-stdatomic.h>
+#endif
+
 #define __rmc_typeof(e) __typeof__(e)
 
 #define rmc_push() __rmc_push()
 #define rmc_push_here() __rmc_push_here()
 
 // Now define the RMC atomic op instructions. We do this by using the
-// C11 atomics at memory_order_relaxed and casting to add _Atomic.
-#include <stdatomic.h>
+// C11 atomics at memory_order_relaxed.
 
 // If NO_REQUIRE_EXPLICIT_ATOMICS is set, then atomic operations can
 // be done on any variables, not just _Rmc ones.
