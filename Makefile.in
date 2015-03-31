@@ -1,33 +1,40 @@
 SRCS=RMC.cpp PathCache.cpp SMTify.cpp
 
+include config.mk
+
 all: RMC.so
 
 # Files that force rebuilding everything
-CONFIG_FILES=Makefile
-
-LLVM_LOC=../build/Debug+Asserts/
+CONFIG_FILES=Makefile config.mk config.stamp
 
 OBJDIR=build
 
-ifeq ($(SMT_SOLVER),CVC4)
-DEFINES=-DUSE_CVC4=1
-LIBS=-lcvc4
-else
-DEFINES=-DUSE_Z3=1 -DUSE_Z3_OPTIMIZER=1
-LIBS=-lz3
+ifeq ($(CFG_ENABLE_Z3_OPT),1)
+DEFINES += -DUSE_Z3_OPTIMIZER=1
 endif
 
-OPT_LEVEL=-O0
-CXX=clang++
+ifeq ($(CFG_ENABLE_OPTIMIZE),1)
+OPT_LEVEL=-O
+endif
 
-LLVM_FLAGS:=$(shell $(LLVM_LOC)/bin/llvm-config --cxxflags | sed s/-fno-exceptions//)
+LIBS=-lz3
+
+LLVM_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --cxxflags | sed s/-fno-exceptions//)
 CXXFLAGS=-Wall -Wno-unused-function $(LLVM_FLAGS) $(DEFINES) -g $(OPT_LEVEL)
+
+# Rebuilding the makefile
+# Commented out because it doesn't quite work as expected...
+# Makefile config.mk: config.stamp
+# config.stamp: configure Makefile.in
+# 	./configure $(CFG_CONFIGURE_ARGS)
 
 
 # Generic rules and build stuff
+CXX=$(CFG_CC)
+
 OBJ_FILES=$(patsubst %.cpp, $(OBJDIR)/%.o, $(SRCS))
 
-DEP_FLAGS=-MD -MP -MF $(@:.o=.d) -MT $@
+DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEP_FLAGS) -c -o $@ $<
