@@ -1,6 +1,7 @@
 Makefile
 config.mk
 config.stamp
+run-rmc
 
 *.d
 

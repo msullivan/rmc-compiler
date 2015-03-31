@@ -1,8 +1,8 @@
+all: RMC.so run-rmc
+
 SRCS=RMC.cpp PathCache.cpp SMTify.cpp
 
 include config.mk
-
-all: RMC.so
 
 # Files that force rebuilding everything
 CONFIG_FILES=Makefile config.mk config.stamp
@@ -28,7 +28,6 @@ CXXFLAGS=-Wall -Wno-unused-function $(LLVM_FLAGS) $(DEFINES) -g $(OPT_LEVEL)
 # config.stamp: configure Makefile.in
 # 	./configure $(CFG_CONFIGURE_ARGS)
 
-
 # Generic rules and build stuff
 CXX=$(CFG_CC)
 
@@ -44,5 +43,11 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 RMC.so: $(OBJ_FILES) $(CONFIG_FILES)
 	$(CXX) -shared $(OBJ_FILES) -o $@ $(LIBS)
 
+
+# Scripts that need to have some variables set in them. Should make
+# this more general. Autoconf would make this easy...
+run-rmc: scripts/run-rmc.in
+	cp $< $@
+
 clean:
-	rm -rf *~ *.so $(OBJDIR)
+	rm -rf *~ *.so $(OBJDIR) run-rmc
