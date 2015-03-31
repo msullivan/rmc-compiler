@@ -545,7 +545,7 @@ BOOL_OPTIONS=""
 VAL_OPTIONS=""
 
 opt optimize 0 "build optimized library"
-opt z3-opt 0 "use z3's opt branch"
+opt z3-opt 1 "use z3's opt branch"
 
 valopt z3-location "" "set Z3 root"
 valopt_nosave llvm-location "" "set LLVM location"

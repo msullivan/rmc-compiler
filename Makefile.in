@@ -13,7 +13,8 @@ DEFINES :=
 INCLUDE_PATHS :=
 LIB_PATHS :=
 
-ifeq ($(CFG_ENABLE_Z3_OPT),1)
+ifeq ($(CFG_DISABLE_Z3_OPT),1)
+else
 DEFINES += -DUSE_Z3_OPTIMIZER=1
 endif
 
