@@ -29,7 +29,6 @@ LIB_PATHS += -L "$(CFG_Z3_LOCATION)/lib"
 endif
 
 LLVM_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --cxxflags | sed s/-fno-exceptions//)
-LLVM_LD_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --system-libs)
 CXXFLAGS=-Wall -Wno-unused-function -g \
 	$(LLVM_FLAGS) $(INCLUDE_PATHS) $(DEFINES) $(OPT_LEVEL)
 
@@ -65,7 +64,7 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 
 
 RMC.so: $(OBJ_FILES) $(CONFIG_FILES)
-	$(CXX) $(LIB_PATHS) $(LD_ARGS) $(OBJ_FILES) -o $@ $(LIBS) $(LLVM_LD_FLAGS)
+	$(CXX) $(LIB_PATHS) $(LD_ARGS) $(OBJ_FILES) -o $@ $(LIBS)
 
 
 # Scripts that need to have some variables set in them. Should make
