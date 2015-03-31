@@ -1,0 +1,797 @@
+#!/bin/sh
+
+# Copyright (c) 2015 The Rust Project Developers
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without
+# limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software
+# is furnished to do so, subject to the following
+# conditions:
+
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions
+# of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+# ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+# TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+# SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
+# I pulled the configure script from the rust project and hacked it a
+# bunch to do what I want. This is because I didn't want to deal with
+# autotools, which maybe I just should have. This winds up also being
+# pretty heavy handed...
+
+
+msg() {
+    echo "configure: $1"
+}
+
+step_msg() {
+    msg
+    msg "$1"
+    msg
+}
+
+warn() {
+    echo "configure: WARNING: $1"
+}
+
+err() {
+    echo "configure: error: $1"
+    exit 1
+}
+
+need_ok() {
+    if [ $? -ne 0 ]
+    then
+        err "$1"
+    fi
+}
+
+need_cmd() {
+    if command -v $1 >/dev/null 2>&1
+    then msg "found program $1"
+    else err "need program $1"
+    fi
+}
+
+make_dir() {
+    if [ ! -d $1 ]
+    then
+        msg "mkdir -p $1"
+        mkdir -p $1
+    fi
+}
+
+copy_if_changed() {
+    if cmp -s $1 $2
+    then
+        msg "leaving $2 unchanged"
+    else
+        msg "cp $1 $2"
+        cp -f $1 $2
+        chmod u-w $2 # make copied artifact read-only
+    fi
+}
+
+move_if_changed() {
+    if cmp -s $1 $2
+    then
+        msg "leaving $2 unchanged"
+    else
+        msg "mv $1 $2"
+        mv -f $1 $2
+        chmod u-w $2 # make moved artifact read-only
+    fi
+}
+
+putvar() {
+    local T
+    eval T=\$$1
+    eval TLEN=\${#$1}
+    if [ $TLEN -gt 35 ]
+    then
+        printf "configure: %-20s := %.35s ...\n" $1 "$T"
+    else
+        printf "configure: %-20s := %s %s\n" $1 "$T" "$2"
+    fi
+    printf "%-20s := %s\n" $1 "$T" >>config.tmp
+}
+
+putpathvar() {
+    local T
+    eval T=\$$1
+    eval TLEN=\${#$1}
+    if [ $TLEN -gt 35 ]
+    then
+        printf "configure: %-20s := %.35s ...\n" $1 "$T"
+    else
+        printf "configure: %-20s := %s %s\n" $1 "$T" "$2"
+    fi
+    if [ -z "$T" ]
+    then
+        printf "%-20s := \n" $1 >>config.tmp
+    else
+        printf "%-20s := \"%s\"\n" $1 "$T" >>config.tmp
+    fi
+}
+
+probe() {
+    local V=$1
+    shift
+    local P
+    local T
+    for P
+    do
+        T=$(command -v $P 2>&1)
+        if [ $? -eq 0 ]
+        then
+            VER0=$($P --version 2>/dev/null | head -1 \
+                |  sed -e 's/[^0-9]*\([vV]\?[0-9.]\+[^ ]*\).*/\1/' )
+            if [ $? -eq 0 -a "x${VER0}" != "x" ]
+            then
+              VER="($VER0)"
+            else
+              VER=""
+            fi
+            break
+        else
+            VER=""
+            T=""
+        fi
+    done
+    eval $V=\$T
+    putpathvar $V "$VER"
+}
+
+probe_need() {
+    local V=$1
+    probe $*
+    eval VV=\$$V
+    if [ -z "$VV" ]
+    then
+        err "needed, but unable to find any of: $*"
+    fi
+}
+
+validate_opt () {
+    for arg in $CFG_CONFIGURE_ARGS
+    do
+        isArgValid=0
+        for option in $BOOL_OPTIONS
+        do
+            if test --disable-$option = $arg
+            then
+                isArgValid=1
+            fi
+            if test --enable-$option = $arg
+            then
+                isArgValid=1
+            fi
+        done
+        for option in $VAL_OPTIONS
+        do
+            if echo "$arg" | grep -q -- "--$option="
+            then
+                isArgValid=1
+            fi
+        done
+        if [ "$arg" = "--help" ]
+        then
+            echo
+            echo "No more help available for Configure options,"
+            echo "check the Wiki or join our IRC channel"
+            break
+        else
+            if test $isArgValid -eq 0
+            then
+                err "Option '$arg' is not recognized"
+            fi
+        fi
+    done
+}
+
+# `valopt OPTION_NAME DEFAULT DOC` extracts a string-valued option
+# from command line, using provided default value for the option if
+# not present, and saves it to the generated config.mk.
+#
+# `valopt_nosave` is much the same, except that it does not save the
+# result to config.mk (instead the script should use `putvar` itself
+# later on to save it).  `valopt_core` is the core upon which the
+# other two are built.
+
+valopt_core() {
+    VAL_OPTIONS="$VAL_OPTIONS $2"
+
+    local SAVE=$1
+    local OP=$2
+    local DEFAULT=$3
+    shift
+    shift
+    shift
+    local DOC="$*"
+    if [ $HELP -eq 0 ]
+    then
+        local UOP=$(echo $OP | tr '[:lower:]' '[:upper:]' | tr '\-' '\_')
+        local V="CFG_${UOP}"
+        eval $V="$DEFAULT"
+        for arg in $CFG_CONFIGURE_ARGS
+        do
+            if echo "$arg" | grep -q -- "--$OP="
+            then
+                val=$(echo "$arg" | cut -f2 -d=)
+                eval $V=$val
+            fi
+        done
+        if [ "$SAVE" = "save" ]
+        then
+            putvar $V
+        fi
+    else
+        if [ -z "$DEFAULT" ]
+        then
+            DEFAULT="<none>"
+        fi
+        OP="${OP}=[${DEFAULT}]"
+        printf "    --%-30s %s\n" "$OP" "$DOC"
+    fi
+}
+
+valopt_nosave() {
+    valopt_core nosave "$@"
+}
+
+valopt() {
+    valopt_core save "$@"
+}
+
+# `opt OPTION_NAME DEFAULT DOC` extracts a boolean-valued option from
+# command line, using the provided default value (0/1) for the option
+# if not present, and saves it to the generated config.mk.
+#
+# `opt_nosave` is much the same, except that it does not save the
+# result to config.mk (instead the script should use `putvar` itself
+# later on to save it).  `opt_core` is the core upon which the other
+# two are built.
+
+opt_core() {
+    BOOL_OPTIONS="$BOOL_OPTIONS $2"
+
+    local SAVE=$1
+    local OP=$2
+    local DEFAULT=$3
+    shift
+    shift
+    shift
+    local DOC="$*"
+    local FLAG=""
+
+    if [ $DEFAULT -eq 0 ]
+    then
+        FLAG="enable"
+    else
+        FLAG="disable"
+        DOC="don't $DOC"
+    fi
+
+    if [ $HELP -eq 0 ]
+    then
+        for arg in $CFG_CONFIGURE_ARGS
+        do
+            if [ "$arg" = "--${FLAG}-${OP}" ]
+            then
+                OP=$(echo $OP | tr 'a-z-' 'A-Z_')
+                FLAG=$(echo $FLAG | tr 'a-z' 'A-Z')
+                local V="CFG_${FLAG}_${OP}"
+                eval $V=1
+                if [ "$SAVE" = "save" ]
+                then
+                   putvar $V
+                fi
+            fi
+        done
+    else
+        if [ ! -z "$META" ]
+        then
+            OP="$OP=<$META>"
+        fi
+        printf "    --%-30s %s\n" "$FLAG-$OP" "$DOC"
+     fi
+}
+
+opt_nosave() {
+    opt_core nosave "$@"
+}
+
+opt() {
+    opt_core save "$@"
+}
+
+envopt() {
+    local NAME=$1
+    local V="CFG_${NAME}"
+    eval VV=\$$V
+
+    # If configure didn't set a value already, then check environment.
+    #
+    # (It is recommended that the configure script always check the
+    # environment before setting any values to envopt variables; see
+    # e.g.  how CFG_CC is handled, where it first checks `-z "$CC"`,
+    # and issues msg if it ends up employing that provided value.)
+    if [ -z "$VV" ]
+    then
+        eval $V=\$$NAME
+        eval VV=\$$V
+    fi
+
+    # If script or environment provided a value, save it.
+    if [ ! -z "$VV" ]
+    then
+        putvar $V
+    fi
+}
+
+to_llvm_triple() {
+    case $1 in
+        i686-w64-mingw32) echo i686-pc-windows-gnu ;;
+        x86_64-w64-mingw32) echo x86_64-pc-windows-gnu ;;
+        *) echo $1 ;;
+    esac
+}
+
+to_gnu_triple() {
+    case $1 in
+        i686-pc-windows-gnu) echo i686-w64-mingw32 ;;
+        x86_64-pc-windows-gnu) echo x86_64-w64-mingw32 ;;
+        *) echo $1 ;;
+    esac
+}
+
+msg "looking for configure programs"
+need_cmd cmp
+need_cmd mkdir
+need_cmd printf
+need_cmd cut
+need_cmd head
+need_cmd grep
+need_cmd xargs
+need_cmd cp
+need_cmd find
+need_cmd uname
+need_cmd date
+need_cmd tr
+need_cmd sed
+need_cmd file
+need_cmd make
+
+msg "inspecting environment"
+
+CFG_OSTYPE=$(uname -s)
+CFG_CPUTYPE=$(uname -m)
+
+if [ $CFG_OSTYPE = Darwin -a $CFG_CPUTYPE = i386 ]
+then
+    # Darwin's `uname -s` lies and always returns i386. We have to use sysctl
+    # instead.
+    if sysctl hw.optional.x86_64 | grep -q ': 1'
+    then
+        CFG_CPUTYPE=x86_64
+    fi
+fi
+
+# The goal here is to come up with the same triple as LLVM would,
+# at least for the subset of platforms we're willing to target.
+
+case $CFG_OSTYPE in
+
+    Linux)
+        CFG_OSTYPE=unknown-linux-gnu
+        ;;
+
+    FreeBSD)
+        CFG_OSTYPE=unknown-freebsd
+        ;;
+
+    DragonFly)
+        CFG_OSTYPE=unknown-dragonfly
+        ;;
+
+    Bitrig)
+        CFG_OSTYPE=unknown-bitrig
+        ;;
+
+    OpenBSD)
+        CFG_OSTYPE=unknown-openbsd
+       ;;
+
+    Darwin)
+        CFG_OSTYPE=apple-darwin
+        ;;
+
+    MINGW*)
+        # msys' `uname` does not print gcc configuration, but prints msys
+        # configuration. so we cannot believe `uname -m`:
+        # msys1 is always i686 and msys2 is always x86_64.
+        # instead, msys defines $MSYSTEM which is MINGW32 on i686 and
+        # MINGW64 on x86_64.
+        CFG_CPUTYPE=i686
+        CFG_OSTYPE=pc-windows-gnu
+        if [ "$MSYSTEM" = MINGW64 ]
+        then
+            CFG_CPUTYPE=x86_64
+        fi
+        ;;
+
+    MSYS*)
+        CFG_OSTYPE=pc-windows-gnu
+        ;;
+
+# Thad's Cygwin identifers below
+
+#   Vista 32 bit
+    CYGWIN_NT-6.0)
+        CFG_OSTYPE=pc-windows-gnu
+        CFG_CPUTYPE=i686
+        ;;
+
+#   Vista 64 bit
+    CYGWIN_NT-6.0-WOW64)
+        CFG_OSTYPE=pc-windows-gnu
+        CFG_CPUTYPE=x86_64
+        ;;
+
+#   Win 7 32 bit
+    CYGWIN_NT-6.1)
+        CFG_OSTYPE=pc-windows-gnu
+        CFG_CPUTYPE=i686
+        ;;
+
+#   Win 7 64 bit
+    CYGWIN_NT-6.1-WOW64)
+        CFG_OSTYPE=pc-windows-gnu
+        CFG_CPUTYPE=x86_64
+        ;;
+
+#   Win 8 # uname -s on 64-bit cygwin does not contain WOW64, so simply use uname -m to detect arch (works in my install)
+    CYGWIN_NT-6.3)
+    	CFG_OSTYPE=pc-windows-gnu
+    	;;
+# We do not detect other OS such as XP/2003 using 64 bit using uname.
+# If we want to in the future, we will need to use Cygwin - Chuck's csih helper in /usr/lib/csih/winProductName.exe or alternative.
+    *)
+        err "unknown OS type: $CFG_OSTYPE"
+        ;;
+esac
+
+
+case $CFG_CPUTYPE in
+
+    i386 | i486 | i686 | i786 | x86)
+        CFG_CPUTYPE=i686
+        ;;
+
+    xscale | arm)
+        CFG_CPUTYPE=arm
+        ;;
+
+    armv7l)
+        CFG_CPUTYPE=arm
+        CFG_OSTYPE="${CFG_OSTYPE}eabihf"
+        ;;
+
+    aarch64)
+        CFG_CPUTYPE=aarch64
+        ;;
+
+    powerpc)
+        CFG_CPUTYPE=powerpc
+        ;;
+
+    x86_64 | x86-64 | x64 | amd64)
+        CFG_CPUTYPE=x86_64
+        ;;
+
+    *)
+        err "unknown CPU type: $CFG_CPUTYPE"
+esac
+
+# Detect 64 bit linux systems with 32 bit userland and force 32 bit compilation
+if [ $CFG_OSTYPE = unknown-linux-gnu -a $CFG_CPUTYPE = x86_64 ]
+then
+    file -L "$SHELL" | grep -q "x86[_-]64"
+    if [ $? != 0 ]; then
+        CFG_CPUTYPE=i686
+    fi
+fi
+
+
+CFG_SRC_DIR="$(cd $(dirname $0) && pwd)/"
+CFG_BUILD_DIR="$(pwd)/"
+CFG_SELF="$0"
+CFG_CONFIGURE_ARGS="$@"
+
+# If the build directory is the source directory, put it in a subdir
+
+
+OPTIONS=""
+HELP=0
+if [ "$1" = "--help" ]
+then
+    HELP=1
+    shift
+    echo
+    echo "Usage: $CFG_SELF [options]"
+    echo
+    echo "Options:"
+    echo
+else
+    msg "recreating config.tmp"
+    echo '' >config.tmp
+
+    step_msg "processing $CFG_SELF args"
+fi
+
+BOOL_OPTIONS=""
+VAL_OPTIONS=""
+
+opt optimize 0 "build optimized library"
+opt z3-opt 0 "use z3's opt branch"
+
+valopt_nosave llvm-root "" "set LLVM root"
+opt_nosave clang 0 "prefer clang to gcc"
+valopt_nosave prefix "/usr/local" "set installation prefix"
+
+# On windows we just store the libraries in the bin directory because
+# there's no rpath. This is where the build system itself puts libraries;
+# --libdir is used to configure the installation directory.
+# FIXME: This needs to parameterized over target triples. Do it in platform.mk
+if [ "$CFG_OSTYPE" = "pc-windows-gnu" ]
+then
+    CFG_LIBDIR_RELATIVE=bin
+else
+    CFG_LIBDIR_RELATIVE=lib
+fi
+
+valopt libdir "${CFG_PREFIX}/${CFG_LIBDIR_RELATIVE}" "install libraries (do not set it on windows platform)"
+
+case "$CFG_LIBDIR" in
+    "$CFG_PREFIX"/*) CAT_INC=2;;
+    "$CFG_PREFIX"*)  CAT_INC=1;;
+    *)
+        err "libdir must begin with the prefix. Use --prefix to set it accordingly.";;
+esac
+
+CFG_LIBDIR_RELATIVE=`echo ${CFG_LIBDIR} | cut -c$((${#CFG_PREFIX}+${CAT_INC}))-`
+
+if [ "$CFG_OSTYPE" = "pc-windows-gnu" ] && [ "$CFG_LIBDIR_RELATIVE" != "bin" ]; then
+    err "libdir on windows should be set to 'bin'"
+fi
+
+if [ $HELP -eq 1 ]
+then
+    echo
+    exit 0
+fi
+
+# Validate Options
+step_msg "validating $CFG_SELF args"
+validate_opt
+
+probe CFG_CLANG            clang++
+probe CFG_GCC              gcc
+
+# Force freebsd to build with clang; gcc doesn't like us there
+if [ $CFG_OSTYPE = unknown-freebsd ]
+then
+    step_msg "on FreeBSD, forcing use of clang"
+    CFG_ENABLE_CLANG=1
+fi
+
+# Force bitrig to build with clang; gcc doesn't like us there
+if [ $CFG_OSTYPE = unknown-bitrig ]
+then
+    step_msg "on Bitrig, forcing use of clang, disabling jemalloc"
+    CFG_ENABLE_CLANG=1
+fi
+
+if [ -z "$CFG_ENABLE_CLANG" -a -z "$CFG_GCC" ]
+then
+    err "either clang or gcc is required"
+fi
+
+# OS X 10.9, gcc is actually clang. This can cause some confusion in the build
+# system, so if we find that gcc is clang, we should just use clang directly.
+if [ $CFG_OSTYPE = apple-darwin -a -z "$CFG_ENABLE_CLANG" ]
+then
+    CFG_OSX_GCC_VERSION=$("$CFG_GCC" --version 2>&1 | grep "Apple LLVM version")
+    if [ $? -eq 0 ]
+    then
+        step_msg "on OS X 10.9, forcing use of clang"
+        CFG_ENABLE_CLANG=1
+    else
+        if [ $("$CFG_GCC" --version 2>&1 | grep -c ' 4\.[0-6]') -ne 0 ]; then
+            step_msg "older GCC found, using clang instead"
+            CFG_ENABLE_CLANG=1
+        else
+            # on OS X, with xcode 5 and newer, certain developers may have
+            # cc, gcc and g++ point to a  mixture of clang and gcc
+            # if so, this will create very strange build errors
+            # this last stanza is to detect some such problems and save the future rust
+            # contributor some time solving that issue.
+            # this detection could be generalized to other OSes aside from OS X
+            # but the issue seems most likely to happen on OS X
+
+            chk_cc () {
+                $1 --version 2> /dev/null | grep -q $2
+            }
+            # check that gcc, cc and g++ all point to the same compiler.
+            # note that for xcode 5, g++ points to clang, not clang++
+            if !((chk_cc gcc clang  && chk_cc g++ clang) ||
+                (chk_cc gcc gcc  &&( chk_cc g++ g++ || chk g++ gcc))); then
+                err "the gcc and g++ in your path point to different compilers.
+    Check which versions are in your path with gcc --version and g++ --version.
+    To resolve this problem, either fix your PATH  or run configure with --enable-clang"
+            fi
+
+        fi
+    fi
+fi
+
+# Okay, at this point, we have made up our minds about whether we are
+# going to force CFG_ENABLE_CLANG or not; save the setting if so.
+if [ ! -z "$CFG_ENABLE_CLANG" ]
+then
+    putvar CFG_ENABLE_CLANG
+fi
+
+if [ ! -z "$CFG_LLVM_ROOT" ]; then
+	CFG_LLVM_CONFIG="$CFG_LLVM_ROOT/bin/llvm-config"
+else
+	CFG_LLVM_CONFIG=llvm-config
+fi
+
+
+if [ -z "$CFG_DISABLE_LLVM_VERSION_CHECK" ]
+then
+    LLVM_VERSION=$($CFG_LLVM_CONFIG --version)
+
+    case $LLVM_VERSION in
+        (3.[5-6]*)
+            msg "found ok version of LLVM: $LLVM_VERSION"
+            ;;
+        (*)
+            err "bad LLVM version: $LLVM_VERSION, need >=3.5"
+            ;;
+    esac
+fi
+
+# Even when the user overrides the choice of CC, still try to detect
+# clang to disable some clang-specific warnings.  We here draw a
+# distinction between:
+#
+#  CFG_ENABLE_CLANG : passed --enable-clang, or host "requires" clang,
+#  CFG_USING_CLANG : compiler (clang / gcc / $CC) looks like clang.
+#
+# This distinction is important because there are some safeguards we
+# would prefer to skip when merely CFG_USING_CLANG is set; but when
+# CFG_ENABLE_CLANG is set, that indicates that we are opting into
+# running such safeguards.
+
+if [ ! -z "$CC" ]
+then
+    msg "skipping compiler inference steps; using provided CC=$CC"
+    CFG_CC="$CC"
+
+    CFG_OSX_CC_VERSION=$("$CFG_CC" --version 2>&1 | grep "clang")
+    if [ $? -eq 0 ]
+    then
+        step_msg "note, user-provided CC looks like clang; CC=$CC."
+        CFG_USING_CLANG=1
+        putvar CFG_USING_CLANG
+    fi
+else
+    if [ ! -z "$CFG_ENABLE_CLANG" ]
+    then
+        if [ -z "$CFG_CLANG" ]
+        then
+            err "clang requested but not found"
+        fi
+        CFG_CC="$CFG_CLANG"
+        CFG_USING_CLANG=1
+        putvar CFG_USING_CLANG
+    else
+        CFG_CC="gcc"
+    fi
+fi
+
+if [ ! -z "$CFG_ENABLE_CLANG" ]
+then
+    if [ -z "$CC" ] || [[ $CC == *clang ]]
+    then
+        CFG_CLANG_VERSION=$($CFG_CC \
+            --version \
+            | grep version \
+            | sed 's/.*\(version .*\)/\1/; s/.*based on \(LLVM .*\))/\1/' \
+            | cut -d ' ' -f 2)
+
+        case $CFG_CLANG_VERSION in
+            (3.2* | 3.3* | 3.4* | 3.5* | 3.6*)
+            step_msg "found ok version of CLANG: $CFG_CLANG_VERSION"
+            if [ -z "$CC" ]
+            then
+                CFG_CC="clang"
+                CFG_CXX="clang++"
+            fi
+            ;;
+            (*)
+            err "bad CLANG version: $CFG_CLANG_VERSION, need >=3.0svn"
+            ;;
+        esac
+    else
+        msg "skipping CFG_ENABLE_CLANG version check; provided CC=$CC"
+    fi
+fi
+
+if [ -z "$CC" -a -z "$CFG_ENABLE_CLANG" -a -z "$CFG_GCC" ]
+then
+    err "either clang or gcc is required"
+fi
+
+# All safeguards based on $CFG_ENABLE_CLANG should occur before this
+# point in the script; after this point, script logic should inspect
+# $CFG_USING_CLANG rather than $CFG_ENABLE_CLANG.
+
+# Set CFG_{CC,CXX,CPP,CFLAGS,CXXFLAGS}
+envopt CC
+envopt CXX
+envopt CPP
+envopt CFLAGS
+envopt CXXFLAGS
+
+# a little post-processing of various config values
+CFG_PREFIX=${CFG_PREFIX%/}
+
+step_msg "making directories"
+
+for i in \
+    build
+do
+    make_dir $i
+done
+
+
+
+step_msg "writing configuration"
+
+putvar CFG_SRC_DIR
+putvar CFG_BUILD_DIR
+putvar CFG_OSTYPE
+putvar CFG_CPUTYPE
+putvar CFG_CONFIGURE_ARGS
+putvar CFG_PREFIX
+putvar CFG_LLVM_CONFIG
+#putvar CFG_LIBDIR_RELATIVE
+#putvar CFG_LLVM_SRC_DIR
+
+# Munge any paths that appear in config.mk back to posix-y
+cp config.tmp config.tmp.bak
+sed -e 's@ \([a-zA-Z]\):[/\\]@ /\1/@g;' <config.tmp.bak >config.tmp
+rm -f config.tmp.bak
+
+msg
+copy_if_changed ${CFG_SRC_DIR}Makefile.in ./Makefile
+move_if_changed config.tmp config.mk
+rm -f config.tmp
+touch config.stamp
+
+step_msg "complete"
