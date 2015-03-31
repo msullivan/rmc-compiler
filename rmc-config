@@ -14,6 +14,10 @@ RMC_LIB="$DIR/RMC.so"
 while true
 do
 	case "$1" in
+		--realize)
+			shift
+			REALIZE_SMT=1
+			;;
 		--smt)
 			shift
 			USE_SMT=1
@@ -36,15 +40,19 @@ do
 done
 
 if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
-   printf -- "-DHAS_RMC=1 -I %q " "$RMC_INCLUDE_DIR"
-   printf -- "-Xclang -load -Xclang %q " "$RMC_LIB"
-   printf -- "-Xclang -mllvm -Xclang -rmc-pass "
+   printf -- "-I %q " "$RMC_INCLUDE_DIR"
 
-   if [ $USE_SMT ]; then
-   printf -- "-Xclang -mllvm -Xclang -rmc-use-smt "
-   fi
+   if [ $REALIZE_SMT ]; then
+	   printf -- "-DHAS_RMC=1 "
+	   printf -- "-Xclang -load -Xclang %q " "$RMC_LIB"
+	   printf -- "-Xclang -mllvm -Xclang -rmc-pass "
 
-   if [ $USE_CLEANUP ]; then
-   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
+	   if [ $USE_SMT ]; then
+		   printf -- "-Xclang -mllvm -Xclang -rmc-use-smt "
+	   fi
+
+	   if [ $USE_CLEANUP ]; then
+		   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
+	   fi
    fi
 fi
