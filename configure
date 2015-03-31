@@ -657,7 +657,7 @@ fi
 if [ ! -z "$CFG_LLVM_ROOT" ]; then
 	CFG_LLVM_CONFIG="$CFG_LLVM_ROOT/bin/llvm-config"
 else
-	CFG_LLVM_CONFIG=llvm-config
+	probe CFG_LLVM_CONFIG llvm-config
 fi
 
 
