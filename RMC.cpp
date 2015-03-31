@@ -867,8 +867,8 @@ Instruction *getCutInstr(const EdgeCut &cut) {
 }
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
-  errs() << cut.type << ": "
-         << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
+  //errs() << cut.type << ": "
+  //       << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
 
   switch (cut.type) {
   case CutLwsync:
@@ -934,10 +934,12 @@ bool RealizeRMC::run() {
 
   if (actions_.empty() && edges_.empty()) return false;
 
+#ifdef DEBUG_SPEW
   errs() << "Stuff to do for: " << func_.getName() << "\n";
   for (auto & edge : edges_) {
     errs() << "Found an edge: " << edge << "\n";
   }
+#endif
 
   // Analyze the instructions in actions to see what they do.
   // Also change their memory accesses to have an atomic ordering.
@@ -954,7 +956,7 @@ bool RealizeRMC::run() {
   } else {
     removeUselessEdges(actions_);
     auto cuts = smtAnalyze();
-    errs() << "Applying SMT results:\n";
+    //errs() << "Applying SMT results:\n";
     for (auto & cut : cuts) {
       insertCut(cut);
     }
