@@ -25,9 +25,13 @@ examples/ directory.
 Building
 -----------
 
+Build with: ./configure <args> && make
+You might need to pass some args to ./configure to tell it where to
+find dependencies, as discussed below in the dependencies list.
+
 The dependencies are:
  * LLVM and clang 3.5 or 3.6. A path to a clang build/install
-   directory can be provided to configure with
+   directory can be provided to ./configure with
    --llvm-location=<path>. If there is an llvm dev environment visible
    on the system (for example, Ubuntu's llvm-3.5-dev package),
    configure will find it automatically.
@@ -35,15 +39,16 @@ The dependencies are:
    The binary clang+llvm OS X packages available from the LLVM website
    don't work for this, unfortunately, because of linking/loading
    problems. You'll need to build from source, making sure to pass
-   --enabled-shared to configure.
+   --enabled-shared when you run llvm's configure script.
 
  * The opt branch of Microsoft's Z3 SMT solver, available from
    https://github.com/Z3Prover/z3/tree/opt.
-   If Z3 is installed at a nonstandard location, it can be provided to
-   configure with --z3-location=<path>.
+   If Z3 is installed at a nonstandard location, pass its installation
+   prefix (the directory where its installed include/ and lib/ directories
+   live) to ./configure with --z3-location=<path>.
    If you have the master branch installed instead of opt, we can use
    that too, at the cost of performance: pass --disable-z3-opt to
-   configure.
+   ./configure.
 
 
 Installing
