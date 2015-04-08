@@ -26,6 +26,7 @@ Building
 -----------
 
 Build with: ./configure <args> && make
+
 You might need to pass some args to ./configure to tell it where to
 find dependencies, as discussed below in the dependencies list.
 
