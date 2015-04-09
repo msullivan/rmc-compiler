@@ -25,7 +25,7 @@ examples/ directory.
 Building
 -----------
 
-Build with: ./configure <args> && make
+Build with: ./configure [args] && make
 
 You might need to pass some args to ./configure to tell it where to
 find dependencies, as discussed below in the dependencies list.
@@ -33,7 +33,7 @@ find dependencies, as discussed below in the dependencies list.
 The dependencies are:
  * LLVM and clang 3.5 or 3.6. A path to a clang build/install
    directory can be provided to ./configure with
-   --llvm-location=<path>. If there is an llvm dev environment visible
+   --llvm-location=[path]. If there is an llvm dev environment visible
    on the system (for example, Ubuntu's llvm-3.5-dev package),
    configure will find it automatically.
 
@@ -44,9 +44,10 @@ The dependencies are:
 
  * The opt branch of Microsoft's Z3 SMT solver, available from
    https://github.com/Z3Prover/z3/tree/opt.
+
    If Z3 is installed at a nonstandard location, pass its installation
    prefix (the directory where its installed include/ and lib/ directories
-   live) to ./configure with --z3-location=<path>.
+   live) to ./configure with --z3-location=[path].
    If you have the master branch installed instead of opt, we can use
    that too, at the cost of performance: pass --disable-z3-opt to
    ./configure.
@@ -66,10 +67,10 @@ necessary to use RMC.
 
 To build something that uses RMC without running the custom backend
 (that is, to use the lower performance fallback), do:
-  cc $(path/to/rmc-config --cflags) <other args> file.c
+  cc $(path/to/rmc-config --cflags) [other args] file.c
 
 To use the custom RMC backend, do:
-  path/to/clang -O $(path/to/rmc-config --cflags --realize) <other args> file.c
+  path/to/clang -O $(path/to/rmc-config --cflags --realize) [other args] file.c
 
 The clang used must be built with the same LLVM that the RMC compiler
 was built against and optimization must be enabled.
