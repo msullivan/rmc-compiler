@@ -89,3 +89,13 @@ easy to target ARM and POWER (at least, if you are on Ubuntu and
 install g++-4.9-multilib-arm-linux-gnueabi and
 g++-4.9-powerpc-linux-gnu) and see what the code looks like at various
 stages in the pipeline. Check it out to see what all it can do.
+
+--
+
+Using RMC with Rust is currently possible although not currently
+particularly well organized or thought out.
+For my testing I currently build in the rust directory with cargo and
+then do something like:
+LD_PRELOAD=../RMC.so rustc -L ../rust/target/debug/ -O --crate-type lib -C 'passes=realize-rmc simplifycfg' rust_rmc_test.rs
+
+This is pretty bad and needs to be fixed.
