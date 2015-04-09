@@ -965,8 +965,12 @@ bool RealizeRMC::run() {
   return true;
 }
 
+#if USE_Z3
 cl::opt<bool> UseSMT("rmc-use-smt",
                      cl::desc("Use an SMT solver to realize RMC"));
+#else
+const bool UseSMT = false;
+#endif
 
 // The actual pass. It has a bogus setup routine and otherwise
 // calls out to RealizeRMC.

@@ -12,22 +12,27 @@ OBJDIR=build
 DEFINES :=
 INCLUDE_PATHS :=
 LIB_PATHS :=
+LIBS :=
 
-ifeq ($(CFG_DISABLE_Z3_OPT),1)
-else
+ifneq ($(CFG_DISABLE_Z3),1)
+DEFINES += -DUSE_Z3=1
+LIBS += -lz3
+
+ifneq ($(CFG_DISABLE_Z3_OPT),1)
 DEFINES += -DUSE_Z3_OPTIMIZER=1
+endif
+
+ifdef CFG_Z3_LOCATION
+INCLUDE_PATHS += -I "$(CFG_Z3_LOCATION)/include"
+LIB_PATHS += -L "$(CFG_Z3_LOCATION)/lib"
+endif
+
 endif
 
 ifeq ($(CFG_ENABLE_OPTIMIZE),1)
 OPT_LEVEL=-O
 endif
 
-LIBS=-lz3
-
-ifdef CFG_Z3_LOCATION
-INCLUDE_PATHS += -I "$(CFG_Z3_LOCATION)/include"
-LIB_PATHS += -L "$(CFG_Z3_LOCATION)/lib"
-endif
 
 LLVM_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --cxxflags | sed s/-fno-exceptions//)
 CXXFLAGS=-Wall -Wno-unused-function -g \

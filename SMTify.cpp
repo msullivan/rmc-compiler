@@ -4,6 +4,8 @@
 
 #include "RMCInternal.h"
 
+#if USE_Z3
+
 #include "PathCache.h"
 
 #include <llvm/IR/Function.h>
@@ -713,3 +715,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   return cuts;
 }
+
+#else /* !USE_Z3 */
+#include <stdlib.h>
+using namespace llvm;
+std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
+  abort();
+}
+#endif

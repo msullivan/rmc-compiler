@@ -42,7 +42,8 @@ The dependencies are:
    problems. You'll need to build from source, making sure to pass
    --enabled-shared when you run llvm's configure script.
 
- * The opt branch of Microsoft's Z3 SMT solver, available from
+ * To use the (recommended) SMT based backend, you need the opt branch
+   of Microsoft's Z3 SMT solver, available from
    https://github.com/Z3Prover/z3/tree/opt.
 
    If Z3 is installed at a nonstandard location, pass its installation
@@ -51,6 +52,8 @@ The dependencies are:
    If you have the master branch installed instead of opt, we can use
    that too, at the cost of performance: pass --disable-z3-opt to
    ./configure.
+
+   To disable the SMT backend, pass --disable-z3 to ./configure.
 
 
 Installing
