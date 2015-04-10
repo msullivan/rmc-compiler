@@ -1,0 +1,9 @@
+[package]
+name = "rmc-plugin"
+version = "0.0.1"
+authors = ["Michael Sullivan <sully@msully.net>"]
+license = "MIT"
+
+[lib]
+name = "rmc_plugin"
+plugin = true

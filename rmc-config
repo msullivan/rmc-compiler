@@ -34,6 +34,10 @@ do
 			shift
 			PRINT_CXXFLAGS=1
 			;;
+		--lib)
+			shift
+			PRINT_LIB=1
+			;;
 		*)
 			break
 	esac
@@ -55,4 +59,8 @@ if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
 		   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
 	   fi
    fi
+fi
+
+if [ -n "$PRINT_LIB" ]; then
+	printf "%s" "$RMC_LIB"
 fi
