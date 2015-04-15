@@ -521,7 +521,7 @@ void hideOperand(Instruction *instr, int i) {
   }
 }
 void hideOperands(Instruction *instr) {
-  for (int i = 0; i < instr->getNumOperands(); i++) {
+  for (unsigned i = 0; i < instr->getNumOperands(); i++) {
     hideOperand(instr, i);
   }
 }
@@ -787,6 +787,7 @@ bool RealizeRMC::isCut(const RMCEdge &edge) {
     } else {
       return false;
     }
+  default: assert(0 && "bogus case"); abort();
   }
 }
 
@@ -894,9 +895,8 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   {
     std::vector<Instruction *> trail;
     Instruction *end = bb2action_[cut.dst]->soleLoad;
-    bool deps = addrDepsOn(end, cut.read,
-                           &pc_, cut.path, &trail);
-    assert(deps);
+    bool deps = addrDepsOn(end, cut.read, &pc_, cut.path, &trail);
+    assert_(deps);
     enforceAddrDeps(end, trail);
     break;
   }

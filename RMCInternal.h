@@ -5,6 +5,8 @@
 #ifndef RMC_INTERNAL_H
 #define RMC_INTERNAL_H
 
+#include "sassert.h"
+
 #include <utility>
 #include <tuple>
 

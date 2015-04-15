@@ -27,7 +27,7 @@ static bool extractBool(SmtExpr const &e) {
 static int extractInt(SmtExpr const &e) {
   int i;
   auto b = Z3_get_numeral_int(e.ctx(), e, &i);
-  assert(b == Z3_TRUE);
+  assert_(b == Z3_TRUE);
   return i;
 }
 
