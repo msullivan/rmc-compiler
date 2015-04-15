@@ -18,7 +18,7 @@
     __v;                                         \
     })
 
-#if defined(i386) || defined(__x86_64)
+#if defined(__i386) || defined(__x86_64__)
 
 #define x86_lfence() __asm__ __volatile__("lfence":::"memory")
 #define x86_sfence() __asm__ __volatile__("sfence" ::: "memory")
