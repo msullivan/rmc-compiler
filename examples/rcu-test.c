@@ -64,7 +64,8 @@ typedef struct list_head_rmc_t {
 // offset of and stuff.
 #ifdef DO_C11
 
-#include "stdatomic.h"
+// We bogusly rely rmc.h having included stdatomic.
+//#include "stdatomic.h"
 
 typedef struct list_node_c11_t {
     _Atomic(struct list_node_c11_t *) next;
