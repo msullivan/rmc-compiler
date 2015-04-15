@@ -1,13 +1,16 @@
-#include <stddef.h>
+#define _GNU_SOURCE
+
+#include <unistd.h>
 #include "atomic.h"
 #include <rmc.h>
+#include <stddef.h>
 
 #define DO_C11 1
 
 ///////////////
 
 #define container_of(ptr, type, member) ({                              \
-            const typeof( ((type *)0)->member ) *__mptr = (ptr);        \
+            const __typeof__( ((type *)0)->member ) *__mptr = (ptr);    \
             (type *)( (char *)__mptr - offsetof(type,member) );})
 
 
@@ -31,9 +34,9 @@ typedef struct list_head_t {
     container_of(rcu_dereference(ptr), type, member)
 
 #define list_for_each_entry_rcu_linux(pos, head, member) \
-    for (pos = list_entry_rcu_linux((head)->head.next, typeof(*pos), member); \
+    for (pos = list_entry_rcu_linux((head)->head.next, __typeof__(*pos), member); \
          &pos->member != &(head)->head; \
-         pos = list_entry_rcu_linux(pos->member.next, typeof(*pos), member))
+         pos = list_entry_rcu_linux(pos->member.next, __typeof__(*pos), member))
 
 // Now rmc
 typedef struct list_node_rmc_t {
@@ -51,10 +54,10 @@ typedef struct list_head_rmc_t {
 
 #define list_for_each_entry_rcu_rmc2(pos, head, member, tag_a, tag_b) \
     XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b); \
-    for (pos = list_entry_rcu_rmc((head)->head.next, typeof(*pos), \
+    for (pos = list_entry_rcu_rmc((head)->head.next, __typeof__(*pos), \
                                   member, tag_a); \
          &pos->member != &(head)->head; \
-         pos = list_entry_rcu_rmc(pos->member.next, typeof(*pos), member,tag_a))
+         pos = list_entry_rcu_rmc(pos->member.next, __typeof__(*pos), member,tag_a))
 
 #define list_for_each_entry_rcu_rmc(pos, head, member, tag) \
     list_for_each_entry_rcu_rmc2(pos, head, member, __rcu_read, tag)
@@ -79,9 +82,9 @@ typedef struct list_head_c11_t {
     container_of(atomic_load_explicit(&ptr, memory_order_consume), type, member)
 
 #define list_for_each_entry_rcu_c11(pos, head, member) \
-    for (pos = list_entry_rcu_c11((head)->head.next, typeof(*pos), member); \
+    for (pos = list_entry_rcu_c11((head)->head.next, __typeof__(*pos), member); \
          &pos->member != &(head)->head; \
-         pos = list_entry_rcu_c11(pos->member.next, typeof(*pos), member))
+         pos = list_entry_rcu_c11(pos->member.next, __typeof__(*pos), member))
 
 #endif
 
