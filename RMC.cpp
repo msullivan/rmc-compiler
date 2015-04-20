@@ -51,6 +51,10 @@
 
 using namespace llvm;
 
+static void rmc_error() {
+  exit(1);
+}
+
 ///////
 // Printing functions I wish didn't have to be here
 namespace llvm {
@@ -284,6 +288,29 @@ void registerEdge(std::vector<RMCEdge> &edges,
   edges.push_back({edgeType, src, dst});
 }
 
+TinyPtrVector<Action *> RealizeRMC::collectEdges(StringRef name) {
+  TinyPtrVector<Action *> matches;
+  if (name == "pre" || name == "post") return matches;
+
+  // Since multiple blocks can have the same tag, we search for
+  // them by name.
+  // We could make this more efficient by building maps but I don't think
+  // it is going to matter.
+  for (auto & a : actions_) {
+    if (a.name == name) {
+      matches.push_back(&a);
+    }
+  }
+
+  if (matches.size() == 0) {
+    errs() << "Error: use of nonexistent label '" << name
+           << "' in function '" << func_.getName() << "'\n";
+    rmc_error();
+  }
+
+  return matches;
+}
+
 void RealizeRMC::processEdge(CallInst *call) {
   // Pull out what the operands have to be.
   // We just assert if something is wrong, which is not great UX.
@@ -292,35 +319,28 @@ void RealizeRMC::processEdge(CallInst *call) {
   RMCEdgeType edgeType = isVisibility ? VisibilityEdge : ExecutionEdge;
   StringRef srcName = getStringArg(call->getOperand(1));
   StringRef dstName = getStringArg(call->getOperand(2));
+  auto srcs = collectEdges(srcName);
+  auto dsts = collectEdges(dstName);
 
-  // Since multiple blocks can have the same tag, we search for
-  // them by name.
-  // We could make this more efficient by building maps but I don't think
-  // it is going to matter.
-  for (auto & src : actions_) {
-    if (src.name != srcName) continue;
-    for (auto & dst : actions_) {
-      if (dst.name != dstName) continue;
-      registerEdge(edges_, edgeType, &src, &dst);
+  for (auto src : srcs) {
+    for (auto dst : dsts) {
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
 
   // Handle pre and post edges now
   if (srcName == "pre") {
-    for (auto & dst : actions_) {
-      if (dst.name != dstName) continue;
-      Action *src = makePrePostAction(dst.startBlock);
-      registerEdge(edges_, edgeType, src, &dst);
+    for (auto dst : dsts) {
+      Action *src = makePrePostAction(dst->startBlock);
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
   if (dstName == "post") {
-    for (auto & src : actions_) {
-      if (src.name != srcName) continue;
-      Action *dst = makePrePostAction(src.endBlock);
-      registerEdge(edges_, edgeType, &src, dst);
+    for (auto src : srcs) {
+      Action *dst = makePrePostAction(src->endBlock);
+      registerEdge(edges_, edgeType, src, dst);
     }
   }
-
 }
 
 bool RealizeRMC::processPush(CallInst *call) {

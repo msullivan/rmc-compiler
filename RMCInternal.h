@@ -13,6 +13,8 @@
 #include "PathCache.h"
 
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/ADT/TinyPtrVector.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
@@ -199,6 +201,7 @@ private:
   void findActions();
   void findEdges();
   Action *makePrePostAction(BasicBlock *bb);
+  TinyPtrVector<Action *> collectEdges(StringRef name);
   void processEdge(CallInst *call);
   bool processPush(CallInst *call);
 
