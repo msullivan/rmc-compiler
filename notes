@@ -317,3 +317,12 @@ C++ seq cst fences:
    we aren't synchronizing with it.
 
 IN GENERAL, WE HAVE STRONGER TRANSITIVE VISIBILITY PROPERTIES.
+
+
+--------
+
+Optimizations that can break SC (partial list, obvs):
+ * CSE (r1 = *p; r2 = *q; r3 = *p; -- CSEing *p)
+ * Loop hoisting
+ * Dead store elimination (*p = 1; *q = 2; *p = 3; -- eliminating first store)
+ * Rematerializing loads
