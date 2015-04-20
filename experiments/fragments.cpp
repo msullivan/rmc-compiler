@@ -1,4 +1,6 @@
 #include <atomic>
+#include <utility>
+#include <limits.h>
 
 extern "C" {
 #if 0
@@ -12,6 +14,42 @@ long long load64(std::atomic<long long> *x) {
 void store64(std::atomic<long long> *x, long long y) {
 	return x->store(y, std::memory_order_relaxed);
 }
+
+struct two_pointer {
+    void *p;
+    void *q;
+};
+
+//typedef std::pair<void *, void *> two_pointer;
+two_pointer load_double(std::atomic<two_pointer> *x) {
+	return x->load(std::memory_order_relaxed);
+}
+void store_double(std::atomic<two_pointer> *x,
+                         two_pointer y) {
+	x->store(y, std::memory_order_relaxed);
+}
+two_pointer cas_double(std::atomic<two_pointer> *x,
+                       two_pointer ev, two_pointer nv) {
+    std::atomic_compare_exchange_strong(x, &ev, nv);
+    return ev;
+}
+
+#if ULONG_MAX == 4294967295
+typedef uint64_t uintdptr_t;
+#else
+typedef __uint128_t uintdptr_t;
+#endif
+
+uintdptr_t load_uintdptr_t(std::atomic<uintdptr_t> *x) {
+	return x->load(std::memory_order_relaxed);
+}
+uintdptr_t cas_uintdptr_t(std::atomic<uintdptr_t> *x,
+                          uintdptr_t ev, uintdptr_t nv) {
+    std::atomic_compare_exchange_strong(x, &ev, nv);
+    return ev;
+}
+
+
 
 int load_acquire(std::atomic<int> *x) {
 	return x->load(std::memory_order_acquire);
