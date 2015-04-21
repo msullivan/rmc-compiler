@@ -33,10 +33,11 @@
 extern "C" {
 #endif
 
-extern int __rmc_action_register(const char *name);
-extern int __rmc_action_close(int x);
-extern int __rmc_edge_register(int is_vis, const char *src, const char *dst);
-extern int __rmc_push(void);
+extern int __rmc_action_register(const char *name) __attribute__((noduplicate));
+extern int __rmc_action_close(int x) __attribute__((noduplicate));
+extern int __rmc_edge_register(int is_vis, const char *src, const char *dst)
+  __attribute__((noduplicate));
+extern int __rmc_push(void) __attribute__((noduplicate));
 
 #ifdef __cplusplus
 }
