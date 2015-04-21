@@ -95,15 +95,8 @@ extern int __rmc_push(void) __attribute__((noduplicate));
 // __rmc_typeof is defined in the C and C++ support files:
 // in C++ we do template magic to turn rmc<T> into T, which will
 // force the dereference.
-#define LE(label, expr)                                         \
+#define L(label, expr)                                         \
   ({LS(label, __rmc_typeof(expr) _______t = expr); _______t;})
-#define LR(label, expr) LE(label, expr)
-
-#ifdef OLD_L_BEHAVIOR
-#define L(label, stmt) LS(label, stmt)
-#else
-#define L(label, stmt) LR(label, stmt)
-#endif
 
 #define __rmc_push_here_internal(l) do { L(l, __rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
 #define __rmc_push_here() __rmc_push_here_internal(XRCAT(__barrier_push, __COUNTER__))
