@@ -401,8 +401,15 @@ void analyzeAction(Action &info) {
       soleLoad = &i;
     } else if (isa<StoreInst>(i)) {
       ++info.stores;
+    } else if (CallInst *call = dyn_cast<CallInst>(&i)) {
+      // Don't count functions that don't access memory
+      // (for example, critically, llvm.dbg.* intrinsics)
+      if (!(call->getCalledFunction() &&
+            call->getCalledFunction()->doesNotAccessMemory())) {
+        ++info.calls;
+      }
     // What else counts as a call? I'm counting fences I guess.
-    } else if (isa<CallInst>(i) || isa<FenceInst>(i)) {
+    } else if (isa<FenceInst>(i)) {
       ++info.calls;
     } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
       ++info.RMWs;
@@ -413,9 +420,7 @@ void analyzeAction(Action &info) {
   // These categories might not be the best.
   if (info.isPush) {
     // shouldn't do anything else; but might be a store if we didn't mem2reg
-    // FIXME: had to disable this assert to keep from choking on debug
-    // intrinsics
-    //assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
+    assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
     info.type = ActionPush;
   } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;
