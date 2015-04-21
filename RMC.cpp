@@ -413,7 +413,9 @@ void analyzeAction(Action &info) {
   // These categories might not be the best.
   if (info.isPush) {
     // shouldn't do anything else; but might be a store if we didn't mem2reg
-    assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
+    // FIXME: had to disable this assert to keep from choking on debug
+    // intrinsics
+    //assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
     info.type = ActionPush;
   } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;
