@@ -97,7 +97,7 @@ int sb_test1(rmc_int *p, rmc_int *q) {
 
 // Store buffering test using pre/post
 int sb_test2(rmc_int *p, rmc_int *q) {
-    VEDGE(pre, push); XEDGE(post, read);
+    VEDGE(pre, push); XEDGE(push, post);
 
     rmc_store(p, 1);
     L(push, rmc_push());
