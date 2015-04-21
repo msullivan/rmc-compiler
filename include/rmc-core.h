@@ -75,10 +75,20 @@ extern int __rmc_push(void) __attribute__((noduplicate));
 // and C11 atomics are totally unspecified, so...
 #define __rmc_push() ({ __sync_synchronize(); 0; })
 
+// What orders to use for the atomic ops.
+// Generally use release/acquire, but if RMC_FALLBACK_USE_SC
+// is set, use seq_cst instead to help debug whether bugs
+// are related to weak memory behavior.
+#ifdef RMC_FALLBACK_USE_SC
+#define __rmc_load_order memory_order_seq_cst
+#define __rmc_store_order memory_order_seq_cst
+#define __rmc_rmw_order memory_order_seq_cst
+#else /* !RMC_FALLBACK_USE_SC */
 // What orders to use for the atomic ops. Always release/acquire
 #define __rmc_load_order memory_order_acquire
 #define __rmc_store_order memory_order_release
 #define __rmc_rmw_order memory_order_acq_rel
+#endif /* RMC_FALLBACK_USE_SC */
 
 #endif /* HAS_RMC */
 
