@@ -514,6 +514,40 @@ RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_rmc_t *buf)
     return c;
 }
 
+RMC_BIND_OUTSIDE int buf_enqueue_rmc_pow2(ring_buf_rmc_t *buf, unsigned char c)
+{
+    XEDGE(e_check, insert);
+    VEDGE(insert, e_update);
+
+    unsigned back = rmc_load(&buf->back);
+    unsigned front = L(e_check, rmc_load(&buf->front));
+
+    int enqueued = 0;
+    if (back != front + BUF_SIZE) {
+        L(insert, buf->buf[back % BUF_SIZE] = c);
+        L(e_update, rmc_store(&buf->back, back + 1));
+        enqueued = 1;
+    }
+    return enqueued;
+}
+
+RMC_BIND_OUTSIDE int buf_dequeue_rmc_pow2(ring_buf_rmc_t *buf)
+{
+    XEDGE(d_check, read);
+    XEDGE(read, d_update);
+
+    unsigned front = rmc_load(&buf->front);
+    unsigned back = L(d_check, rmc_load(&buf->back));
+
+    int c = -1;
+    if (front != back) {
+        L(read, c = buf->buf[front % BUF_SIZE]);
+        L(d_update, rmc_store(&buf->front, front + 1));
+    }
+
+    return c;
+}
+
 
 #ifndef NO_TEST
 /*************************** Testing ***************************************/
