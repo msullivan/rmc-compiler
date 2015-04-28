@@ -8,15 +8,15 @@
  * and https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/memory-barriers.txt
  * */
 
-#define KBD_BUF_SIZE (1024*1)
+#define BUF_SIZE (1024*1)
 
 /* Generic things */
 typedef struct ring_buf_t {
-    unsigned char buf[KBD_BUF_SIZE];
+    unsigned char buf[BUF_SIZE];
     unsigned front, back;
 } ring_buf_t;
 
-#define ring_inc(v) (((v) + 1) % KBD_BUF_SIZE)
+#define ring_inc(v) (((v) + 1) % BUF_SIZE)
 
 #ifndef ONLY_RMC
 
@@ -56,8 +56,8 @@ int buf_enqueue_pow2(ring_buf_t *buf, unsigned char c)
     unsigned front = buf->front;
 
     int enqueued = 0;
-    if (back != front + KBD_BUF_SIZE) {
-        buf->buf[back % KBD_BUF_SIZE] = c;
+    if (back != front + BUF_SIZE) {
+        buf->buf[back % BUF_SIZE] = c;
         buf->back = back+1;
         enqueued = 1;
     }
@@ -71,7 +71,7 @@ int buf_dequeue_pow2(ring_buf_t *buf)
 
     int c = -1;
     if (front != back) {
-        c = buf->buf[front % KBD_BUF_SIZE];
+        c = buf->buf[front % BUF_SIZE];
         buf->front = front+1;
     }
     return c;
@@ -417,7 +417,7 @@ int buf_dequeue_linux_old(ring_buf_t *buf)
 /******************* try an rmc version..... ****************************/
 
 typedef struct ring_buf_rmc_t {
-    unsigned char buf[KBD_BUF_SIZE];
+    unsigned char buf[BUF_SIZE];
     rmc_uint front, back;
 } ring_buf_rmc_t;
 
