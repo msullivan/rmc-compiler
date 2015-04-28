@@ -15,10 +15,10 @@ void store64(std::atomic<long long> *x, long long y) {
 	return x->store(y, std::memory_order_relaxed);
 }
 
-struct two_pointer {
+struct alignas(2*sizeof(void*)) two_pointer {
     void *p;
     void *q;
-} __attribute__((__aligned__(16)));
+};
 
 //typedef std::pair<void *, void *> two_pointer;
 two_pointer load_double(std::atomic<two_pointer> *x) {
