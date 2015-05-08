@@ -326,3 +326,8 @@ Optimizations that can break SC (partial list, obvs):
  * Loop hoisting
  * Dead store elimination (*p = 1; *q = 2; *p = 3; -- eliminating first store)
  * Rematerializing loads
+
+
+-----
+
+I want a better story for using atomics in an SC way.
