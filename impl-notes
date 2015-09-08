@@ -1,0 +1,76 @@
+Some notes on the implementation as of 2015-05-15 or so
+
+It works on Linux and OS X. There is no fundamental reason why it doesn't work on Windows; I just haven't made the configuration/build system and support scripts support it yet.
+
+--
+
+The implementation is built as an LLVM pass that should run somewhere in the middle of the optimization pipeline; we want function inlining and some optimizations to have run already, but we also want there to be optimization passes run afterwards, to clean up after us.
+
+Labels and edges are conveyed to the pass through the use of calls to dummy functions. Labeled actions are wrapped in calls to __rmc_action_register()/__rmc_action_close() and edges are registered with calls to __rmc_edge_register().
+
+This protocol allows RMC support to be added to languages with an LLVM based compiler without modifying the front-end, just as a macro library.
+
+--
+
+The core of the implementation is basically this:
+    a. Every push edge is cut by a sync.
+    b. Every W->W and R->W visibility edge is cut by a sync or lwsync.
+    c. Every R->R edge is cut by a sync, lwsync,
+       control-isync, or data/address dependency.
+    d. Every R->W execution edge is cut by a sync, lwsync,
+       control-isync, data/address dependency, or control dependency.
+
+The implementation does not actually generate push edges, though; I just insert a sync wherever a push appears (and then note those syncs when determining placement).
+
+The implementation puts each action into its own basic block (or group of basic blocks), analyzes what sort of memory accesses each action makes, and uses an SMT solver (z3) to optimize the placement of lwsyncs, inserted dependencies, etc. The optimization function weights edges based on how many paths through the function flow through the edge and based on how many loops it is nested inside (weights are incrased by a factor of 4^n, where n is the loop nesting count).
+
+Cutting execution edges is somewhat tricky, as it is not just a matter of making sure an edge is cut. Dependencies that cut execution edges are all 1-to-1 or 1-to-many (not many-to-many like lwsync) and require special care to ensure ordering across loop iterations.
+
+We represent pre and post edges by an edge to a dummy block that immediately precedes or follows the action.
+
+The compiler will take advantage of existing control and data dependencies for execution ordering and will insert new control deps and isyncs. It does not yet insert data dependencies.
+
+One of the most annoying things to deal with is ensuring that LLVM won't optimize away dependencies that we rely on.
+
+--
+We also have a non-SMT based algorithm that just greedily cuts the edges. Like the SMT based one, it can take advantage of existing control and data dependencies.
+
+--
+We also have a "fallback" implementation that does not require our backend pass at all and is implemented just in the header file. The fallback implementation simply ignores all labels and edges and makes all accesses to atomic locations use C++11 release/acquire ordering. Pushes are implemented as a full sync.
+
+Honestly, on x86, it's probably better to use this than to bother dealing with our backend.
+
+--
+ARMv8 adds "release" and "acquire" instructions (although they actually correspond more to C++11's SC atomics). Taking advantage of these should be interesting. "release" I think will essentially give us a many-to-1 visibility edge.
+
+--
+
+By default, edges inside a function do not apply to future function calls. This can be overridden by labeling the function with RMC_BIND_OUTSIDE.
+(This is a blatant hack, but RMC_BIND_OUTSIDE is implemented as an attribute that suppresses inlining the function, which is necessary to make the binding outside work.)
+There are some tricky issues with recursion and cross function call edges. For now I claim that we "disallow" recursing in an RMC_BIND_OUTSIDE function, I guess.
+
+--
+
+The implementation, following C++, has a notion of non-atomic locations that isn't supported by the formalism yet.
+Data races on non-atomic locations are undefined behavior - "halt and catch fire". I'm not totally sure what definition of data race we will use for this, though. The definition in the paper used for the "data-race-free implies SC" theorem is too strong; it requires a post edge and would thus consider the accesses to "data" in the message passing example to be racy.
+
+I'm not sure what other changes/restrictions we need to apply to non-atomic locations; maybe prevent rfs on non-atomics from participating in visibility order?
+
+--
+
+Compare and swap can't properly be implemented using RMW. Since RMW *always* causes a write in the formalism, a CAS implemented using LL/SC will have rf edges in the formalism that don't correspond to rf edges in the real hardware execution. This can be made to work, but involves inserting syncs in places that don't make sense.
+
+This can be fixed by adding a new CAS directly to the language; like
+RMW, it will evaluate into RWs and speculations; two rules: one for
+success, one for failure.
+
+--
+We have liveness conditions that can be informally stated as:
+ 1. All executable actions will eventually be executed.
+ 2. Writes will eventually become visible. (Does "If a thread repeatedly reads from an location, it will not indefinitly continue to observe a write if there is a coherence later write." accomplish this?)
+
+I feel like these are sort of obviously properties that we depend on in general in order for our programs to run (instead of having nothing happen), but I think that they need to be spelled out in order to clearly rule out certain compiler transformations.
+
+We want condition 2 in order to rule out things like transforming "while (!flag) {} " --> "if (!flag) { while (1) {} }". If flag is not atomic, C/C++ compilers *will* notice that flag is loop invariant and hoist it out of the loop.
+
+We want condition 1 in order to rule out things like "x = 1; while (y) {}" --> "while (y) {}; x = 1". The compiler shouldn't be able to delay a past something that might not complete; in this case, another thread might be waiting to read x==1 before setting y, and so pushing the write to x until after the loop might *prevent* the loop from completing.
