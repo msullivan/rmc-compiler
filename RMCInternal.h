@@ -49,7 +49,7 @@ namespace llvm {
 enum RMCEdgeType {
   NoEdge,
   VisibilityEdge,
-  ExecutionEdge
+  ExecutionEdge,
 };
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
@@ -61,22 +61,20 @@ enum ActionType {
   ActionPush,
   ActionSimpleRead,
   ActionSimpleWrites, // needs to be paired with a dep
-  ActionSimpleRMW
+  ActionSimpleRMW,
 };
 struct Action {
-Action(BasicBlock *p_bb,
-       BasicBlock *p_startBlock = nullptr, BasicBlock *p_endBlock = nullptr,
-       std::string p_name = "") :
+  Action(BasicBlock *p_bb,
+         BasicBlock *p_startBlock = nullptr, BasicBlock *p_endBlock = nullptr,
+         std::string p_name = "") :
     bb(p_bb),
     startBlock(p_startBlock),
     endBlock(p_endBlock),
     name(p_name),
-    type(ActionComplex),
-    isPush(false),
-    stores(0), loads(0), RMWs(0), calls(0), soleLoad(nullptr)
+    type(ActionComplex)
     {}
-  void operator=(const Action &) LLVM_DELETED_FUNCTION;
-  Action(const Action &) LLVM_DELETED_FUNCTION;
+  void operator=(const Action &) = delete;
+  Action(const Action &) = delete;
   Action(Action &&) = default; // move constructor!
 
   BasicBlock *bb;
@@ -87,12 +85,12 @@ Action(BasicBlock *p_bb,
 
   // Some basic info about what sort of instructions live in the action
   ActionType type;
-  bool isPush;
-  int stores;
-  int loads;
-  int RMWs;
-  int calls;
-  Instruction *soleLoad;
+  bool isPush{false};
+  int stores{0};
+  int loads{0};
+  int RMWs{0};
+  int calls{0};
+  Instruction *soleLoad{nullptr};
 
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
@@ -136,7 +134,7 @@ enum CutType {
   CutIsync,
   CutLwsync,
   CutSync,
-  CutData
+  CutData,
 };
 struct BlockCut {
   BlockCut() : type(CutNone), isFront(false), read(nullptr) {}
@@ -148,24 +146,24 @@ struct BlockCut {
 };
 
 struct EdgeCut {
-  EdgeCut() : type(CutNone), src(nullptr), dst(nullptr),
-    read(nullptr), path(PathCache::kEmptyPath) {}
+  EdgeCut() {}
   EdgeCut(CutType ptype, BasicBlock *psrc, BasicBlock *pdst,
           Value *pread = nullptr,
           PathID ppath = PathCache::kEmptyPath)
     : type(ptype), src(psrc), dst(pdst), read(pread), path(ppath) {}
-  CutType type;
-  BasicBlock *src;
-  BasicBlock *dst;
-  Value *read;
-  PathID path;
+
+  CutType type{CutNone};
+  BasicBlock *src{nullptr};
+  BasicBlock *dst{nullptr};
+  Value *read{nullptr};
+  PathID path{PathCache::kEmptyPath};
 };
 
 enum CutStrength {
   NoCut,
   DataCut, // Is cut for one loop iteration, needs an xcut
   SoftCut, // Is cut for one loop iteration, needs a ctrl
-  HardCut
+  HardCut,
 };
 
 // Utility functions
@@ -180,14 +178,14 @@ bool addrDepsOn(Instruction *instr, Value *load,
 class RealizeRMC {
 private:
   Function &func_;
-  Pass *underlyingPass_;
+  Pass * const underlyingPass_;
   DominatorTree &domTree_;
-  LoopInfo &loopInfo_;
-  bool useSMT_;
+  const LoopInfo &loopInfo_;
+  const bool useSMT_;
 
-  bool actionsBoundOutside_;
+  bool actionsBoundOutside_{false};
 
-  int numNormalActions_;
+  int numNormalActions_{0};
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
   SmallPtrSet<Action *, 4> pushes_;
@@ -227,7 +225,7 @@ public:
              LoopInfo &loopInfo, bool useSMT)
     : func_(F), underlyingPass_(underlyingPass),
       domTree_(domTree), loopInfo_(loopInfo),
-      useSMT_(useSMT), actionsBoundOutside_(false), numNormalActions_(0) { }
+      useSMT_(useSMT) {}
   ~RealizeRMC() { }
   bool run();
 };
