@@ -29,6 +29,9 @@
 #define RCAT(x,y)      x ## y
 #define XRCAT(x,y)     RCAT(x,y)
 
+#define RMC_FORCE_INLINE __attribute__((always_inline))
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

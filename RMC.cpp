@@ -84,7 +84,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 
 }
 
-// Compute the transitive closure of the action grap
+// Compute the transitive closure of the action graph
 template <typename Range>
 void transitiveClosure(Range &actions,
                        Action::TransEdges Action::* edgeset) {

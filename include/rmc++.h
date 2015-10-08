@@ -82,9 +82,9 @@ template<class T> struct remove_rmc<atomic<T>>   {typedef T type;};
 #define __rmc_typeof(e)                                         \
   ::rmc::remove_rmc<std::remove_reference<decltype(e)>::type>::type
 
-__attribute__((always_inline))
+RMC_FORCE_INLINE
 static inline int push() { return __rmc_push(); }
-__attribute__((always_inline))
+RMC_FORCE_INLINE
 static inline void push_here() { __rmc_push_here(); }
 
 }

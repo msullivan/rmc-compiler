@@ -236,7 +236,7 @@ optimizations. *Not* everything that is labeled needs to be atomic
 example) and some things that need to be atomic don't need to be
 labeled (esp. when using pre/post). Maybe the thing to do is to
 imitate C11 more and have rmc_store/rmc_load, maybe even _Rmc/Rmc<T>?
-
+* Done
 
 ------
 
@@ -263,6 +263,37 @@ which is wrong.
 want outside binding...
 RMC_BIND_OUTSIDE
 * DONE
+
+*** Maybe in some cases we can then remove the noinline after the rmc
+    pass.
+
+-
+Maybe some of these problems can be addressed by explicit declaration
+of labels (and then using the label's *addresses* as the tags to edge
+registration...
+Binding outside could be represented by globally declared labels,
+although that will pose plenty of its own problems.
+Then maaaaybe we can pass labels to functions.
+
+Or maybe we *don't* do the label passing thing but instead, when we
+want that sort of thing, we make a global label part of the API and
+other functions declare edges to it.
+
+- We say it only works inside a compilation unit, but that's probably
+  fine.
+- We ditch the noinline hack and do the bind outside with globals
+- When we look at global labels, we need to find all the functions
+  they are used in
+- XXX: /might/ be fucked
+
+- These things might be useful but I think we do actually should
+  support something that works across files:
+*** support edges to/from "argument pass"/"function return"
+ - how to model?
+   - could allow passing labels...
+   - model argument passing as writing to a location, then passing
+     that location and reading it - then we put constraints on that
+
 
 
 -----
@@ -331,3 +362,19 @@ Optimizations that can break SC (partial list, obvs):
 -----
 
 I want a better story for using atomics in an SC way.
+
+The problem is that putting pushes in is stronger than we need and
+requires worse code. x86 shouldn't need to MFENCE on SC reads, ARMv8
+should be able to use its new instructions.
+
+Originally I had thought that I could manage something like this by
+adding a notion of "push edges" which could be optimized based on the
+source/sink (so on x86, only a R->W push edge would require an
+MFENCE). This is complicated by transitivity issues, but might still
+be workable.
+
+New idea: can we *model* them as either:
+ * lock; memory access; unlock
+ * RMW (with vpost after?) - bet not - see "read don't modify write"
+- skeptical of the first also - same reason I think
+- THIS DOES NOT WORK AT ALL :( :( :( same reason
