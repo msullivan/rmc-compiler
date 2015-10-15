@@ -180,7 +180,7 @@ private:
   Function &func_;
   Pass * const underlyingPass_;
   DominatorTree &domTree_;
-  const LoopInfo &loopInfo_;
+  LoopInfo &loopInfo_;
   const bool useSMT_;
 
   bool actionsBoundOutside_{false};
@@ -194,6 +194,7 @@ private:
   PathCache pc_;
 
   // Functions
+  BasicBlock *splitBlock(BasicBlock *Old, Instruction *SplitPt);
 
   // Analysis routines
   void findActions();

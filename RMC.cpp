@@ -207,6 +207,39 @@ Instruction *makeCopy(Value *v, Instruction *to_precede) {
 // We also need to add a thing for fake data deps, which is more annoying.
 
 ///////////////////////////////////////////////////////////////////////////
+//// Some annoying LLVM version specific stuff
+
+#if LLVM_VERSION_MAJOR == 3 &&                          \
+  (LLVM_VERSION_MINOR == 5 || LLVM_VERSION_MINOR == 6)
+// Some annoying changes with how LoopInfo interacts with the pass manager
+#define LOOPINFO_PASS_NAME LoopInfo
+LoopInfo &getLoopInfo(const Pass &pass) {
+  return pass.getAnalysis<LoopInfo>();
+}
+// And the signature of SplitBlock changed...
+BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
+  return llvm::SplitBlock(Old, SplitPt, underlyingPass_);
+}
+
+#elif LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR == 7
+
+#define LOOPINFO_PASS_NAME LoopInfoWrapperPass
+LoopInfo &getLoopInfo(const Pass &pass) {
+  return pass.getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+}
+
+BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
+  return llvm::SplitBlock(Old, SplitPt, &domTree_, &loopInfo_);
+}
+
+#else
+#error Unsupported LLVM version
+#endif
+
+
+
+
+///////////////////////////////////////////////////////////////////////////
 //// Code to pull random crap out of LLVM functions
 
 StringRef getStringArg(Value *v) {
@@ -472,13 +505,13 @@ void RealizeRMC::findActions() {
     // we can work with it more easily.
 
     // Split once to make a start block
-    BasicBlock *start = SplitBlock(reg->getParent(), reg, underlyingPass_);
+    BasicBlock *start = splitBlock(reg->getParent(), reg);
     start->setName("_rmc_start_" + name);
     // Split it again so the start block is empty and we have our main block
-    BasicBlock *main = SplitBlock(start, reg, underlyingPass_);
+    BasicBlock *main = splitBlock(start, reg);
     main->setName("_rmc_" + name);
     // Now split the end to get our tail block
-    BasicBlock *end = SplitBlock(close->getParent(), close, underlyingPass_);
+    BasicBlock *end = splitBlock(close->getParent(), close);
     end->setName("_rmc_end_" + name);
 
     actions_.emplace_back(main, start, end, name);
@@ -1024,7 +1057,7 @@ public:
   }
   virtual bool runOnFunction(Function &F) override {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    LoopInfo &li = getAnalysis<LoopInfo>();
+    LoopInfo &li = getLoopInfo(*this);
     RealizeRMC rmc(F, this, dom, li, UseSMT);
     return rmc.run();
   }
@@ -1032,7 +1065,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
     AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<LoopInfo>();
+    AU.addRequired<LOOPINFO_PASS_NAME>();
   }
 };
 
@@ -1048,7 +1081,9 @@ namespace llvm { void initializeRealizeRMCPassPass(PassRegistry&); }
 INITIALIZE_PASS_BEGIN(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
                       false, false)
 INITIALIZE_PASS_DEPENDENCY(BreakCriticalEdges)
-INITIALIZE_PASS_DEPENDENCY(LoopInfo)
+// Hack to cause macro expansion of the name first...
+#define INITIALIZE_PASS_DEPENDENCY_X(x) INITIALIZE_PASS_DEPENDENCY(x)
+INITIALIZE_PASS_DEPENDENCY_X(LOOPINFO_PASS_NAME)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
                     false, false)
