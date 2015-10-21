@@ -13,9 +13,9 @@
  * and __rmc_action_close which indicate the extent of the action and
  * associate it with a name. __rmc_action_close is passed the (bogus)
  * return value from __rmc_action_register in order to make them easy
- * to associate (even if they are duplicated by an optimizer). Edges
- * are specified by calling a dummy function __rmc_edge_register with
- * the names of the labels as arguments.
+ * to associate (even if they are duplicated by an optimizer (although
+ * we ban this now)). Edges are specified by calling a dummy function
+ * __rmc_edge_register with the names of the labels as arguments.
  *
  * I'm not totally sure how fragile this is at this point. The pass
  * should definitely be run after mem2reg and I suspect that it is
@@ -30,17 +30,22 @@
 #define XRCAT(x,y)     RCAT(x,y)
 
 #define RMC_FORCE_INLINE __attribute__((always_inline))
-
+#define RMC_NODUPLICATE __attribute__((noduplicate))
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int __rmc_action_register(const char *name) __attribute__((noduplicate));
-extern int __rmc_action_close(int x) __attribute__((noduplicate));
+// RMC_NODUPLICATE prevents any transformation that would introduce
+// more call sites to a function. This prevents some transformations
+// that would cause problems by getting rid of the 1:1 correspondence
+// of register() and close() calls as well as preventing inlining
+// (except when there is exactly one call site).
+extern int __rmc_action_register(const char *name) RMC_NODUPLICATE;
+extern int __rmc_action_close(int x) RMC_NODUPLICATE;
 extern int __rmc_edge_register(int is_vis, const char *src, const char *dst)
-  __attribute__((noduplicate));
-extern int __rmc_push(void) __attribute__((noduplicate));
+  RMC_NODUPLICATE;
+extern int __rmc_push(void) RMC_NODUPLICATE;
 
 #ifdef __cplusplus
 }
