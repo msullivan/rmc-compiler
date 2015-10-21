@@ -267,6 +267,13 @@ RMC_BIND_OUTSIDE
 *** Maybe in some cases we can then remove the noinline after the rmc
     pass.
 
+Actually, inlining isn't that much of a problem necessarily. We set
+noduplicate on the rmc functions, which prevent inlining unless there
+is exactly one local callsite and it can be inlined there. So we can
+get rid of the noinline thing and make BIND_OUTSIDE the default...  We
+/might/ need to /then/ go make certain BIND_OUTSIDE things be the
+default.
+
 -
 Maybe some of these problems can be addressed by explicit declaration
 of labels (and then using the label's *addresses* as the tags to edge
@@ -378,3 +385,13 @@ New idea: can we *model* them as either:
  * RMW (with vpost after?) - bet not - see "read don't modify write"
 - skeptical of the first also - same reason I think
 - THIS DOES NOT WORK AT ALL :( :( :( same reason
+
+
+--------
+
+We are actually a little weaker than mo_relaxed:
+ - We don't support the CoRR property (when we plug po in for hb),
+   which says that program-order reads from the same location respect
+   coherence order
+ - But we /do/ support the CoRW rule through the kind of weird
+   RWP-PO/WWP-READ rules...
