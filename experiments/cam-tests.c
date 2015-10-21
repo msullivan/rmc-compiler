@@ -228,3 +228,16 @@ int main() {
         /*atomic_thread_fence(memory_order_seq_cst); */}
   }}};
   return 0; }
+
+///////////////////////////////////////////////////////
+
+// Test the WWP-READ case in C++
+int main() {
+  atomic_int x;
+  {{{ x.store(1, memory_order_relaxed);
+  ||| { r1=x.load(memory_order_relaxed).readsvalue(1);
+        x.store(2, memory_order_relaxed); }
+  ||| { r3=x.load(memory_order_relaxed).readsvalue(2);
+        r4=x.load(memory_order_relaxed).readsvalue(1); }
+  }}};
+  return 0; }
