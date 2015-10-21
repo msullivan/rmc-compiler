@@ -49,11 +49,10 @@ Should be a little careful because probably a common idiom will be:
   L(push, PUSH); VEDGE(pre, push); XEDGE(push, post);
 and we should just generate a single sync in place and not do dumb things.
 
-It will be common because I'll probably write a macro for it, so...
+It will be common because there is a macro for it, so...
 
 Will actually need special handling of pre/push to posts even just for
 correctness!
-
 
 --
 I sort of dislike inserting all these barriers so early. I feel like
@@ -66,6 +65,7 @@ after actions with pre/post constraints. The only tricky thing is that
 we need to make sure we don't try any funny business with dependencies
 for xo edges.
 
+* DONE: handle this fine
 
 ------------------------------------------------------
 Things about the paper:

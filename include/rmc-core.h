@@ -111,6 +111,17 @@ extern int __rmc_push(void) __attribute__((noduplicate));
 #define L(label, expr)                                         \
   ({LS(label, __rmc_typeof(expr) _______t = expr); _______t;})
 
+// Convenience macros for labels that have relationships with
+// all program order successors or predecessors.
+// The edge type is always visibility, since it implies execution order.
+// Since no-ops are only meaningful for transitivity, the compiler is
+// smart enough to do execution-order edge cutting if only execution
+// edges are drawn.
+#define __rmc_noop() ((void)0)
+#define LPRE(label) do { VEDGE(pre, label); LS(label, __rmc_noop()); } while(0)
+#define LPOST(label) do { VEDGE(label, post); LS(label, __rmc_noop()); }while(0)
+
+
 #define __rmc_push_here_internal(l) do { L(l, __rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
 #define __rmc_push_here() __rmc_push_here_internal(XRCAT(__barrier_push, __COUNTER__))
 

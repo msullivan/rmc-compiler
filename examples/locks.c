@@ -16,12 +16,11 @@ void mutex_lock_bad(mutex_t *lock)
 void mutex_lock(mutex_t *lock)
 {
     XEDGE(lock, loop_out);
-    XEDGE(loop_out, post);
     int expected;
     do {
         expected = 0;
     } while (L(lock, rmc_compare_exchange_weak(&lock->locked, &expected, 1)) == 0);
-    L(loop_out, 0);
+    LPOST(loop_out);
 }
 
 void mutex_unlock(mutex_t *lock)
@@ -52,11 +51,10 @@ void mutex2_lock(mutex2_t *lock)
 {
     //XEDGE(take, check); // I /think/ maybe we don't need this depending.
     XEDGE(check, loop_out);
-    XEDGE(loop_out, post);
 
     int ticket = L(take, rmc_fetch_add(&lock->next, 1));
     while (ticket != L(check, rmc_load(&lock->owner))) {}
-    L(loop_out, 0);
+    LPOST(loop_out);
 }
 
 void mutex2_unlock(mutex2_t *lock)
