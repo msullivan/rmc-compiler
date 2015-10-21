@@ -263,6 +263,7 @@ which is wrong.
 want outside binding...
 RMC_BIND_OUTSIDE
 * DONE
+* UNDONE
 
 *** Maybe in some cases we can then remove the noinline after the rmc
     pass.
@@ -270,9 +271,9 @@ RMC_BIND_OUTSIDE
 Actually, inlining isn't that much of a problem necessarily. We set
 noduplicate on the rmc functions, which prevent inlining unless there
 is exactly one local callsite and it can be inlined there. So we can
-get rid of the noinline thing and make BIND_OUTSIDE the default...  We
-/might/ need to /then/ go make certain BIND_OUTSIDE things be the
-default.
+get rid of the noinline thing and make BIND_OUTSIDE the default...
+* DONE
+- XXX: do we need to go mark some of the functions noinline?
 
 -
 Maybe some of these problems can be addressed by explicit declaration

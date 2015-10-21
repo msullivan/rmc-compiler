@@ -480,7 +480,7 @@ typedef struct ring_buf_rmc_t {
  *
  */
 
-RMC_BIND_OUTSIDE int buf_enqueue_rmc(ring_buf_rmc_t *buf, unsigned char c)
+int buf_enqueue_rmc(ring_buf_rmc_t *buf, unsigned char c)
 {
     XEDGE(e_check, insert);
     VEDGE(insert, e_update);
@@ -497,7 +497,7 @@ RMC_BIND_OUTSIDE int buf_enqueue_rmc(ring_buf_rmc_t *buf, unsigned char c)
     return enqueued;
 }
 
-RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_rmc_t *buf)
+int buf_dequeue_rmc(ring_buf_rmc_t *buf)
 {
     XEDGE(d_check, read);
     XEDGE(read, d_update);
@@ -514,7 +514,7 @@ RMC_BIND_OUTSIDE int buf_dequeue_rmc(ring_buf_rmc_t *buf)
     return c;
 }
 
-RMC_BIND_OUTSIDE int buf_enqueue_rmc_pow2(ring_buf_rmc_t *buf, unsigned char c)
+int buf_enqueue_rmc_pow2(ring_buf_rmc_t *buf, unsigned char c)
 {
     XEDGE(e_check, insert);
     VEDGE(insert, e_update);
@@ -531,7 +531,7 @@ RMC_BIND_OUTSIDE int buf_enqueue_rmc_pow2(ring_buf_rmc_t *buf, unsigned char c)
     return enqueued;
 }
 
-RMC_BIND_OUTSIDE int buf_dequeue_rmc_pow2(ring_buf_rmc_t *buf)
+int buf_dequeue_rmc_pow2(ring_buf_rmc_t *buf)
 {
     XEDGE(d_check, read);
     XEDGE(read, d_update);
