@@ -29,8 +29,10 @@ endif
 
 endif
 
-ifeq ($(CFG_ENABLE_OPTIMIZE),1)
-OPT_LEVEL=-O
+ifeq ($(CFG_DISABLE_OPTIMIZE),1)
+OPT_LEVEL=-O0
+else
+OPT_LEVEL=-O2
 endif
 
 

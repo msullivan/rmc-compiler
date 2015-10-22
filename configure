@@ -544,7 +544,7 @@ fi
 BOOL_OPTIONS=""
 VAL_OPTIONS=""
 
-opt optimize 0 "build optimized library"
+opt optimize 1 "build optimized library"
 opt z3 1 "enable the z3 based compiler"
 opt z3-opt 1 "use z3's opt branch"
 
