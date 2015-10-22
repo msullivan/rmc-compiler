@@ -2,7 +2,7 @@ rmc-compiler
 =========
 
 Implementation of the Relaxed Memory Calculus atomics extension for C
-and C++ (and Rust!).
+and C++.
 
 Disclaimer: this is all very much work in progress research
 code. There are a lot of rough edges, some of the code is in need of
@@ -90,7 +90,11 @@ install g++-4.9-multilib-arm-linux-gnueabi and
 g++-4.9-powerpc-linux-gnu) and see what the code looks like at various
 stages in the pipeline. Check it out to see what all it can do.
 
--- To use RMC with Rust, you need to be running the nightly and add as
+--
+
+There used to be
+
+To use RMC with Rust, you need to be running the nightly and add as
 a Cargo dependency
 
 ```toml
@@ -100,10 +104,26 @@ git = "https://github.com/msullivan/rmc-compiler.git"
 git = "https://github.com/msullivan/rmc-compiler.git"
 ```
 
-Then you can pull it into you crate with
+Then you can pull it into your crate with
 
 ```rust
 #![feature(plugin)]
 #![plugin(rmc_plugin)]
 #[macro_use] extern crate rmc;
 ```
+
+When you compile using the plugin, `rmc-config` must be in your PATH
+in order for the plugin to find the libraries.
+
+Known bugs of the rust support:
+ * It actually currently doesn't work at all
+ * The plugin for loading the RMC stuff is janky
+ * It only works at all when building with optimizations *enabled*
+ * Since we can't specify "noduplicate" on our magic signaling
+   functions, LLVM might move things around in ways that our backend
+   doesn't understand, causing failure.
+ * Also as a result of that, RMC using functions might get inlined
+   before we get our hands on them, which means that edges between
+   subsequent calls to a function may not work properly.
+   For functions where this behavior is important,
+   marking them `#[inline(never)]` is advised as a workaround.

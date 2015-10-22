@@ -1,0 +1,12 @@
+[package]
+name = "test"
+version = "0.1.0"
+authors = ["Michael Sullivan <sully@msully.net>"]
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies.rmc-plugin]
+git = "https://github.com/msullivan/rmc-compiler.git"
+[dependencies.rmc]
+git = "https://github.com/msullivan/rmc-compiler.git"
