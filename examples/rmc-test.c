@@ -106,6 +106,29 @@ int sb_test2(rmc_int *p, rmc_int *q) {
     return x;
 }
 
+// Store buffering test using PEDGE
+int sb_test3(rmc_int *p, rmc_int *q) {
+    PEDGE(write, read);
+
+    L(write, rmc_store(p, 1));
+    int x = L(read, rmc_load(q));
+
+    return x;
+}
+
+// A test with PEDGE that makes sure that transitive stuff works right
+// into a PEDGE.
+int sb_test4(rmc_int *p, rmc_int *q) {
+    VEDGE(write, bs);
+    PEDGE(bs, read);
+
+    L(write, rmc_store(p, 1));
+    L(bs, 0);
+    int x = L(read, rmc_load(q));
+
+    return x;
+}
+
 
 // Some tests of pre and post.
 void store_release(rmc_int *ptr, int val) {

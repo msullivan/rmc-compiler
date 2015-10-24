@@ -47,9 +47,11 @@ namespace llvm {
 
 //// Indicator for edge types
 enum RMCEdgeType {
-  NoEdge,
-  VisibilityEdge,
+  // This order needs to correspond with the values in rmc-core.h
   ExecutionEdge,
+  VisibilityEdge,
+  PushEdge,
+  NoEdge
 };
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
@@ -96,12 +98,15 @@ struct Action {
   // XXX: Would we be better off storing this some other way?
   // a <ptr, type> pair?
   // And should we store v edges in x
+  // XXX: we should keep an array of the edge sets.
   SmallPtrSet<Action *, 2> execEdges;
   SmallPtrSet<Action *, 2> visEdges;
+  SmallPtrSet<Action *, 2> pushEdges;
 
   typedef SmallPtrSet<Action *, 8> TransEdges;
   TransEdges execTransEdges;
   TransEdges visTransEdges;
+  TransEdges pushTransEdges;
 };
 
 //// Info about an RMC edge

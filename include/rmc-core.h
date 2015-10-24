@@ -43,7 +43,7 @@ extern "C" {
 // (except when there is exactly one call site).
 extern int __rmc_action_register(const char *name) RMC_NODUPLICATE;
 extern int __rmc_action_close(int x) RMC_NODUPLICATE;
-extern int __rmc_edge_register(int is_vis, const char *src, const char *dst)
+extern int __rmc_edge_register(int edge_type, const char *src, const char *dst)
   RMC_NODUPLICATE;
 extern int __rmc_push(void) RMC_NODUPLICATE;
 extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
@@ -55,6 +55,7 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 #define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
 #define XEDGE(x, y) RMC_EDGE(0, x, y)
 #define VEDGE(x, y) RMC_EDGE(1, x, y)
+#define PEDGE(x, y) RMC_EDGE(2, x, y)
 // This is unhygenic in a nasty way.
 // Maybe we should throw some barrier()s in also, to be on the safe side?
 #define LS_(name, label, stmt)                                   \

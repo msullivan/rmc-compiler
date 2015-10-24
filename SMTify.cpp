@@ -33,6 +33,9 @@ const bool kInvertBools = false;
 
 // Costs for different sorts of things that we insert.
 // XXX: These numbers are just made up.
+// And will vary based on platform.
+// (sync == lwsync on ARM but not on POWER and *definitely* not on x86)
+const int kSyncCost = 80;
 const int kLwsyncCost = 50;
 const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
@@ -294,9 +297,13 @@ struct VarMaps {
   DominatorTree &domTree;
   bool actionsBoundOutside;
 
+  DeclMap<EdgeKey> sync;
   DeclMap<EdgeKey> lwsync;
+  // XXX: Make arrays keyed by edge type
+  DeclMap<EdgeKey> pcut;
   DeclMap<EdgeKey> vcut;
   DeclMap<EdgeKey> xcut;
+  DeclMap<PathKey> pathPcut;
   DeclMap<PathKey> pathVcut;
   DeclMap<PathKey> pathXcut;
 
@@ -487,7 +494,8 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
-                     BasicBlock *src, BasicBlock *dst) {
+                     BasicBlock *src, BasicBlock *dst,
+                     bool isPush) {
   // Instead of generating a notion of push edges and making sure that
   // they are cut by syncs, we just insert syncs exactly where PUSHes
   // are written. We want to actually take advantage of these syncs,
@@ -496,21 +504,30 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
   // which is kind of silly. We could avoid some of this if we cared.)
   // We only need to check one of src and dst since arcs with PUSH as
   // an endpoint are dropped.
+  // EXCEPT: Now we *do* have push edges, but only when they are
+  // written out explicitly. If you write a push explicitly, we do
+  // what was said above, but if you write a push edge, we represent
+  // it as such. We should fix this and generate push edges from
+  // a -v-> push -x-> b pairings.
   if (m.bb2action[src] && m.bb2action[src]->isPush) {
     return s.ctx().bool_val(true);
+  } else if (isPush) {
+    return getEdgeFunc(m.sync, src, dst);
   } else {
-    return getEdgeFunc(m.lwsync, src, dst);
+    return getEdgeFunc(m.lwsync, src, dst) ||
+      getEdgeFunc(m.sync, src, dst);
   }
 }
 
 
 SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
-                     PathID path) {
+                     PathID path, bool isPush) {
   return forAllPathEdges(
     s, m, path,
-    [&] (PathID path, bool *b) { return getPathFunc(m.pathVcut, path, b); },
+    [&] (PathID path, bool *b) {
+      return getPathFunc(isPush ? m.pathPcut : m.pathVcut, path, b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      return makeEdgeVcut(s, m, src, dst);
+      return makeEdgeVcut(s, m, src, dst, isPush);
     });
 }
 
@@ -539,7 +556,7 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   }
 
   s.add(isCut ==
-        (makePathVcut(s, m, path) || pathCtrlCut || pathDataCut));
+        (makePathVcut(s, m, path, false) || pathCtrlCut || pathDataCut));
 
   return isCut;
 }
@@ -557,12 +574,13 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst) {
   return isCut;
 }
 
-SmtExpr makeVcut(SmtSolver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst) {
-  SmtExpr isCut = getEdgeFunc(m.vcut, src, dst);
+SmtExpr makeVcut(SmtSolver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst,
+                 bool isPush) {
+  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut, src, dst);
 
   SmtExpr allPathsCut = forAllPaths(
     s, m, src, dst,
-    [&] (PathID path) { return makePathVcut(s, m, path); });
+    [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
   s.add(isCut == allPathsCut);
 
   return isCut;
@@ -591,9 +609,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
     bb2action_,
     domTree_,
     actionsBoundOutside_,
+    DeclMap<EdgeKey>(c.bool_sort(), "sync"),
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
+    DeclMap<EdgeKey>(c.bool_sort(), "pcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "xcut"),
+    DeclMap<PathKey>(c.bool_sort(), "path_pcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
     DeclMap<PathKey>(c.bool_sort(), "path_xcut"),
 
@@ -624,8 +645,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   //////////
   // HOK. Make sure everything is cut.
   for (auto & src : actions_) {
+    for (auto dst : src.pushTransEdges) {
+      s.add(makeVcut(s, m, src.bb, dst->bb, true));
+    }
     for (auto dst : src.visTransEdges) {
-      s.add(makeVcut(s, m, src.bb, dst->bb));
+      s.add(makeVcut(s, m, src.bb, dst->bb, false));
     }
     for (auto dst : src.execTransEdges) {
       s.add(makeXcut(s, m, src.bb, dst));
@@ -641,7 +665,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   BasicBlock *src, *dst;
   SmtExpr v = c.bool_val(false);
 
-  // Find the lwsyncs we are inserting
+  // Sync cost
+  for (auto & entry : m.sync.map) {
+    unpack(unpack(src, dst), v) = fix_pair(entry);
+    cost = cost +
+      boolToInt(v, kSyncCost*weight(src, dst)+1);
+  }
+  // Lwsync cost
   for (auto & entry : m.lwsync.map) {
     unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
@@ -688,6 +718,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
 
   std::vector<EdgeCut> cuts;
 
+  // Find the syncs we are inserting
+  processMap<EdgeKey>(m.sync, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutSync, edge.first, edge.second));
+  });
   // Find the lwsyncs we are inserting
   processMap<EdgeKey>(m.lwsync, model, [&] (EdgeKey &edge) {
     cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));

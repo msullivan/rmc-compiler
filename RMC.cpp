@@ -67,6 +67,9 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   case ExecutionEdge:
     os << "x";
     break;
+  case PushEdge:
+    os << "p";
+    break;
   case NoEdge:
     os << "no";
     break;
@@ -315,8 +318,10 @@ void registerEdge(std::vector<RMCEdge> &edges,
   // Insert into the graph and the list of edges
   if (edgeType == VisibilityEdge) {
     src->visEdges.insert(dst);
-  } else {
+  } else if (edgeType == ExecutionEdge) {
     src->execEdges.insert(dst);
+  } else {
+    src->pushEdges.insert(dst);
   }
   edges.push_back({edgeType, src, dst});
 }
@@ -347,9 +352,9 @@ TinyPtrVector<Action *> RealizeRMC::collectEdges(StringRef name) {
 void RealizeRMC::processEdge(CallInst *call) {
   // Pull out what the operands have to be.
   // We just assert if something is wrong, which is not great UX.
-  bool isVisibility = cast<ConstantInt>(call->getOperand(0))
-    ->getValue().getBoolValue();
-  RMCEdgeType edgeType = isVisibility ? VisibilityEdge : ExecutionEdge;
+  uint64_t val = cast<ConstantInt>(call->getOperand(0))
+    ->getValue().getLimitedValue();
+  RMCEdgeType edgeType = (RMCEdgeType)val; // a bit dubious
   StringRef srcName = getStringArg(call->getOperand(1));
   StringRef dstName = getStringArg(call->getOperand(2));
   auto srcs = collectEdges(srcName);
@@ -542,8 +547,14 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
   for (auto & a : actions) {
     a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
     a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
+    a.pushTransEdges.insert(a.pushEdges.begin(), a.pushEdges.end());
     // Visibility implies execution.
     a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    // Push implies visibility and execution, but not in a way that we
+    // need to track explicitly. Because push edges can't be useless,
+    // they'll never get dropped from the graph, so it isn't important
+    // to push them into visibility and execution.
+    // (Although maybe we ought to, for consistency?)
   }
 
   // Now compute the closures.  We previously ignored pre/post edges,
@@ -551,6 +562,7 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
   //auto realActions = make_range(actions.begin(), actions.begin() + numReal);
   transitiveClosure(actions, &Action::execTransEdges);
   transitiveClosure(actions, &Action::visTransEdges);
+  transitiveClosure(actions, &Action::pushTransEdges);
 
   //dumpGraph(actions);
 }
@@ -755,16 +767,21 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
     if (cut_i != cuts_.end()) {
       const BlockCut &cut = cut_i->second;
       bool cutHits = !(isFront && cut.isFront) && !(isBack && !cut.isFront);
-      // sync and lwsync cuts
-      if (cut.type >= CutLwsync && cutHits) {
-        return HardCut;
-      }
-      // ctrlisync cuts
-      if (edge.edgeType == ExecutionEdge &&
-          cut.type == CutCtrlIsync &&
-          cut.read == soleLoad &&
-          cutHits) {
-        return SoftCut;
+      if (cutHits) {
+        // sync cuts
+        if (cut.type == CutSync) {
+          return HardCut;
+        }
+        // lwsync cuts
+        if (cut.type == CutLwsync && edge.edgeType < PushEdge) {
+          return HardCut;
+        }
+        // ctrlisync cuts
+        if (edge.edgeType == ExecutionEdge &&
+            cut.type == CutCtrlIsync &&
+            cut.read == soleLoad) {
+          return SoftCut;
+        }
       }
     }
 
@@ -774,7 +791,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
     // control dependency to get a soft cut.  Also, if we are just
     // checking to make sure there is a control dep, we don't care
     // about what the dest does..
-    if (edge.edgeType == VisibilityEdge || !soleLoad) continue;
+    if (edge.edgeType != ExecutionEdge || !soleLoad) continue;
     if (!(edge.dst->type == ActionSimpleWrites ||
           edge.dst->type == ActionSimpleRMW ||
           justCheckCtrl)) continue;
@@ -857,8 +874,14 @@ void RealizeRMC::cutEdge(RMCEdge &edge) {
   if (isCut(edge)) return;
 
   // As a first pass, we just insert lwsyncs at the start of the destination.
+  // (Or syncs if it is a push edge)
   BasicBlock *bb = edge.dst->bb;
-  makeLwsync(&*bb->getFirstInsertionPt());
+  Instruction *i_point = &*bb->getFirstInsertionPt();
+  if (edge.edgeType == PushEdge) {
+    makeSync(i_point);
+  } else {
+    makeLwsync(i_point);
+  }
   // XXX: we need to make sure we can't ever fail to track a cut at one side
   // of a block because we inserted one at the other! Argh!
   cuts_[bb] = BlockCut(CutLwsync, true);
@@ -906,6 +929,10 @@ void removeUselessEdges(std::vector<Action> &actions) {
         src.visTransEdges.insert(dst);
       }
     }
+
+    // Push edges are never useless, because even if they are a nop
+    // they interact with visibility and execution edges in a critical way.
+    // (And visibility and execution edges that we might not see.)
   }
 }
 
@@ -934,6 +961,9 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   //       << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
 
   switch (cut.type) {
+  case CutSync:
+    makeSync(getCutInstr(cut));
+    break;
   case CutLwsync:
     // FIXME: it would be nice if we were clever enough to notice when
     // every edge out of a block as the same cut and merge them.
@@ -1009,6 +1039,8 @@ bool RealizeRMC::run() {
 
   buildActionGraph(actions_, numNormalActions_);
 
+  // XXX: In SMT mode (and maybe in regular mode too?) we ought to
+  // handle explicit pushes by generating push edges.
   cutPushes();
 
   if (!useSMT_) {
