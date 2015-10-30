@@ -523,7 +523,7 @@ int buf_enqueue_rmc_pow2(ring_buf_rmc_t *buf, unsigned char c)
     unsigned front = L(e_check, rmc_load(&buf->front));
 
     int enqueued = 0;
-    if (back != front + BUF_SIZE) {
+    if (back - BUF_SIZE != front) {
         L(insert, buf->buf[back % BUF_SIZE] = c);
         L(e_update, rmc_store(&buf->back, back + 1));
         enqueued = 1;
