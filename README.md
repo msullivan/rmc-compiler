@@ -89,6 +89,7 @@ easy to target ARM and POWER (at least, if you are on Ubuntu and
 install g++-4.9-multilib-arm-linux-gnueabi and
 g++-4.9-powerpc-linux-gnu) and see what the code looks like at various
 stages in the pipeline. Check it out to see what all it can do.
+(It is also pretty hacky and may well not work on your system...)
 
 --
 

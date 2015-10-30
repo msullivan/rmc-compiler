@@ -75,7 +75,7 @@ case $RMC_PLATFORM in
 		# clang should maybe be able to automatically determine some of this!
 		INCLUDE_FLAGS="-I /usr/arm-linux-gnueabihf/include/"
 		if [ $IS_CPP ]; then
-			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/ -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/arm-linux-gnueabihf/"
+			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/ -I /usr/arm-linux-gnueabihf/include/c++/4.9.2/arm-linux-gnueabihf/"
 		fi
 		LINKER=arm-linux-gnueabihf-gcc
 		;;
@@ -83,7 +83,7 @@ case $RMC_PLATFORM in
 		TRIPLE="powerpc-linux-gnu"
 		INCLUDE_FLAGS="-I /usr/powerpc-linux-gnu/include/"
 		if [ $IS_CPP ]; then
-			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/powerpc-linux-gnu/include/c++/4.9.1/ -I /usr/powerpc-linux-gnu/include/c++/4.9.1/powerpc-linux-gnu/"
+			INCLUDE_FLAGS="$INCLUDE_FLAGS -I /usr/powerpc-linux-gnu/include/c++/4.9.1/ -I /usr/powerpc-linux-gnu/include/c++/4.9.2/powerpc-linux-gnu/"
 		fi
 		LINKER=powerpc-linux-gnu-gcc
 		;;
