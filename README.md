@@ -25,22 +25,22 @@ examples/ directory.
 Building
 -----------
 
-Build with: ./configure [args] && make
+Build with: `./configure [args] && make`
 
-You might need to pass some args to ./configure to tell it where to
+You might need to pass some args to `./configure` to tell it where to
 find dependencies, as discussed below in the dependencies list.
 
 The dependencies are:
  * LLVM and clang 3.5 - 3.7. A path to a clang build/install
-   directory can be provided to ./configure with
-   --llvm-location=[path]. If there is an llvm dev environment visible
+   directory can be provided to `./configure` with
+   `--llvm-location=[path]`. If there is an llvm dev environment visible
    on the system (for example, Ubuntu's llvm-3.5-dev package),
    configure will find it automatically.
 
    The binary clang+llvm OS X packages available from the LLVM website
    don't work for this, unfortunately, because of linking/loading
    problems. You'll need to build from source, making sure to pass
-   --enabled-shared when you run llvm's configure script.
+   `--enabled-shared` when you run llvm's configure script.
 
  * To use the (recommended) SMT based backend, you need the opt branch
    of Microsoft's Z3 SMT solver, available from
@@ -48,12 +48,12 @@ The dependencies are:
 
    If Z3 is installed at a nonstandard location, pass its installation
    prefix (the directory where its installed include/ and lib/ directories
-   live) to ./configure with --z3-location=[path].
+   live) to `./configure` with `--z3-location=[path]`.
    If you have the master branch installed instead of opt, we can use
-   that too, at the cost of performance: pass --disable-z3-opt to
-   ./configure.
+   that too, at the cost of performance: pass `--disable-z3-opt` to
+   `./configure`.
 
-   To disable the SMT backend, pass --disable-z3 to ./configure.
+   To disable the SMT backend, pass `--disable-z3` to `./configure.`
 
 
 Installing
@@ -65,7 +65,7 @@ Until then, it can be used from its build directory.
 How to use
 -----------
 
-The rmc-config script can be used to print the arguments to a compiler
+The `rmc-config` script can be used to print the arguments to a compiler
 necessary to use RMC.
 
 To build something that uses RMC without running the custom backend
@@ -78,22 +78,23 @@ To use the custom RMC backend, do:
 The clang used must be built with the same LLVM that the RMC compiler
 was built against and optimization must be enabled.
 
-Passing --smt to rmc-config enables the SMT solver based backend and
---cleanup enables a backend optimization cleanup pass that should be
-safe to use except on POWER on -O3.
+Passing `--smt` to `rmc-config` enables the SMT solver based backend and
+`--cleanup` enables a backend optimization cleanup pass that should be
+safe to use except on POWER on `-O3`.
 
 --
 
-The run-rmc script is good for experimenting with RMC. It makes it
+The `run-rmc` script is good for experimenting with RMC. It makes it
 easy to target ARM and POWER (at least, if you are on Ubuntu and
-install g++-4.9-multilib-arm-linux-gnueabi and
-g++-4.9-powerpc-linux-gnu) and see what the code looks like at various
+install `g++-4.9-multilib-arm-linux-gnueabi` and
+`g++-4.9-powerpc-linux-gnu`) and see what the code looks like at various
 stages in the pipeline. Check it out to see what all it can do.
 (It is also pretty hacky and may well not work on your system...)
 
 --
 
-There used to be
+The Rust support currently doesn't work, but I plan to fix it at some
+point.
 
 To use RMC with Rust, you need to be running the nightly and add as
 a Cargo dependency
@@ -113,7 +114,7 @@ Then you can pull it into your crate with
 #[macro_use] extern crate rmc;
 ```
 
-When you compile using the plugin, `rmc-config` must be in your PATH
+When you compile using the plugin, `rmc-config` must be in your `PATH`
 in order for the plugin to find the libraries.
 
 Known bugs of the rust support:
