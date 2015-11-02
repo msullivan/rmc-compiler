@@ -70,10 +70,10 @@ necessary to use RMC.
 
 To build something that uses RMC without running the custom backend
 (that is, to use the lower performance fallback), do:
-  cc $(path/to/rmc-config --cflags) [other args] file.c
+  `cc $(path/to/rmc-config --cflags --fallback) [other args] file.c`
 
 To use the custom RMC backend, do:
-  path/to/clang -O $(path/to/rmc-config --cflags --realize) [other args] file.c
+  `path/to/clang -O $(path/to/rmc-config --cflags) [other args] file.c`
 
 The clang used must be built with the same LLVM that the RMC compiler
 was built against and optimization must be enabled.

@@ -10,13 +10,15 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 RMC_INCLUDE_DIR="$DIR/include/"
 RMC_LIB="$DIR/RMC.so"
 
+REALIZE_RMC=1
+
 # Argument handling
 while true
 do
 	case "$1" in
-		--realize)
+		--fallback)
 			shift
-			REALIZE_SMT=1
+			unset REALIZE_RMC
 			;;
 		--smt)
 			shift
@@ -46,7 +48,7 @@ done
 if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
    printf -- "-I %q " "$RMC_INCLUDE_DIR"
 
-   if [ $REALIZE_SMT ]; then
+   if [ $REALIZE_RMC ]; then
 	   printf -- "-DHAS_RMC=1 "
 	   printf -- "-Xclang -load -Xclang %q " "$RMC_LIB"
 	   printf -- "-Xclang -mllvm -Xclang -rmc-pass "
