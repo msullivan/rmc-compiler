@@ -76,6 +76,8 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
+#define PEDGE(x, y) __PEDGE_not_implemented_for_fallback_mode_yet
+
 #define LS(label, stmt) stmt
 
 // Use __sync_synchronize instead of a C11 SC fence because I felt bad
