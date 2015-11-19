@@ -241,6 +241,12 @@ imitate C11 more and have rmc_store/rmc_load, maybe even _Rmc/Rmc<T>?
 ------
 
 We should think about ARMv8s acquire/release operations.
+Acquire might actually be C++ acquire, basically.
+Release is way stronger than C++ release and also even C++ SC:
+a released write becomes globally visible; kind of an integrated
+write-push, I suppose. x86 also has integrated write-pushes
+(xchg or even just mov; MFENCE, since all writes are globally
+visible).
 
 
 -----
@@ -387,6 +393,10 @@ New idea: can we *model* them as either:
 - skeptical of the first also - same reason I think
 - THIS DOES NOT WORK AT ALL :( :( :( same reason
 
+-
+Actual plan is mostly to just add a new sort of "sc" operation with
+appropriate coherence rules.
+
 
 --------
 
@@ -396,3 +406,29 @@ We are actually a little weaker than mo_relaxed:
    coherence order
  - But we /do/ support the CoRW rule through the kind of weird
    RWP-PO/WWP-READ rules...
+
+There is a nice priority based model of the system in which we have
+one sort of priority, which is (po|conflicting u vt|conflicting)+,
+where |conflicting means "restricted to conflicting accesses". If we
+change it to be (po|sameloc u vt|sameloc)+, then we support CoRR.
+
+-------
+
+I think the reason isb might be slow is because it is really
+more for changing the instruction stream?
+
+How to intuitively model execution order on POWER/ARM? Maybe:
+ * A write has "executed" when it is committed
+ * A read has "executed" when it has satisfied the read
+   using the write it will commit with??
+
+
+-------
+Look into whether this is going to wreck me:
+11:06 < bluss> llvm will still do optimizatoin across functions even when
+               forbidden to inline
+11:06 < sully> wait really
+11:06 < sully> bluss: do you have an example of what it can do?
+11:07 < Quxxy> sully: I know it'll specialise even inline(never) functions
+11:07 < bluss> sully: specialize the noinline function so that it only handles
+               the cases it's actually called with
