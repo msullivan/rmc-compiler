@@ -16,6 +16,11 @@ typedef struct ring_buf_t {
     unsigned front, back;
 } ring_buf_t;
 
+typedef struct ring_buf_c11_t {
+    unsigned char buf[BUF_SIZE];
+    atomic_uint front, back;
+} ring_buf_c11_t;
+
 #define ring_inc(v) (((v) + 1) % BUF_SIZE)
 
 #ifndef ONLY_RMC
@@ -194,32 +199,32 @@ int buf_dequeue_linux(ring_buf_t *buf)
     return c;
 }
 
-/********************* Linux/C11 style ************************************/
-/* This is more or less what it would be in C11 land but in a Linux style*/
-int buf_enqueue_c11(ring_buf_t *buf, unsigned char c)
+/********************* C11 style ************************************/
+int buf_enqueue_c11(ring_buf_c11_t *buf, unsigned char c)
 {
     unsigned back = buf->back;
-    unsigned front = smp_load_acquire(&buf->front);
+    unsigned front = atomic_load_explicit(&buf->front, memory_order_acquire);
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
-        ACCESS_ONCE(buf->buf[back]) = c;
-        smp_store_release(&buf->back, ring_inc(back));
+        buf->buf[back] = c;
+        atomic_store_explicit(&buf->back, ring_inc(back), memory_order_release);
         enqueued = 1;
     }
 
     return enqueued;
 }
 
-int buf_dequeue_c11(ring_buf_t *buf)
+int buf_dequeue_c11(ring_buf_c11_t *buf)
 {
     unsigned front = buf->front;
-    unsigned back = smp_load_acquire(&buf->back);
+    unsigned back = atomic_load_explicit(&buf->back, memory_order_acquire);
 
     int c = -1;
     if (front != back) {
-        c = ACCESS_ONCE(buf->buf[front]);
-        smp_store_release(&buf->front, ring_inc(front));
+        c = buf->buf[front];
+        atomic_store_explicit(&buf->front, ring_inc(front),
+                              memory_order_release);
     }
 
     return c;
