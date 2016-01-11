@@ -230,6 +230,88 @@ int buf_dequeue_c11(ring_buf_c11_t *buf)
     return c;
 }
 
+////
+int buf_enqueue_c11_sc(ring_buf_c11_t *buf, unsigned char c)
+{
+    unsigned back = buf->back;
+    unsigned front = atomic_load(&buf->front);
+
+    int enqueued = 0;
+    if (ring_inc(back) != front) {
+        buf->buf[back] = c;
+        atomic_store(&buf->back, ring_inc(back));
+        enqueued = 1;
+    }
+
+    return enqueued;
+}
+
+int buf_dequeue_c11_sc(ring_buf_c11_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = atomic_load(&buf->back);
+
+    int c = -1;
+    if (front != back) {
+        c = buf->buf[front];
+        atomic_store(&buf->front, ring_inc(front));
+    }
+
+    return c;
+}
+
+////
+
+// Implementation of atomic store and load that kind of suck. They
+// aren't actually correct, even, in C11, although in practice they
+// will be on most architectures. The main thing, though, is on x86
+// they will insert MFENCEs on both stores and loads. I want to see if
+// this is slower.
+#define atomic_store_dumb(p, v) \
+    do {                       \
+        atomic_store_explicit((p), (v), memory_order_release);  \
+        atomic_thread_fence(memory_order_seq_cst);              \
+    } while (0);
+
+#define	atomic_load_dumb(p) ({		\
+    __typeof__(atomic_load_explicit(p, memory_order_acquire)) __v = \
+        atomic_load_explicit(p, memory_order_acquire);              \
+    atomic_thread_fence(memory_order_seq_cst);                      \
+    __v;                                                            \
+})
+
+
+int buf_enqueue_c11_sc_dumb(ring_buf_c11_t *buf, unsigned char c)
+{
+    unsigned back = buf->back;
+    unsigned front = atomic_load_dumb(&buf->front);
+
+    int enqueued = 0;
+    if (ring_inc(back) != front) {
+        buf->buf[back] = c;
+        atomic_store_dumb(&buf->back, ring_inc(back));
+        enqueued = 1;
+    }
+
+    return enqueued;
+}
+
+int buf_dequeue_c11_sc_dumb(ring_buf_c11_t *buf)
+{
+    unsigned front = buf->front;
+    unsigned back = atomic_load_dumb(&buf->back);
+
+    int c = -1;
+    if (front != back) {
+        c = buf->buf[front];
+        atomic_store_dumb(&buf->front, ring_inc(front));
+    }
+
+    return c;
+}
+
+
+
 /******* This is what I could do if I was a "thoroughly bad man" *********/
 /* Use consume without having an honest data dependency. */
 /* If we were properly using C11 with a proper consume implementation,
