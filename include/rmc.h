@@ -18,6 +18,7 @@
 
 #define rmc_push() __rmc_push()
 #define rmc_push_here() __rmc_push_here()
+#define rmc_bind_inside() __rmc_bind_inside()
 
 // Now define the RMC atomic op instructions. We do this by using the
 // C11 atomics at memory_order_relaxed.

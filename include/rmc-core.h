@@ -80,6 +80,8 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 #define VEDGE(x, y) do { } while (0)
 #define PEDGE(x, y) do { } while (0)
 
+#define __rmc_bind_inside() do { } while (0)
+
 #define LS(label, stmt) stmt
 
 // What orders to use for the atomic ops. We generally use seq_cst,
@@ -114,9 +116,6 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 #undef PEDGE
 #define PEDGE(a, b) __PEDGE_has_been_disabled_by_RMC_DISABLE_PEDGE
 #endif
-
-// XXX: bad name, bad syntax
-#define RMC_BIND_INSIDE __rmc_bind_inside()
 
 // Nice way to extract a value directly from a named read
 // without needing to manually stick it in a temporary.

@@ -86,6 +86,8 @@ RMC_FORCE_INLINE
 static inline int push() { return __rmc_push(); }
 RMC_FORCE_INLINE
 static inline void push_here() { __rmc_push_here(); }
+RMC_FORCE_INLINE
+static inline void bind_inside() { __rmc_bind_inside(); }
 
 }
 
