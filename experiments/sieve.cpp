@@ -20,9 +20,13 @@ const int kMax = kSqrt*kSqrt;
 
 // We allocate one big array and cast as necessary. Allocating an array
 // for each possible scheme lead to linker errors.
-char bigArray[kMax];
+uint8_t bigArray[kMax];
 std::atomic<bool>* atomicArray =
     reinterpret_cast<std::atomic<bool> *>(bigArray);
+std::atomic<uint8_t>* atomicIArray =
+    reinterpret_cast<std::atomic<uint8_t> *>(bigArray);
+
+//////////////////////////////////////////////// Byte oriented ones
 
 ////// SC C++11 atomics
 // Looks like this is about a 50% regression against relaxed
@@ -48,6 +52,16 @@ struct SCBadByte {
 };
 std::atomic<bool>* SCBadByte::bits = atomicArray;
 
+// What if we use xadd to do loads?
+// Ok, even worse. Makes sense.
+struct SCXaddByte {
+    static std::atomic<uint8_t>* bits;
+    static void set(int idx) { bits[idx] = true; }
+    static bool get(int idx) { return bits[idx].fetch_add(0); }
+};
+std::atomic<uint8_t>* SCXaddByte::bits = atomicIArray;
+
+
 ////// Relaxed C++11 atomics
 // Should perform about as well as UnsafeByte
 struct RelaxedByte {
@@ -68,6 +82,46 @@ struct UnsafeByte {
     static bool get(int idx) { return bits[idx]; }
 };
 bool* UnsafeByte::bits = reinterpret_cast<bool*>(bigArray);
+
+
+//////////////////////////////////////////////// Bit oriented ones
+
+const int kBits = 8;
+
+int byte(int idx) { return idx/kBits; }
+int mask(int idx) { return 1 << (idx % kBits); }
+////
+
+////// SC
+struct SCBit {
+    static std::atomic<uint8_t>* bits;
+    static void set(int idx) { bits[byte(idx)] |= mask(idx); }
+    static bool get(int idx) { return !!(bits[byte(idx)] & mask(idx)); }
+};
+std::atomic<uint8_t>* SCBit::bits = atomicIArray;
+
+// This would be about the same perf as the SC version on x86 since
+// the write still needs to be locked.
+struct RelaxedBit {
+    static std::atomic<uint8_t>* bits;
+    static void set(int idx) {
+        bits[byte(idx)].fetch_or(mask(idx), std::memory_order_relaxed);
+    }
+    static bool get(int idx) {
+        return !!(bits[byte(idx)].load(std::memory_order_relaxed) & mask(idx));
+    }
+};
+std::atomic<uint8_t>* RelaxedBit::bits = atomicIArray;
+
+
+////// Unsafe accesses
+struct UnsafeBit {
+    static uint8_t* bits;
+    static void set(int idx) { bits[byte(idx)] |= mask(idx); }
+    static bool get(int idx) { return !!(bits[byte(idx)] & mask(idx)); }
+};
+uint8_t* UnsafeBit::bits = bigArray;
+
 
 // The actual sieve, parameterized against an Array that tracks bits
 template<class Array>
