@@ -71,14 +71,33 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 #define __rmc_rmw_order memory_order_relaxed
 
 #else /* !HAS_RMC */
-// The compiler doesn't support RMC, so we provide a backup implementation
-// based on making all atomic loads/stores acquires/releases.
+
+// The compiler doesn't support RMC, so we provide a backup
+// implementation based on making all atomic operations sequentially
+// consistent.
 
 #define XEDGE(x, y) do { } while (0)
 #define VEDGE(x, y) do { } while (0)
-#define PEDGE(x, y) __PEDGE_not_implemented_for_fallback_mode_yet
+#define PEDGE(x, y) do { } while (0)
 
 #define LS(label, stmt) stmt
+
+// What orders to use for the atomic ops. We generally use seq_cst,
+// but if RMC_DISABLE_PEDGE is set, then push edges are turned off,
+// which means we can get away with using release/acquire for the
+// memory orders.
+#if !RMC_DISABLE_PEDGE && !RMC_FALLBACK_USE_SC
+#define __rmc_load_order memory_order_seq_cst
+#define __rmc_store_order memory_order_seq_cst
+#define __rmc_rmw_order memory_order_seq_cst
+// Push is a no-op
+#define __rmc_push() 0
+
+#else /* !(using SC) */
+// What orders to use for the atomic ops. Always release/acquire
+#define __rmc_load_order memory_order_acquire
+#define __rmc_store_order memory_order_release
+#define __rmc_rmw_order memory_order_acq_rel
 
 // Use __sync_synchronize instead of a C11 SC fence because I felt bad
 // relying on details of the implementation of SC fences on our platforms
@@ -87,22 +106,14 @@ extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
 // and C11 atomics are totally unspecified, so...
 #define __rmc_push() ({ __sync_synchronize(); 0; })
 
-// What orders to use for the atomic ops.
-// Generally use release/acquire, but if RMC_FALLBACK_USE_SC
-// is set, use seq_cst instead to help debug whether bugs
-// are related to weak memory behavior.
-#ifdef RMC_FALLBACK_USE_SC
-#define __rmc_load_order memory_order_seq_cst
-#define __rmc_store_order memory_order_seq_cst
-#define __rmc_rmw_order memory_order_seq_cst
-#else /* !RMC_FALLBACK_USE_SC */
-// What orders to use for the atomic ops. Always release/acquire
-#define __rmc_load_order memory_order_acquire
-#define __rmc_store_order memory_order_release
-#define __rmc_rmw_order memory_order_acq_rel
 #endif /* RMC_FALLBACK_USE_SC */
 
 #endif /* HAS_RMC */
+
+#if RMC_DISABLE_PEDGE
+#undef PEDGE
+#define PEDGE(a, b) __PEDGE_has_been_disabled_by_RMC_DISABLE_PEDGE
+#endif
 
 // XXX: bad name, bad syntax
 #define RMC_BIND_INSIDE __rmc_bind_inside()
