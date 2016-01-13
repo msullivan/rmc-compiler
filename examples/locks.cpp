@@ -1,3 +1,4 @@
+typedef bool _Bool;
 #include <rmc.h>
 
 typedef struct mutex_t {
