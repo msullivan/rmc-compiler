@@ -48,6 +48,9 @@ public:
     return val.compare_exchange_strong(
       expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
   }
+  bool compare_exchange(T& expected, T desired) noexcept {
+    return this->compare_exchange_strong(expected, desired);
+  }
   T exchange(T desired) noexcept {
     return val.exchange(desired, std::__rmc_rmw_order);
   }

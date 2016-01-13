@@ -47,6 +47,8 @@ typedef _Rmc(unsigned int)      rmc_uint;
     atomic_compare_exchange_strong_explicit(                            \
         __rmc_atomic_fixup(object), expected,                           \
         desired, __rmc_rmw_order, __rmc_load_order)
+#define rmc_compare_exchange(object, expected, desired)          \
+    rmc_compare_exchange_strong(object, expected, desired)
 #define rmc_compare_exchange_weak(object, expected, desired)            \
     atomic_compare_exchange_weak_explicit(                              \
         __rmc_atomic_fixup(object), expected,                           \
