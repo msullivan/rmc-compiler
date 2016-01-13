@@ -5,6 +5,9 @@
 #ifndef RMC_CORE_H
 #define RMC_CORE_H
 
+#define RMC_FORCE_INLINE __attribute__((always_inline))
+#define RMC_NODUPLICATE __attribute__((noduplicate))
+
 #ifdef HAS_RMC
 
 /* We signal our labels and edges to our LLVM pass in a fairly hacky
@@ -28,9 +31,6 @@
 /* C. */
 #define RCAT(x,y)      x ## y
 #define XRCAT(x,y)     RCAT(x,y)
-
-#define RMC_FORCE_INLINE __attribute__((always_inline))
-#define RMC_NODUPLICATE __attribute__((noduplicate))
 
 #ifdef __cplusplus
 extern "C" {
