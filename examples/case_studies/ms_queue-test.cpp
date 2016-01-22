@@ -2,11 +2,12 @@
 #include <utility>
 #include <iostream>
 #include <vector>
+#include <cassert>
 #include <experimental/optional>
 
 #include "ms_queue_sc.hpp"
 
-int kCount = 1000000;
+long kCount = 10000000;
 
 rmclib::MSQueue<int> queue;
 std::atomic<bool> producersDone{false};
@@ -54,7 +55,8 @@ void test(int nproducers, int nconsumers) {
         thread.join();
     }
     printf("Final sum: %ld\n", totalSum.load());
-
+    long expected = kCount*(kCount-1)/2 * nproducers;
+    assert(totalSum == expected);
 }
 
 int main(int argc, char** argv) {
