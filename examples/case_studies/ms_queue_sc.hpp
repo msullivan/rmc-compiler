@@ -10,16 +10,18 @@ namespace rmclib {
 } // f. this
 #endif
 
+using std::experimental::optional;
+
 // c.c trolling?
 template<class T> using lf_ptr = T*;
 const int kCacheLinePadding = 128; // I have NFI
 
-// I'm doing this all C++ified, but maybe I shouldn't be.
 
-// XXX: T should have a trivial destructor
-// XXX: in light of that, maybe this move nonsense is nonsense.
-// although if we epoch or gc or whatever it is fine...
-// and this code isn't set up for not doing that...
+// TODO: memory management; this is written assuming that something
+// like GC or epochs will be used to handle freeing memory, but it
+// doesn't yet.
+
+// I'm doing this all C++ified, but maybe I shouldn't be.
 template<typename T>
 class MSQueue {
 private:
@@ -47,7 +49,7 @@ public:
         head_ = tail_ = new MSQueueNode();
     }
 
-    std::experimental::optional<T> dequeue();
+    optional<T> dequeue();
 
     // XXX: allocations!
     void enqueue(T &&t) {
@@ -89,7 +91,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
 }
 
 template<typename T>
-std::experimental::optional<T> MSQueue<T>::dequeue() {
+optional<T> MSQueue<T>::dequeue() {
     lf_ptr<MSQueueNode> head, tail, next;
 
     for (;;) {
@@ -107,7 +109,7 @@ std::experimental::optional<T> MSQueue<T>::dequeue() {
             // be that the tail pointer has just fallen behind.
             // If the next pointer is null, then it is actually empty
             if (next == nullptr) {
-                return std::experimental::optional<T>{};
+                return optional<T>{};
             } else {
                 // not empty: tail falling behind; since it is super
                 // not ok for the head to advance past the tail,
@@ -132,7 +134,7 @@ std::experimental::optional<T> MSQueue<T>::dequeue() {
     // next contains the value we are reading
     // head can be freed
     //epoch_free(head); // XXX or something
-    std::experimental::optional<T> ret(std::move(next->data_));
+    optional<T> ret(std::move(next->data_));
     next->data_.~T(); // call destructor
 
     return ret;
