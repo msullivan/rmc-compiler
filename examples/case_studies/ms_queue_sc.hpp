@@ -34,7 +34,9 @@ private:
 
 
     // XXX: alignment
+    alignas(kCacheLinePadding)
     std::atomic<lf_ptr<MSQueueNode>> head_{nullptr};
+    alignas(kCacheLinePadding)
     std::atomic<lf_ptr<MSQueueNode>> tail_{nullptr};
 
     void enqueue_node(lf_ptr<MSQueueNode> node);
