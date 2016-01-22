@@ -64,9 +64,11 @@ template<typename T>
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     // XXX: start epoch
 
+    lf_ptr<MSQueueNode> tail, next;
+
     for (;;) {
-        lf_ptr<MSQueueNode> tail = this->tail_;
-        lf_ptr<MSQueueNode> next = tail->next_;
+        tail = this->tail_;
+        next = tail->next_;
         // Check that tail and next are consistent:
         // If we are using an epoch/gc based approach
         // (which we had better be, since we don't have gen counters),
@@ -87,11 +89,16 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
         }
     }
 
+    // Try to swing the tail_ to point to what we inserted
+    this->tail_.compare_exchange_strong(tail, node);
+
     // XXX: end epoch?
 }
 
 template<typename T>
 optional<T> MSQueue<T>::dequeue() {
+    // XXX: start epoch
+
     lf_ptr<MSQueueNode> head, tail, next;
 
     for (;;) {
@@ -136,6 +143,8 @@ optional<T> MSQueue<T>::dequeue() {
     //epoch_free(head); // XXX or something
     optional<T> ret(std::move(next->data_));
     next->data_.~T(); // call destructor
+
+    // XXX: end epoch?
 
     return ret;
 }
