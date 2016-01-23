@@ -65,33 +65,58 @@ template<typename T>
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     // XXX: start epoch
 
+    // We publish the node in two ways:
+    //  * at enqueue, which links it in as the next_ pointer
+    //    of the list tail
+    //  * at enqueue_swing, which links it in as
+    //    the new tail_ of the queue
+    // Node initialization needs be be visible before a node
+    // publication is.
+    VEDGE(node_init, enqueue);
+    VEDGE(node_init, enqueue_swing);
+    // Make sure to see node init, etc
+    // This we should get to use a data-dep on!
+    // Pretty sure we don't need XEDGE(get_tail, catchup_swing)...
+    XEDGE(get_tail, get_next);
+    // Make sure the contents of the next node stay visible
+    // to anything that finds it through tail_, when we swing
+    VEDGE(get_next, catchup_swing);
+    // XXX: how about VEDGE(enqueue, enqueue_swing)??
+
+
+    // Marker for node initialization. Everything before the
+    // enqueue_node call is "init".
+    LPRE(node_init);
+
     lf_ptr<MSQueueNode> tail, next;
 
     for (;;) {
-        tail = this->tail_;
-        next = tail->next_;
+        tail = L(get_tail, this->tail_);
+        next = L(get_next, tail->next_);
         // Check that tail and next are consistent:
         // If we are using an epoch/gc based approach
         // (which we had better be, since we don't have gen counters),
         // this is purely an optimization.
+        // XXX: constraint? I think it doesn't matter here, where it is
+        // purely an optimization
         if (tail != this->tail_) continue;
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak(next, node)) {
+            if (L(enqueue, tail->next_.compare_exchange_weak(next, node))) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong(tail, next);
+            L(catchup_swing, this->tail_.compare_exchange_strong(tail, next));
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong(tail, node);
+    L(enqueue_swing, this->tail_.compare_exchange_strong(tail, node));
 
     // XXX: end epoch?
 }
@@ -100,12 +125,22 @@ template<typename T>
 optional<T> MSQueue<T>::dequeue() {
     // XXX: start epoch
 
+    // Core message passing: reading the data out of the node comes
+    // after getting the pointer to it.
+    XEDGE(get_next, node_use);
+    // Make sure we see at least head's init
+    XEDGE(get_head, get_next);
+    // Need to make sure anything visible through the next pointer
+    // stays visible when it gets republished at the head or tail
+    VEDGE(get_next, catchup_swing);
+    VEDGE(get_next, dequeue);
+
     lf_ptr<MSQueueNode> head, tail, next;
 
     for (;;) {
-        head = this->head_;
-        tail = this->tail_;
-        next = head->next_;
+        head = L(get_head, this->head_);
+        tail = this->tail_; // XXX: really?
+        next = L(get_next, head->next_);
 
         // Consistency check; see note above
         if (head != this->head_) continue;
@@ -123,7 +158,8 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong(tail, next);
+                L(catchup_swing,
+                  this->tail_.compare_exchange_strong(tail, next));
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -132,11 +168,13 @@ optional<T> MSQueue<T>::dequeue() {
             // note that we would need to read out the data *before* we
             // do the CAS, or else things are gonna get bad.
             // (could get reused first)
-            if (this->head_.compare_exchange_weak(head, next)) {
+            if (L(dequeue, this->head_.compare_exchange_weak(head, next))) {
                 break;
             }
         }
     }
+
+    LPOST(node_use);
 
     // OK, everything set up.
     // next contains the value we are reading
