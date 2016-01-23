@@ -83,7 +83,7 @@ template<class T> struct remove_rmc<atomic<T>>   {typedef T type;};
 // for an L() action. This forces coercions and loads to happen inside
 // the action.
 #define __rmc_typeof(e)                                         \
-  ::rmc::remove_rmc<std::remove_reference<decltype(e)>::type>::type
+  typename ::rmc::remove_rmc<typename std::remove_reference<decltype(e)>::type>::type
 
 RMC_FORCE_INLINE
 static inline int push() { return __rmc_push(); }
