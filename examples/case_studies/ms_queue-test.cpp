@@ -5,8 +5,7 @@
 #include <cassert>
 #include <experimental/optional>
 
-#include "ms_queue_sc.hpp"
-//#include "ms_queue_rmc.hpp"
+#include "ms_queue.hpp"
 
 long kCount = 10000000;
 
