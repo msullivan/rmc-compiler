@@ -4,6 +4,7 @@
 #include <atomic>
 #include <utility>
 #include <experimental/optional>
+#include "epoch.hpp"
 
 namespace rmclib {
 #if 0
@@ -51,7 +52,6 @@ public:
 
     optional<T> dequeue();
 
-    // XXX: allocations!
     void enqueue(T &&t) {
         enqueue_node(new MSQueueNode(std::move(t)));
     }
@@ -62,7 +62,7 @@ public:
 
 template<typename T>
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
-    // XXX: start epoch
+    auto guard = Epoch::pin();
 
     lf_ptr<MSQueueNode> tail, next;
 
@@ -91,13 +91,11 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
 
     // Try to swing the tail_ to point to what we inserted
     this->tail_.compare_exchange_strong(tail, node);
-
-    // XXX: end epoch?
 }
 
 template<typename T>
 optional<T> MSQueue<T>::dequeue() {
-    // XXX: start epoch
+    auto guard = Epoch::pin();
 
     lf_ptr<MSQueueNode> head, tail, next;
 
@@ -143,8 +141,6 @@ optional<T> MSQueue<T>::dequeue() {
     //epoch_free(head); // XXX or something
     optional<T> ret(std::move(next->data_));
     next->data_ = optional<T>{}; // destroy the object
-
-    // XXX: end epoch?
 
     return ret;
 }
