@@ -28,7 +28,7 @@ class MSQueue {
 private:
     struct MSQueueNode {
         rmc::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
-        T data_;
+        optional<T> data_;
 
         MSQueueNode() {} // needed for allocating dummy
         MSQueueNode(T &&t) : data_(std::move(t)) {} // is this right
@@ -181,7 +181,7 @@ optional<T> MSQueue<T>::dequeue() {
     // head can be freed
     //epoch_free(head); // XXX or something
     optional<T> ret(std::move(next->data_));
-    next->data_.~T(); // call destructor
+    next->data_ = optional<T>{}; // destroy the object
 
     // XXX: end epoch?
 
