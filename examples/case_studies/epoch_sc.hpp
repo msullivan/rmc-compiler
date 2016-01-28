@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <utility>
+#include <functional>
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -17,6 +18,11 @@ template<class T> using lf_ptr = T*;
 
 class LocalGarbage {
 
+
+public:
+    uintptr_t size() { return 0; };
+    void collect();
+    void registerCleanup(std::function<void()> f);
 
 };
 
@@ -36,15 +42,23 @@ private:
     // Next pointer in the list of threads
     std::atomic<Participant *> next_;
 
-public:
+    bool tryCollect();
 
+public:
     void enter();
     void exit();
+
+    void registerCleanup(std::function<void()> f) {
+        garbage_.registerCleanup(f);
+    }
+
 };
 
 // XXX: Is this (static) the right way to do this?
+// Should it just be merged with Participant?? Or made globals??
 class Participants {
 private:
+    friend class Participant;
     static std::atomic<Participant *> head_;
 
 public:
@@ -78,6 +92,19 @@ private:
 public:
     static void enter() { local_epoch_.get()->enter(); }
     static void exit() { local_epoch_.get()->exit(); }
+
+    // Register a cleanup function to be called on the next GC
+    template <typename F>
+    static void registerCleanup(F f) {
+        local_epoch_.get()->registerCleanup(f);
+    }
+
+    // Register a pointer to be deleted on the next gc
+    template <typename T>
+    static void unlinked(T *p) {
+        registerCleanup([=] { delete p; });
+    }
+
     static Guard pin() {
         enter();
         return Guard();
@@ -86,9 +113,6 @@ public:
 inline Guard::~Guard() { Epoch::exit(); }
 
 //////
-
-
-
 
 }
 

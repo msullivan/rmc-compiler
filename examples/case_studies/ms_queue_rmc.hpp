@@ -4,7 +4,7 @@
 #include <rmc++.h>
 #include <utility>
 #include <experimental/optional>
-
+#include "epoch.hpp"
 
 namespace rmclib {
 #if 0
@@ -63,7 +63,7 @@ public:
 
 template<typename T>
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
-    // XXX: start epoch
+    auto guard = Epoch::pin();
 
     // We publish the node in two ways:
     //  * at enqueue, which links it in as the next_ pointer
@@ -117,13 +117,11 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
 
     // Try to swing the tail_ to point to what we inserted
     L(enqueue_swing, this->tail_.compare_exchange_strong(tail, node));
-
-    // XXX: end epoch?
 }
 
 template<typename T>
 optional<T> MSQueue<T>::dequeue() {
-    // XXX: start epoch
+    auto guard = Epoch::pin();
 
     // Core message passing: reading the data out of the node comes
     // after getting the pointer to it.
@@ -179,11 +177,9 @@ optional<T> MSQueue<T>::dequeue() {
     // OK, everything set up.
     // next contains the value we are reading
     // head can be freed
-    //epoch_free(head); // XXX or something
+    Epoch::unlinked(head);
     optional<T> ret(std::move(next->data_));
     next->data_ = optional<T>{}; // destroy the object
-
-    // XXX: end epoch?
 
     return ret;
 }

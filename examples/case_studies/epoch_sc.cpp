@@ -1,5 +1,6 @@
 #include <atomic>
 #include <utility>
+#include <functional>
 #include "epoch_sc.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
@@ -15,6 +16,8 @@ std::atomic<Participant *> Participants::head_;
 
 static std::atomic<uintptr_t> global_epoch_{0};
 
+const int kGarbageThreshold = 20;
+
 
 Participant *Participants::enroll() {
     Participant *p = new Participant();
@@ -28,6 +31,7 @@ Participant *Participants::enroll() {
     return p;
 }
 
+/////// Participant is where most of the interesting stuff happens
 void Participant::enter() {
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
@@ -39,11 +43,14 @@ void Participant::enter() {
     uintptr_t global_epoch = global_epoch_;
     if (global_epoch != epoch_) {
         epoch_ = global_epoch;
+        garbage_.collect();
         // XXX: TODO: garbage collect
     }
 
     // XXX: TODO: garbage collect if we are past a threshold
-
+    if (garbage_.size() > kGarbageThreshold) {
+        tryCollect();
+    }
 }
 
 void Participant::exit() {
@@ -51,7 +58,37 @@ void Participant::exit() {
     in_critical_ = new_count;
 }
 
+bool Participant::tryCollect() {
+    uintptr_t cur_epoch = global_epoch_;
 
+    // XXX: TODO: lazily remove stuff from this list
+    for (Participant *p = Participants::head_; p; p = p->next_) {
+        // We can only advance the epoch if every thread in a critical
+        // section is in the current epoch.
+        if (p->in_critical_ || p->epoch_ != cur_epoch) {
+            return false;
+        }
+    }
+
+    // Try to advance the global epoch
+    uintptr_t new_epoch = cur_epoch + 1;
+    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch)) {
+        return false;
+    }
+
+    // Update our local epoch and garbage collect
+    epoch_ = new_epoch;
+    garbage_.collect();
+
+    return true;
+}
+
+/////////////
+void LocalGarbage::registerCleanup(std::function<void()> f) {
+}
+
+void LocalGarbage::collect() {
+}
 
 
 }
