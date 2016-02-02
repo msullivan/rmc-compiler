@@ -44,10 +44,8 @@ void Participant::enter() {
     if (global_epoch != epoch_) {
         epoch_ = global_epoch;
         garbage_.collect();
-        // XXX: TODO: garbage collect
     }
 
-    // XXX: TODO: garbage collect if we are past a threshold
     if (garbage_.size() > kGarbageThreshold) {
         tryCollect();
     }
@@ -65,7 +63,7 @@ bool Participant::tryCollect() {
     for (Participant *p = Participants::head_; p; p = p->next_) {
         // We can only advance the epoch if every thread in a critical
         // section is in the current epoch.
-        if (p->in_critical_ || p->epoch_ != cur_epoch) {
+        if (p->in_critical_ && p->epoch_ != cur_epoch) {
             return false;
         }
     }
@@ -84,11 +82,18 @@ bool Participant::tryCollect() {
 }
 
 /////////////
-void LocalGarbage::registerCleanup(std::function<void()> f) {
+void LocalGarbage::collectBag(Bag &bag) {
+    for (auto f : bag) {
+        f();
+    }
+    // XXX: should we shrink capacity?
+    bag.clear();
 }
 
 void LocalGarbage::collect() {
+    collectBag(old_);
+    std::swap(old_, cur_);
+    std::swap(cur_, new_);
 }
-
 
 }

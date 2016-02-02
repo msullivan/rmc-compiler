@@ -4,6 +4,7 @@
 #include <atomic>
 #include <utility>
 #include <functional>
+#include <vector>
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -17,12 +18,31 @@ template<class T> using lf_ptr = T*;
 ////////////////////////////
 
 class LocalGarbage {
+    using Bag = std::vector<std::function<void()>>;
 
+private:
+    // Garbage at least one epoch behind current local epoch
+    Bag old_;
+    // Garbage added in current local epoch or earlier
+    Bag cur_;
+    // Garbage added in current global epoch
+    Bag new_;
 
 public:
-    uintptr_t size() { return 0; };
+    uintptr_t size() {
+        return old_.size() + cur_.size() + new_.size();
+    };
+    static void collectBag(Bag &bag);
     void collect();
-    void registerCleanup(std::function<void()> f);
+    void registerCleanup(std::function<void()> f) {
+        // XXX: This has a "terminal irony" (allocating memory to free
+        // it), but whatever, it is userspace.
+        // But maybe the actual problem is it might need to go to the
+        // kernel for an allocation?
+        // Avoiding this requires much more seriously constraining what sort
+        // of cleanups we can do, though...
+        new_.push_back(f);
+    }
 
 };
 
