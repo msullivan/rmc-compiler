@@ -93,7 +93,14 @@ private:
 public:
     LocalEpoch() : me_(Participants::enroll()) {}
     ~LocalEpoch() {
-        // XXX: TODO: don't leak everything...
+        // XXX: move to a global garbage or something instead
+        // Loop until we have freed all our garbage
+        while (me_->garbage_.size() > 0) {
+            me_->enter();
+            me_->tryCollect();
+            me_->exit();
+            // XXX: should we yield or something?
+        }
         me_->exited_ = true;
     }
     lf_ptr<Participant> get() { return me_; }
