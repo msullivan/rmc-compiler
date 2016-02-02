@@ -12,8 +12,8 @@ long kCount = 10000000;
 rmclib::MSQueue<int> queue;
 std::atomic<bool> producersDone{false};
 
-void producer() {
-    for (int i = 0; i < kCount; i++) {
+void producer(long count) {
+    for (int i = 0; i < count; i++) {
         queue.enqueue(i);
     }
 }
@@ -34,14 +34,14 @@ void consumer() {
     totalSum += sum;
 }
 
-void test(int nproducers, int nconsumers) {
+void test(int nproducers, int nconsumers, long count) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
 
     // XXX: we should probably synchronize thread starting work and
     // just time the actual work.
     for (int i = 0; i < nproducers; i++) {
-        producers.push_back(std::thread(producer));
+        producers.push_back(std::thread(producer, count));
     }
     for (int i = 0; i < nconsumers; i++) {
         consumers.push_back(std::thread(consumer));
@@ -55,21 +55,25 @@ void test(int nproducers, int nconsumers) {
         thread.join();
     }
     printf("Final sum: %ld\n", totalSum.load());
-    long expected = kCount*(kCount-1)/2 * nproducers;
+    long expected = count*(count-1)/2 * nproducers;
     assert(totalSum == expected);
 }
 
 int main(int argc, char** argv) {
     int producers = 1, consumers = 1;
+    long count = kCount;
     if (argc == 2) {
         int total = atoi(argv[1]);
         producers = total/2;
         consumers = total - producers;
-    } if (argc == 3) {
+    } if (argc >= 3) {
         producers = atoi(argv[1]);
         consumers = atoi(argv[2]);
     }
-    test(producers, consumers);
+    if (argc >= 4) {
+        count = strtol(argv[3], NULL, 0);
+    }
+    test(producers, consumers, count);
 
     return 0;
 }
