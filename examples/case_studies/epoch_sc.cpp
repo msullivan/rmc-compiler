@@ -88,7 +88,7 @@ bool Participant::tryCollect() {
 }
 
 /////////////
-void LocalGarbage::collectBag(Bag &bag) {
+void RealLocalGarbage::collectBag(Bag &bag) {
     for (auto f : bag) {
         f();
     }
@@ -96,13 +96,13 @@ void LocalGarbage::collectBag(Bag &bag) {
     bag.clear();
 }
 
-void LocalGarbage::collect() {
+void RealLocalGarbage::collect() {
     collectBag(old_);
     std::swap(old_, cur_);
     std::swap(cur_, new_);
 }
 
-void LocalGarbage::migrateGarbage() {
+void RealLocalGarbage::migrateGarbage() {
     // We put all three local bags into the current global bag.
     // We could do better than this but why bother, I think.
     auto cleanup = [old = std::move(old_),
@@ -115,6 +115,9 @@ void LocalGarbage::migrateGarbage() {
     global_garbage_[global_epoch_ % kNumEpochs].registerCleanup(cleanup);
 }
 
+void DummyLocalGarbage::registerCleanup(std::function<void()> f) {
+    global_garbage_[global_epoch_ % kNumEpochs].registerCleanup(f);
+}
 
 /////////////
 void ConcurrentBag::registerCleanup(std::function<void()> f) {

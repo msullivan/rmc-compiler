@@ -17,7 +17,7 @@ template<class T> using lf_ptr = T*;
 
 ////////////////////////////
 
-class LocalGarbage {
+class RealLocalGarbage {
     using Bag = std::vector<std::function<void()>>;
 
 private:
@@ -55,6 +55,32 @@ public:
     // Migrate garbage to the global garbage bags.
     void migrateGarbage();
 };
+
+// A variant local garbage that doesn't actually store local garbage
+// but instead immediately moves it to global garbage.
+class DummyLocalGarbage {
+private:
+    const int kOpsThreshold = 64;
+    int opsCount_{0};
+public:
+    uintptr_t size() { return 0; }
+    // Should we trigger a GC?
+    // XXX: Garbage collection is only triggered based on local
+    // considerations.  If every thread exits before it tries to GC,
+    // we will be sad.
+    bool needsCollect() {
+        return ++opsCount_ > kOpsThreshold;
+    }
+    void collect() { opsCount_ = 0; }
+    void registerCleanup(std::function<void()> f);
+    void migrateGarbage() { }
+};
+
+#if EPOCH_GLOBAL_GARBAGE
+using LocalGarbage = DummyLocalGarbage;
+#else
+using LocalGarbage = RealLocalGarbage;
+#endif
 
 // A concurrent garbage bag using a variant of Treiber's stack
 class ConcurrentBag {
@@ -159,6 +185,5 @@ inline Guard::~Guard() { Epoch::exit(); }
 //////
 
 }
-
 
 #endif
