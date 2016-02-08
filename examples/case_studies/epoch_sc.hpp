@@ -43,9 +43,27 @@ public:
         // of cleanups we can do, though...
         new_.push_back(f);
     }
-
+    // Migrate garbage to the global garbage bags.
+    // XXX: Garbage collection is only triggered based on local
+    // considerations.  If every thread exits before it tries to GC,
+    // we will be sad.
+    void migrateGarbage();
 };
 
+// A concurrent garbage bag using a variant of Treiber's stack
+class ConcurrentBag {
+private:
+    struct Node {
+        std::atomic<Node *> next_{nullptr};
+        std::function<void()> cleanup_;
+        Node(std::function<void()> cleanup) : cleanup_(std::move(cleanup)) {}
+    };
+
+    std::atomic<Node *> head_{nullptr};
+public:
+    void collect();
+    void registerCleanup(std::function<void()> f);
+};
 
 class Participant {
     friend class Participants;
@@ -93,20 +111,13 @@ private:
 public:
     LocalEpoch() : me_(Participants::enroll()) {}
     ~LocalEpoch() {
-        // XXX: move to a global garbage or something instead
-        // Loop until we have freed all our garbage
-        while (me_->garbage_.size() > 0) {
-            me_->enter();
-            me_->tryCollect();
-            me_->exit();
-            // XXX: should we yield or something?
-        }
+        me_->enter();
+        me_->garbage_.migrateGarbage();
+        me_->exit();
         me_->exited_ = true;
     }
     lf_ptr<Participant> get() { return me_; }
-
 };
-
 
 class Guard {
 public:

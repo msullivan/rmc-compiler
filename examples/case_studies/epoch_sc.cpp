@@ -1,6 +1,7 @@
 #include <atomic>
 #include <utility>
 #include <functional>
+#include <memory>
 #include "epoch_sc.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
@@ -10,13 +11,17 @@ namespace rmclib {
 #endif
 /////////////////////////////
 
+const int kGarbageThreshold = 20;
+const int kNumEpochs = 3;
+
 thread_local LocalEpoch Epoch::local_epoch_;
 std::atomic<Participant *> Participants::head_;
 
 
+// XXX: Should this be in a class??
 static std::atomic<uintptr_t> global_epoch_{0};
+static ConcurrentBag global_garbage_[kNumEpochs];
 
-const int kGarbageThreshold = 20;
 
 
 Participant *Participants::enroll() {
@@ -77,6 +82,8 @@ bool Participant::tryCollect() {
     // Update our local epoch and garbage collect
     epoch_ = new_epoch;
     garbage_.collect();
+    global_garbage_[(new_epoch+1) % kNumEpochs].collect();
+
 
     return true;
 }
@@ -94,6 +101,49 @@ void LocalGarbage::collect() {
     collectBag(old_);
     std::swap(old_, cur_);
     std::swap(cur_, new_);
+}
+
+void LocalGarbage::migrateGarbage() {
+    // We put all three local bags into the current global bag.
+    // We could do better than this but why bother, I think.
+    auto cleanup = [old = std::move(old_),
+                    cur = std::move(cur_),
+                    newp = std::move(new_)]() mutable {
+        collectBag(old);
+        collectBag(cur);
+        collectBag(newp);
+    };
+    global_garbage_[global_epoch_ % kNumEpochs].registerCleanup(cleanup);
+}
+
+
+/////////////
+void ConcurrentBag::registerCleanup(std::function<void()> f) {
+    auto *node = new ConcurrentBag::Node(std::move(f));
+
+    // Push the node onto a Treiber stack
+    for (;;) {
+        ConcurrentBag::Node *head = head_;
+        node->next_ = head;
+        if (head_.compare_exchange_weak(head, node)) break;
+    }
+}
+
+void ConcurrentBag::collect() {
+    // Avoid xchg if empty
+    if (!head_) return;
+
+    // Pop the whole stack off
+    // Since we only ever unconditionally destroy the whole stack,
+    // we don't need to worry about ABA really.
+    // (Which for stacks comes up if pop() believes that the address
+    // of a node being the same means the next pointer is also...)
+    std::unique_ptr<ConcurrentBag::Node> head(head_.exchange(nullptr));
+
+    while (head) {
+        head->cleanup_();
+        head.reset(head->next_);
+    }
 }
 
 }
