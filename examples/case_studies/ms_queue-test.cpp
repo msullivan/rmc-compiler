@@ -7,61 +7,69 @@
 
 #include "ms_queue.hpp"
 
-long kCount = 10000000;
+static long kCount = 10000000;
 
-rmclib::MSQueue<int> queue;
-std::atomic<bool> producersDone{false};
+struct Test {
+    rmclib::MSQueue<long> queue;
 
-void producer(long count) {
-    for (int i = 0; i < count; i++) {
-        queue.enqueue(i);
+    std::atomic<bool> producersDone{false};
+    std::atomic<long> totalSum{0};
+
+    const long count;
+    const int producers;
+    const int consumers;
+    Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
+};
+
+void producer(Test *t) {
+    for (int i = 0; i < t->count; i++) {
+        t->queue.enqueue(i);
     }
 }
 
-std::atomic<long> totalSum{0};
-void consumer() {
+void consumer(Test *t) {
+    long max = -1;
     long sum = 0;
     for (;;) {
-        auto res = queue.dequeue();
+        auto res = t->queue.dequeue();
         if (!res) {
-            if (producersDone) break;
+            if (t->producersDone) break;
         } else {
-            sum += *res;
+            long val = *res;
+            assert(val >= 0 && val < t->count);
+            assert(t->producers > 1 || val > max);
+            max = val;
+            sum += val;
         }
     }
     // Stupidly, this winds up being "more atomic" than using cout
-    printf("Done: %ld\n", sum);
-    totalSum += sum;
+    //printf("Done: %ld\n", sum);
+    t->totalSum += sum;
 }
 
-void resetTest() {
-    producersDone = false;
-    totalSum = 0;
-}
-
-void test(int nproducers, int nconsumers, long count) {
+void test(Test &t) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
 
     // XXX: we should probably synchronize thread starting work and
     // just time the actual work.
-    for (int i = 0; i < nproducers; i++) {
-        producers.push_back(std::thread(producer, count));
+    for (int i = 0; i < t.producers; i++) {
+        producers.push_back(std::thread(producer, &t));
     }
-    for (int i = 0; i < nconsumers; i++) {
-        consumers.push_back(std::thread(consumer));
+    for (int i = 0; i < t.consumers; i++) {
+        consumers.push_back(std::thread(consumer, &t));
     }
 
     for (auto & thread : producers) {
         thread.join();
     }
-    producersDone = true;
+    t.producersDone = true;
     for (auto & thread : consumers) {
         thread.join();
     }
-    printf("Final sum: %ld\n", totalSum.load());
-    long expected = count*(count-1)/2 * nproducers;
-    assert(totalSum == expected);
+    //printf("Final sum: %ld\n", t.totalSum.load());
+    long expected = t.count*(t.count-1)/2 * t.producers;
+    assert(t.totalSum == expected);
 }
 
 int main(int argc, char** argv) {
@@ -82,9 +90,10 @@ int main(int argc, char** argv) {
     if (argc >= 5) {
         reps = atoi(argv[4]);
     }
+
     for (int i = 0; i < reps; i++) {
-        resetTest();
-        test(producers, consumers, count);
+        Test t(count, producers, consumers);
+        test(t);
     }
 
     return 0;
