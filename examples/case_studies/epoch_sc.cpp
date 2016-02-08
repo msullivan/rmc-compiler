@@ -11,7 +11,6 @@ namespace rmclib {
 #endif
 /////////////////////////////
 
-const int kGarbageThreshold = 20;
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
@@ -51,7 +50,7 @@ void Participant::enter() {
         garbage_.collect();
     }
 
-    if (garbage_.size() > kGarbageThreshold) {
+    if (garbage_.needsCollect()) {
         tryCollect();
     }
 }

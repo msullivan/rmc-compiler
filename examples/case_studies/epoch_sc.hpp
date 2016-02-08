@@ -28,10 +28,19 @@ private:
     // Garbage added in current global epoch
     Bag new_;
 
+    const int kGarbageThreshold = 20;
+
 public:
     uintptr_t size() {
         return old_.size() + cur_.size() + new_.size();
     };
+    // Should we trigger a GC?
+    // XXX: Garbage collection is only triggered based on local
+    // considerations.  If every thread exits before it tries to GC,
+    // we will be sad.
+    bool needsCollect() {
+        return size() > kGarbageThreshold;
+    }
     static void collectBag(Bag &bag);
     void collect();
     void registerCleanup(std::function<void()> f) {
@@ -44,9 +53,6 @@ public:
         new_.push_back(f);
     }
     // Migrate garbage to the global garbage bags.
-    // XXX: Garbage collection is only triggered based on local
-    // considerations.  If every thread exits before it tries to GC,
-    // we will be sad.
     void migrateGarbage();
 };
 
