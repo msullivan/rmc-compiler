@@ -47,6 +47,12 @@ void consumer(Test *t) {
     t->totalSum += sum;
 }
 
+void joinAll(std::vector<std::thread> &threads) {
+    for (auto & thread : threads) {
+        thread.join();
+    }
+}
+
 void test(Test &t) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
@@ -60,13 +66,10 @@ void test(Test &t) {
         consumers.push_back(std::thread(consumer, &t));
     }
 
-    for (auto & thread : producers) {
-        thread.join();
-    }
+    joinAll(producers);
     t.producersDone = true;
-    for (auto & thread : consumers) {
-        thread.join();
-    }
+    joinAll(consumers);
+
     //printf("Final sum: %ld\n", t.totalSum.load());
     long expected = t.count*(t.count-1)/2 * t.producers;
     assert(t.totalSum == expected);
@@ -76,6 +79,10 @@ int main(int argc, char** argv) {
     int producers = 1, consumers = 1;
     long count = kCount;
     int reps = 1;
+    int dups = 1;
+
+    // XXX: use an arg parsing library or something
+    // (I really really <3 llvm's, but...)
     if (argc == 2) {
         int total = atoi(argv[1]);
         producers = total/2;
@@ -90,10 +97,19 @@ int main(int argc, char** argv) {
     if (argc >= 5) {
         reps = atoi(argv[4]);
     }
+    if (argc >= 6) {
+        dups = atoi(argv[5]);
+    }
 
     for (int i = 0; i < reps; i++) {
-        Test t(count, producers, consumers);
-        test(t);
+        std::vector<std::thread> tests;
+        for (int j = 0; j < dups; j++) {
+            tests.push_back(std::thread([=] {
+                Test t(count, producers, consumers);
+                test(t);
+            }));
+        }
+        joinAll(tests);
     }
 
     return 0;
