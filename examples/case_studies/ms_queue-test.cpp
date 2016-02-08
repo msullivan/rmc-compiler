@@ -34,6 +34,11 @@ void consumer() {
     totalSum += sum;
 }
 
+void resetTest() {
+    producersDone = false;
+    totalSum = 0;
+}
+
 void test(int nproducers, int nconsumers, long count) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
@@ -62,6 +67,7 @@ void test(int nproducers, int nconsumers, long count) {
 int main(int argc, char** argv) {
     int producers = 1, consumers = 1;
     long count = kCount;
+    int reps = 1;
     if (argc == 2) {
         int total = atoi(argv[1]);
         producers = total/2;
@@ -73,7 +79,13 @@ int main(int argc, char** argv) {
     if (argc >= 4) {
         count = strtol(argv[3], NULL, 0);
     }
-    test(producers, consumers, count);
+    if (argc >= 5) {
+        reps = atoi(argv[4]);
+    }
+    for (int i = 0; i < reps; i++) {
+        resetTest();
+        test(producers, consumers, count);
+    }
 
     return 0;
 }
