@@ -36,7 +36,10 @@ void consumer(Test *t) {
             if (t->producersDone) break;
         } else {
             long val = *res;
-            assert(val >= 0 && val < t->count);
+            if (!(val >= 0 && val < t->count)) {
+                printf("owned %lu\n", val);
+                abort();
+            }
             assert(t->producers > 1 || val > max);
             max = val;
             sum += val;
