@@ -4,6 +4,7 @@
 #include <vector>
 #include <cassert>
 #include <experimental/optional>
+#include <getopt.h>
 
 #include "ms_queue.hpp"
 
@@ -92,24 +93,30 @@ int main(int argc, char** argv) {
     int reps = 1;
     int dups = 1;
 
-    // XXX: use an arg parsing library or something
-    // (I really really <3 llvm's, but...)
-    if (argc == 2) {
-        int total = atoi(argv[1]);
-        producers = total/2;
-        consumers = total - producers;
-    } if (argc >= 3) {
-        producers = atoi(argv[1]);
-        consumers = atoi(argv[2]);
-    }
-    if (argc >= 4) {
-        count = strtol(argv[3], NULL, 0);
-    }
-    if (argc >= 5) {
-        reps = atoi(argv[4]);
-    }
-    if (argc >= 6) {
-        dups = atoi(argv[5]);
+    // getopt kind of ugly. I kind of want to use llvm's arg parsing,
+    // which I <3, but it is such a big hammer
+    int opt;
+    while ((opt = getopt(argc, argv, "p:c:n:r:d:")) != -1) {
+        switch (opt) {
+        case 'p':
+            producers = atoi(optarg);
+            break;
+        case 'c':
+            consumers = atoi(optarg);
+            break;
+        case 'n':
+            count = strtol(optarg, NULL, 0);
+            break;
+        case 'r':
+            reps = atoi(optarg);
+            break;
+        case 'd':
+            dups = atoi(optarg);
+            break;
+        default:
+            fprintf(stderr, "Argument parsing error\n");
+            return 1;
+        }
     }
 
     for (int i = 0; i < reps; i++) {
