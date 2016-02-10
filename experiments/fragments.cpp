@@ -123,6 +123,12 @@ int cas_acq_rel__rlx(std::atomic<int> *x) {
         x, &exp, 1, std::memory_order_acq_rel, std::memory_order_relaxed);
     return exp;
 }
+short cas_half(std::atomic<short> *x) {
+    short exp = 0;
+    x->compare_exchange_strong(
+        exp, 1, std::memory_order_acq_rel, std::memory_order_relaxed);
+    return exp;
+}
 
 int cas_weak(std::atomic<int> *x) {
     int exp = 0;
