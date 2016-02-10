@@ -33,7 +33,10 @@
 #define XRCAT(x,y)     RCAT(x,y)
 
 #ifdef __cplusplus
+#define RMC_NOEXCEPT noexcept
 extern "C" {
+#else
+#define RMC_NOEXCEPT
 #endif
 
 // RMC_NODUPLICATE prevents any transformation that would introduce
@@ -41,12 +44,14 @@ extern "C" {
 // that would cause problems by getting rid of the 1:1 correspondence
 // of register() and close() calls as well as preventing inlining
 // (except when there is exactly one call site).
-extern int __rmc_action_register(const char *name) RMC_NODUPLICATE;
-extern int __rmc_action_close(int x) RMC_NODUPLICATE;
+// RMC_NOEXCEPT tells a clang that they can't throw exceptions,
+// so it will generate calls instead of invokes.
+extern int __rmc_action_register(const char *name) RMC_NOEXCEPT RMC_NODUPLICATE;
+extern int __rmc_action_close(int x) RMC_NOEXCEPT RMC_NODUPLICATE;
 extern int __rmc_edge_register(int edge_type, const char *src, const char *dst)
-  RMC_NODUPLICATE;
-extern int __rmc_push(void) RMC_NODUPLICATE;
-extern int __rmc_bind_inside(void) RMC_NODUPLICATE;
+  RMC_NOEXCEPT RMC_NODUPLICATE;
+extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
+extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 
 #ifdef __cplusplus
 }
