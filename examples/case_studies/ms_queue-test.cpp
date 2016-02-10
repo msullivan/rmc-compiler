@@ -7,13 +7,15 @@
 
 #include "ms_queue.hpp"
 
-static long kCount = 10000000;
+typedef unsigned long ulong;
+
+static ulong kCount = 10000000;
 
 struct Test {
-    rmclib::MSQueue<long> queue;
+    rmclib::MSQueue<ulong> queue;
 
     std::atomic<bool> producersDone{false};
-    std::atomic<long> totalSum{0};
+    std::atomic<ulong> totalSum{0};
 
     const long count;
     const int producers;
@@ -22,21 +24,21 @@ struct Test {
 };
 
 void producer(Test *t) {
-    for (int i = 0; i < t->count; i++) {
+    for (int i = 1; i < t->count; i++) {
         t->queue.enqueue(i);
     }
 }
 
 void consumer(Test *t) {
-    long max = -1;
-    long sum = 0;
+    ulong max = 0;
+    ulong sum = 0;
     for (;;) {
         auto res = t->queue.dequeue();
         if (!res) {
             if (t->producersDone) break;
         } else {
-            long val = *res;
-            if (!(val >= 0 && val < t->count)) {
+            ulong val = *res;
+            if (!(val < t->count)) {
                 printf("owned %lu\n", val);
                 abort();
             }
@@ -46,7 +48,7 @@ void consumer(Test *t) {
         }
     }
     // Stupidly, this winds up being "more atomic" than using cout
-    //printf("Done: %ld\n", sum);
+    //printf("Done: %lu\n", sum);
     t->totalSum += sum;
 }
 
@@ -73,8 +75,14 @@ void test(Test &t) {
     t.producersDone = true;
     joinAll(consumers);
 
+    // This is real dumb, but overflow means we can't use the closed form...
+    ulong expected = 0;
+    for (int i = 0; i < t.count; i++) {
+        expected += i;
+    }
+    expected *= t.producers;
+
     //printf("Final sum: %ld\n", t.totalSum.load());
-    long expected = t.count*(t.count-1)/2 * t.producers;
     assert(t.totalSum == expected);
 }
 
