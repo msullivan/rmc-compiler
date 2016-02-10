@@ -21,7 +21,7 @@ all: $(TESTS)
 
 # Generic rules and build stuff
 CXX=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-CXXFLAGS=--std=c++14 $(shell ../../rmc-config --cxxflags --fallback) \
+CXXFLAGS=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads
 
