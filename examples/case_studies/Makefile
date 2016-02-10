@@ -1,6 +1,8 @@
 TESTS=ms_queue-esc-sc-test ms_queue-esc-rmc-test
 LIB_SRCS=epoch_sc.cpp
 
+########
+
 include ../../config.mk uppercase.mk
 
 # Files that force rebuilding everything
@@ -20,8 +22,17 @@ endif
 # Need to specify -march for arm or clang gets mad about barriers??
 ifeq (arm,$(findstring arm,$(shell uname -m)))
 MARCH:=-march=$(shell uname -m)
-else
-MARCH:=
+endif
+
+# Clang and gcc disagree for -march=armv6 on whether to define
+# __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2. The libstdc++ ABI for shared_ptr
+# depends on this choice. So check to see the system compiler defines
+# it or not, and if it doesn't, manually unset it.
+# asdf.
+MISSING_CAS2:=$(shell cc -dM -E - < /dev/null | \
+                grep -q __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 || echo 1)
+ifeq (1,$(MISSING_CAS2))
+DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
 all: $(TESTS)
@@ -55,8 +66,12 @@ $(1)-esc-$(2)-test: $$(OBJDIR)/$(1)-esc-$(2)-test.o $$(OBJDIR)/epoch_sc.o $$(CON
 	$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
 endef
 
+########
+
 $(eval $(call TEST_template,ms_queue,sc))
 $(eval $(call TEST_template,ms_queue,rmc))
+
+########
 
 clean:
 	rm -rf *~ *.o *.d *-test
