@@ -1,4 +1,4 @@
-TESTS=ms_queue-esc-sc-test ms_queue-esc-rmc-test
+TESTS=ms_queue-esc-sc-test ms_queue-esc-rmc-test ms_queue-esc-lock-test
 LIB_SRCS=epoch_sc.cpp
 
 ########
@@ -70,6 +70,7 @@ endef
 
 $(eval $(call TEST_template,ms_queue,sc))
 $(eval $(call TEST_template,ms_queue,rmc))
+$(eval $(call TEST_template,ms_queue,lock))
 
 ########
 

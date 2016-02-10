@@ -4,6 +4,7 @@
 #include <vector>
 #include <cassert>
 #include <experimental/optional>
+#include <atomic>
 #include <getopt.h>
 
 #include "ms_queue.hpp"

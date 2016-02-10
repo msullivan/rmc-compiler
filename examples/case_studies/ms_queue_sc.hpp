@@ -13,7 +13,6 @@ namespace rmclib {
 
 using std::experimental::optional;
 
-// c.c trolling?
 const int kCacheLinePadding = 128; // I have NFI
 
 
