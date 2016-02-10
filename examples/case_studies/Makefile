@@ -17,12 +17,19 @@ else
 OPT_LEVEL=-O2
 endif
 
+# Need to specify -march for arm or clang gets mad about barriers??
+ifeq (arm,$(findstring arm,$(shell uname -m)))
+MARCH:=-march=$(shell uname -m)
+else
+MARCH:=
+endif
+
 all: $(TESTS)
 
 # Generic rules and build stuff
-CXX=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-CXXFLAGS=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
-	-march=$(shell uname -m) \
+CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
+CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
+	$(MARCH) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads
 
