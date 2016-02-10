@@ -34,7 +34,7 @@ CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
 LDFLAGS=-pthreads
 
 
-OBJ_FILES=$(patsubst %-test, $(OBJDIR)/%.o, $(TESTS)) \
+OBJ_FILES=$(patsubst %, $(OBJDIR)/%.o, $(TESTS)) \
 	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
 
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
@@ -42,7 +42,7 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
 
--include $(patsubst %.o, $(OBJDIR)/%.d, $(OBJ_FILES))
+-include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
 define TEST_template =
 $$(OBJDIR)/$(1)-esc-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
