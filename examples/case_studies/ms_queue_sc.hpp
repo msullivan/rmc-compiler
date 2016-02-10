@@ -14,7 +14,6 @@ namespace rmclib {
 using std::experimental::optional;
 
 // c.c trolling?
-template<class T> using lf_ptr = T*;
 const int kCacheLinePadding = 128; // I have NFI
 
 
