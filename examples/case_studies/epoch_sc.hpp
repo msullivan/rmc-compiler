@@ -5,6 +5,7 @@
 #include <utility>
 #include <functional>
 #include <vector>
+#include "util.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -102,15 +103,20 @@ class Participant {
     friend class LocalEpoch;
 private:
     // Local epoch
+    alignas(kCacheLinePadding)
     std::atomic<uintptr_t> epoch_{0};
     // Nested critical section count.
     std::atomic<uintptr_t> in_critical_{0};
-    // Collection of garbage
-    LocalGarbage garbage_;
+
     // Has this thread exited?
+    alignas(kCacheLinePadding)
     std::atomic<bool> exited_{false};
     // Next pointer in the list of threads
-    std::atomic<Participant *> next_;
+    std::atomic<Participant *> next_{nullptr};
+
+    // Collection of garbage
+    alignas(kCacheLinePadding)
+    LocalGarbage garbage_;
 
     bool tryCollect();
 
