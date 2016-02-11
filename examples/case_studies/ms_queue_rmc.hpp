@@ -4,6 +4,7 @@
 #include <rmc++.h>
 #include <utility>
 #include <experimental/optional>
+#include "util.hpp"
 #include "epoch.hpp"
 
 namespace rmclib {
@@ -12,9 +13,6 @@ namespace rmclib {
 #endif
 
 using std::experimental::optional;
-
-const int kCacheLinePadding = 128; // I have NFI
-
 
 // TODO: memory management; this is written assuming that something
 // like GC or epochs will be used to handle freeing memory, but it

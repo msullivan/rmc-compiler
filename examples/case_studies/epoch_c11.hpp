@@ -5,6 +5,7 @@
 #include <utility>
 #include <functional>
 #include <vector>
+#include "util.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
