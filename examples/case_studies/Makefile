@@ -1,5 +1,5 @@
 THINGS=ms_queue
-MS_QUEUE_TYPES=sc rmc lock 2lock
+MS_QUEUE_TYPES=sc relacq rmc lock 2lock
 EPOCH_TYPES=sc leak
 
 ########
