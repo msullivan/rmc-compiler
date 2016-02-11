@@ -1,7 +1,6 @@
 THINGS=ms_queue
 MS_QUEUE_TYPES=sc rmc lock 2lock
-
-LIB_SRCS=epoch_sc.cpp
+EPOCH_TYPES=sc leak
 
 ########
 
@@ -36,10 +35,13 @@ ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
-# Compute what tests we are building
-TESTS=$(foreach thing,$(THINGS), \
+# Compute what tests and stuff we are building
+LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES))
+
+TESTS=$(foreach epoch,$(EPOCH_TYPES), \
+       $(foreach thing,$(THINGS), \
         $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-         $(thing)-esc-$(type)-test))
+         $(thing)-e$(epoch)-$(type)-test)))
 
 
 all: $(TESTS)
@@ -63,21 +65,23 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 -include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
 define TEST_template =
-$$(OBJDIR)/$(1)-esc-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
-		-DUSE_$(call uppercase,$(2))_$(call uppercase,$(1))=1 -c \
-		-o $$@ $$<
-$(1)-esc-$(2)-test: $$(OBJDIR)/$(1)-esc-$(2)-test.o $$(OBJDIR)/epoch_sc.o $$(CONFIG_FILES)
+		-DUSE_$(call uppercase,$(2))_$(call uppercase,$(1))=1 \
+		-DUSE_$(call uppercase,$(3))_EPOCH=1 \
+		-c -o $$@ $$<
+$(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
 endef
 
 ########
 
-$(foreach thing,$(THINGS), \
- $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-  $(eval $(call TEST_template,$(thing),$(type)))))
+$(foreach epoch,$(EPOCH_TYPES), \
+ $(foreach thing,$(THINGS), \
+  $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+   $(eval $(call TEST_template,$(thing),$(type),$(epoch))))))
 
 ########
 
