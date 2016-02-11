@@ -1,5 +1,6 @@
-TESTS=ms_queue-esc-sc-test ms_queue-esc-rmc-test ms_queue-esc-lock-test \
-	ms_queue-esc-2lock-test
+THINGS=ms_queue
+MS_QUEUE_TYPES=sc rmc lock 2lock
+
 LIB_SRCS=epoch_sc.cpp
 
 ########
@@ -36,6 +37,12 @@ ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
+# Compute what tests we are building
+TESTS=$(foreach thing,$(THINGS), \
+        $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+         $(thing)-esc-$(type)-test))
+
+
 all: $(TESTS)
 
 # Generic rules and build stuff
@@ -69,10 +76,9 @@ endef
 
 ########
 
-$(eval $(call TEST_template,ms_queue,sc))
-$(eval $(call TEST_template,ms_queue,rmc))
-$(eval $(call TEST_template,ms_queue,lock))
-$(eval $(call TEST_template,ms_queue,2lock))
+$(foreach thing,$(THINGS), \
+ $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+  $(eval $(call TEST_template,$(thing),$(type)))))
 
 ########
 
