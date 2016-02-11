@@ -11,6 +11,11 @@ namespace rmclib {
 #endif
 /////////////////////////////
 
+const std::memory_order mo_rlx = std::memory_order_relaxed;
+const std::memory_order mo_rel = std::memory_order_release;
+const std::memory_order mo_acq = std::memory_order_acquire;
+const std::memory_order mo_sc  = std::memory_order_seq_cst;
+
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
@@ -37,16 +42,18 @@ Participant *Participants::enroll() {
 
 /////// Participant is where most of the interesting stuff happens
 void Participant::enter() {
-    uintptr_t new_count = in_critical_ + 1;
-    in_critical_ = new_count;
+    uintptr_t new_count = in_critical_.load(mo_rlx) + 1;
+    in_critical_.store(new_count, mo_rlx);
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return;
 
+    std::atomic_thread_fence(mo_sc);
+
     // Copy the global epoch to the local one;
     // if it has changed, garbage collect
-    uintptr_t global_epoch = global_epoch_;
-    if (global_epoch != epoch_) {
-        epoch_ = global_epoch;
+    uintptr_t global_epoch = global_epoch_.load(mo_rlx);
+    if (global_epoch != epoch_.load(mo_rlx)) {
+        epoch_.store(global_epoch, mo_rlx);
         garbage_.collect();
     }
 
@@ -56,8 +63,12 @@ void Participant::enter() {
 }
 
 void Participant::exit() {
-    uintptr_t new_count = in_critical_ - 1;
-    in_critical_ = new_count;
+    uintptr_t new_count = in_critical_.load(mo_rlx) - 1;
+    // XXX: this may not need to be release
+    // in our current setup, nothing can get freed until we do another
+    // enter.
+    // wait, does anything about the claim make any sense??
+    in_critical_.store(new_count, mo_rel);
 }
 
 bool Participant::tryCollect() {
