@@ -68,8 +68,8 @@ define TEST_template =
 $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
-		-DUSE_$(call uppercase,$(2))_$(call uppercase,$(1))=1 \
-		-DUSE_$(call uppercase,$(3))_EPOCH=1 \
+		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
+		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-c -o $$@ $$<
 $(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
