@@ -1,6 +1,6 @@
 THINGS=ms_queue
 MS_QUEUE_TYPES=sc relacq rmc lock 2lock
-EPOCH_TYPES=sc leak
+EPOCH_TYPES=sc c11 leak
 
 ########
 
