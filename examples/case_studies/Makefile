@@ -10,8 +10,7 @@ include ../../config.mk uppercase.mk
 # Files that force rebuilding everything
 CONFIG_FILES=Makefile ../../config.mk uppercase.mk
 
-#OBJDIR=build
-OBJDIR=.
+OBJDIR=build
 
 DEFINES :=
 
@@ -83,4 +82,4 @@ $(foreach thing,$(THINGS), \
 ########
 
 clean:
-	rm -rf *~ *.o *.d *-test
+	rm -rf *~ *-test $(OBJDIR)
