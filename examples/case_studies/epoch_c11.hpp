@@ -6,6 +6,7 @@
 #include <functional>
 #include <vector>
 #include "util.hpp"
+#include "lambda_wrap.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -178,7 +179,7 @@ public:
     // Register a pointer to be deleted on the next gc
     template <typename T>
     static void unlinked(T *p) {
-        registerCleanup([=] { delete p; });
+        registerCleanup(wrap_lambda<void()>([=] { delete p; }));
     }
 
     static Guard pin() {
