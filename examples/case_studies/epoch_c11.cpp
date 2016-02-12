@@ -130,7 +130,7 @@ void RealLocalGarbage::migrateGarbage() {
     global_garbage_[global_epoch_ % kNumEpochs].registerCleanup(cleanup);
 }
 
-void DummyLocalGarbage::registerCleanup(std::function<void()> f) {
+void DummyLocalGarbage::registerCleanup(GarbageCleanup f) {
     global_garbage_[global_epoch_ % kNumEpochs].registerCleanup(f);
 }
 

@@ -6,7 +6,6 @@
 #include <functional>
 #include <vector>
 #include "util.hpp"
-#include "lambda_wrap.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -19,8 +18,21 @@ template<class T> using lf_ptr = T*;
 
 ////////////////////////////
 
+//// On my arm test machine, std::function fails to do a small object
+//// optimization for functions with one upvar. This had pretty heavy
+//// performance impact, so we handroll the thing.
+class GarbageCleanup {
+private:
+    typedef void (*Func)(void *);
+    Func func_;
+    void *data_;
+public:
+    GarbageCleanup(Func func, void *data) : func_(func), data_(data) {}
+    void operator()() { func_(data_); }
+};
+
 class RealLocalGarbage {
-    using Bag = std::vector<std::function<void()>>;
+    using Bag = std::vector<GarbageCleanup>;
 
 private:
     // Garbage at least one epoch behind current local epoch
@@ -45,7 +57,7 @@ public:
     }
     static void collectBag(Bag &bag);
     void collect();
-    void registerCleanup(std::function<void()> f) {
+    void registerCleanup(GarbageCleanup f) {
         // XXX: This has a "terminal irony" (allocating memory to free
         // it), but whatever, it is userspace.
         // But maybe the actual problem is it might need to go to the
@@ -74,7 +86,7 @@ public:
         return ++opsCount_ > kOpsThreshold;
     }
     void collect() { opsCount_ = 0; }
-    void registerCleanup(std::function<void()> f);
+    void registerCleanup(GarbageCleanup f);
     void migrateGarbage() { }
 };
 
@@ -125,7 +137,7 @@ public:
     void enter();
     void exit();
 
-    void registerCleanup(std::function<void()> f) {
+    void registerCleanup(GarbageCleanup f) {
         garbage_.registerCleanup(f);
     }
 
@@ -166,20 +178,29 @@ public:
 class Epoch {
 private:
     static thread_local LocalEpoch local_epoch_;
+
+    template <typename T>
+    static void delete_ptr(void *p) {
+        delete reinterpret_cast<T *>(p);
+    }
+
+
 public:
     static void enter() { local_epoch_.get()->enter(); }
     static void exit() { local_epoch_.get()->exit(); }
 
     // Register a cleanup function to be called on the next GC
-    template <typename F>
-    static void registerCleanup(F f) {
+    // template <typename F>
+    // static void registerCleanup(F f) {
+    static void registerCleanup(GarbageCleanup f) {
         local_epoch_.get()->registerCleanup(f);
     }
 
     // Register a pointer to be deleted on the next gc
     template <typename T>
     static void unlinked(T *p) {
-        registerCleanup(wrap_lambda<void()>([=] { delete p; }));
+        registerCleanup(GarbageCleanup(delete_ptr<T>,
+                                       reinterpret_cast<void *>(p)));
     }
 
     static Guard pin() {
