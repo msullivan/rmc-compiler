@@ -110,6 +110,8 @@ void RealLocalGarbage::collectBag(Bag &bag) {
 }
 
 void RealLocalGarbage::collect() {
+    if (size() == 0) return;
+
     collectBag(old_);
     std::swap(old_, cur_);
     std::swap(cur_, new_);

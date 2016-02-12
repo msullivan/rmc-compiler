@@ -30,7 +30,7 @@ private:
     // Garbage added in current global epoch
     Bag new_;
 
-    const int kGarbageThreshold = 20;
+    const int kGarbageThreshold = 1024;
 
 public:
     uintptr_t size() {
@@ -41,7 +41,8 @@ public:
     // considerations.  If every thread exits before it tries to GC,
     // we will be sad.
     bool needsCollect() {
-        return size() > kGarbageThreshold;
+        //return size() > kGarbageThreshold;
+        return new_.size() > kGarbageThreshold;
     }
     static void collectBag(Bag &bag);
     void collect();
