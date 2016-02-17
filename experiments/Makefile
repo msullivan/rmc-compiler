@@ -1,4 +1,4 @@
-CFLAGS=--std=c99 -Wall -Wextra -pthread -O2
+CFLAGS=--std=c99 -Wall -Wextra -pthread -O2 $(EXTRA_CFLAGS)
 CC=gcc
 
 all: tests

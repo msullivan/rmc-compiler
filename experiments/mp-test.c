@@ -2,6 +2,7 @@
 // Should on x86, not on arm
 // Basically always just doesn't see the write at all.
 // Probably need to loop.
+// looking for: ready=1 data=0
 
 #include "atomic.h"
 #include <stdio.h>

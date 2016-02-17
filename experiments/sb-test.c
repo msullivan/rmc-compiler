@@ -1,5 +1,6 @@
 // Test for store buffering behavior
 // This one actually shows up on x86.
+// looking for: r0=0 r1=0
 
 #include "atomic.h"
 #include <stdio.h>
