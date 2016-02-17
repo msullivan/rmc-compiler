@@ -25,14 +25,14 @@ public:
         stop();
         auto int_ms = std::chrono::duration_cast<
             std::chrono::milliseconds>(stop_ - start_);
-        printf("Runtime: %ldms\n", int_ms.count());
+        printf("Runtime: %lldms\n", (long long)int_ms.count());
         if (numOps > 0) {
             auto int_ns = std::chrono::duration_cast<
                 std::chrono::nanoseconds>(stop_ - start_);
             std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
 
-            printf("Time/op: %ldns (or %lfns)\n",
-                   int_ns.count() / numOps, fp_ns.count() / numOps);
+            printf("Time/op: %lldns (or %lfns)\n",
+                   (long long)int_ns.count() / numOps, fp_ns.count() / numOps);
         }
     }
 };
