@@ -26,8 +26,17 @@ struct Test {
     Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
 };
 
+void work() {
+    const int kWork = 50;
+    volatile int nus = 0;
+    for (int i = 0; i < kWork; i++) {
+        nus++;
+    }
+}
+
 void producer(Test *t) {
     for (int i = 1; i < t->count; i++) {
+        work();
         t->queue.enqueue(i);
     }
 }
@@ -37,6 +46,7 @@ void consumer(Test *t) {
     ulong sum = 0;
     for (;;) {
         auto res = t->queue.dequeue();
+        work();
         if (!res) {
             if (t->producersDone) break;
         } else {
