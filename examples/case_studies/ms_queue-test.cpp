@@ -7,6 +7,7 @@
 #include <atomic>
 #include <getopt.h>
 
+#include "util.hpp"
 #include "ms_queue.hpp"
 
 typedef unsigned long ulong;
@@ -66,6 +67,8 @@ void test(Test &t) {
 
     // XXX: we should probably synchronize thread starting work and
     // just time the actual work.
+    rmclib::BenchTimer timer;
+
     for (int i = 0; i < t.producers; i++) {
         producers.push_back(std::thread(producer, &t));
     }
@@ -76,6 +79,8 @@ void test(Test &t) {
     joinAll(producers);
     t.producersDone = true;
     joinAll(consumers);
+
+    timer.report(t.count * (t.producers+t.consumers));
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
