@@ -8,6 +8,7 @@
 #include <mutex>
 #include <utility>
 #include <experimental/optional>
+#include "util.hpp"
 
 namespace rmclib {
 #if 0
@@ -15,8 +16,6 @@ namespace rmclib {
 #endif
 
 using std::experimental::optional;
-
-const int kCacheLinePadding = 128; // I have NFI
 
 template<typename T>
 class MSQueue {
