@@ -12,7 +12,6 @@ typedef struct bslock_peterson_t {
 #define BSLOCK_INIT { 0, {0, 0} }
 
 void bslock_lock_peterson(bslock_peterson_t *lock, int me) {
-    int rt, rf;
     int other = 1-me;
     ACCESS_ONCE(lock->turn) = other;
     ACCESS_ONCE(lock->flag[me]) = 1;
@@ -136,7 +135,6 @@ void *tester(void *p)
 int main(int argc, char **argv)
 {
     iterations = (argc == 2) ? strtol(argv[1], NULL, 0) : ITERATIONS;
-    void *arg = (void *)(long)iterations;
 
     pthread_t thread1, thread2;
     pthread_create(&thread1, NULL, tester, INT_TO_PTR(0));
