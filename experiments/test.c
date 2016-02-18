@@ -37,7 +37,7 @@ void iteration(int thread, int *count) {
     results[thread] = r;
     smp_store_release(&done[thread], true);
 
-    count++;
+    (*count)++;
 }
 
 void *tester_thread(void *pthread)
