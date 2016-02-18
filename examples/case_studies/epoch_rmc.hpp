@@ -1,7 +1,7 @@
-#ifndef RMC_EPOCH_C11
-#define RMC_EPOCH_C11
+#ifndef RMC_EPOCH_RMC
+#define RMC_EPOCH_RMC
 
-#include <atomic>
+#include <rmc++.h>
 #include <utility>
 #include <functional>
 #include <vector>
@@ -101,12 +101,12 @@ using LocalGarbage = RealLocalGarbage;
 class ConcurrentBag {
 private:
     struct Node {
-        std::atomic<Node *> next_{nullptr};
+        rmc::atomic<Node *> next_{nullptr};
         std::function<void()> cleanup_;
         Node(std::function<void()> cleanup) : cleanup_(std::move(cleanup)) {}
     };
 
-    std::atomic<Node *> head_{nullptr};
+    rmc::atomic<Node *> head_{nullptr};
 public:
     void collect();
     void registerCleanup(std::function<void()> f);
@@ -118,15 +118,15 @@ class Participant {
 private:
     // Local epoch
     alignas(kCacheLinePadding)
-    std::atomic<uintptr_t> epoch_{0};
+    rmc::atomic<uintptr_t> epoch_{0};
     // Nested critical section count.
-    std::atomic<uintptr_t> in_critical_{0};
+    rmc::atomic<uintptr_t> in_critical_{0};
 
     // Has this thread exited?
     alignas(kCacheLinePadding)
-    std::atomic<bool> exited_{false};
+    rmc::atomic<bool> exited_{false};
     // Next pointer in the list of threads
-    std::atomic<Participant *> next_{nullptr};
+    rmc::atomic<Participant *> next_{nullptr};
 
     // Collection of garbage
     alignas(kCacheLinePadding)
@@ -149,7 +149,7 @@ public:
 class Participants {
 private:
     friend class Participant;
-    static std::atomic<Participant *> head_;
+    static rmc::atomic<Participant *> head_;
 
 public:
     static Participant *enroll();
