@@ -46,13 +46,20 @@ TESTS=$(foreach epoch,$(EPOCH_TYPES), \
 
 all: $(TESTS)
 
-# Generic rules and build stuff
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
 CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
 	$(MARCH) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads
 
+# Generic rules and build stuff
+ifdef VERBOSE
+  Q :=
+  E =
+else
+  Q := @
+  E = echo $(1)
+endif
 
 OBJ_FILES=$(patsubst %, $(OBJDIR)/%.o, $(TESTS)) \
 	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
@@ -60,20 +67,23 @@ OBJ_FILES=$(patsubst %, $(OBJDIR)/%.o, $(TESTS)) \
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
+	@$(call E, COMPILE $@)
+	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
 
 -include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
 define TEST_template =
 $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
-	$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
+	@$$(call E, COMPILE $$@)
+	$$(Q)$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
 		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-c -o $$@ $$<
 $(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
-	$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
+	@$$(call E, LINK $$@)
+	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
 endef
 
 ########
