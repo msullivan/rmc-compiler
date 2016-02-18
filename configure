@@ -489,7 +489,7 @@ case $CFG_CPUTYPE in
         CFG_OSTYPE="${CFG_OSTYPE}eabihf"
         ;;
 
-    aarch64)
+    armv8l | aarch64)
         CFG_CPUTYPE=aarch64
         ;;
 
