@@ -4,7 +4,9 @@
 // Testing with some different lock implementations.
 
 typedef struct bslock_peterson_t {
+    alignas(128)
     int turn;
+    alignas(128)
     int flag[2];
 } bslock_peterson_t;
 #define BSLOCK_INIT { 0, {0, 0} }
