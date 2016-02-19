@@ -42,6 +42,8 @@ void Participant::enter() {
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return;
 
+    rmc::push_here();
+
     // Copy the global epoch to the local one;
     // if it has changed, garbage collect
     uintptr_t global_epoch = global_epoch_;
@@ -56,34 +58,49 @@ void Participant::enter() {
 }
 
 void Participant::exit() {
+    VEDGE(pre, exit);
     uintptr_t new_count = in_critical_ - 1;
-    in_critical_ = new_count;
+    L(exit, in_critical_ = new_count);
 }
 
 bool Participant::tryCollect() {
-    uintptr_t cur_epoch = global_epoch_;
+    // I think we might not need the load_epoch; we'll be CASing it anyways.
+    // Crossbeam makes it SC, though.
+    XEDGE(load_epoch, load_head); // XXX: discount double check
+    XEDGE(load_head, a);
+    XEDGE(a, update_epoch);
+    // This could maybe be XEDGE but making it VEDGE lets us make the
+    // invariant -vt-> based.
+    VEDGE(update_epoch, collect); // XXX: discount double check
+    XEDGE(collect, update_local);
+
+    uintptr_t cur_epoch = L(load_epoch, global_epoch_);
 
     // XXX: TODO: lazily remove stuff from this list
-    for (Participant *p = Participants::head_; p; p = p->next_) {
+    for (Participant *p = L(load_head, Participants::head_);
+         p; p = L(a, p->next_)) {
         // We can only advance the epoch if every thread in a critical
         // section is in the current epoch.
-        if (p->in_critical_ && p->epoch_ != cur_epoch) {
+        if (L(a, p->in_critical_) && L(a, p->epoch_) != cur_epoch) {
             return false;
         }
     }
 
     // Try to advance the global epoch
     uintptr_t new_epoch = cur_epoch + 1;
-    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch)) {
+    if (!L(update_epoch,
+           global_epoch_.compare_exchange_strong(cur_epoch, new_epoch))) {
         return false;
     }
 
     // Garbage collect
-    global_garbage_[(new_epoch+1) % kNumEpochs].collect();
-    garbage_.collect();
+    LS(collect, {
+        global_garbage_[(new_epoch+1) % kNumEpochs].collect();
+        garbage_.collect();
+    });
     // Now that the collection is done, we can safely update our
     // local epoch.
-    epoch_ = new_epoch;
+    LS(update_local, epoch_ = new_epoch);
 
 
     return true;
@@ -124,18 +141,27 @@ void DummyLocalGarbage::registerCleanup(GarbageCleanup f) {
 }
 
 /////////////
+
+// XXX: I think we could drop the edges here entirely and just rely on
+
 void ConcurrentBag::registerCleanup(std::function<void()> f) {
-    auto *node = new ConcurrentBag::Node(std::move(f));
+    // Don't need edge from head_ load because 'push' will also
+    // read from the write to head.
+    VEDGE(node_setup, push);
+
+    auto *node = L(node_setup, new ConcurrentBag::Node(std::move(f)));
 
     // Push the node onto a Treiber stack
     for (;;) {
         ConcurrentBag::Node *head = head_;
-        node->next_ = head;
-        if (head_.compare_exchange_weak(head, node)) break;
+        L(node_setup, node->next_ = head);
+        if (L(push, head_.compare_exchange_weak(head, node))) break;
     }
 }
 
 void ConcurrentBag::collect() {
+    VEDGE(popall, post);
+
     // Avoid xchg if empty
     if (!head_) return;
 
@@ -144,7 +170,8 @@ void ConcurrentBag::collect() {
     // we don't need to worry about ABA really.
     // (Which for stacks comes up if pop() believes that the address
     // of a node being the same means the next pointer is also...)
-    std::unique_ptr<ConcurrentBag::Node> head(head_.exchange(nullptr));
+    std::unique_ptr<ConcurrentBag::Node> head(
+        L(popall, head_.exchange(nullptr)));
 
     while (head) {
         head->cleanup_();
