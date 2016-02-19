@@ -1024,6 +1024,14 @@ bool RealizeRMC::run() {
 
   if (actions_.empty() && edges_.empty()) return false;
 
+  // This is kind of silly, but we depend on blocks having names, so
+  // give a bogus name to any unnamed edges.
+  for (auto & block : func_) {
+    if (!block.hasName()) {
+      block.setName("unnamed");
+    }
+  }
+
 #ifdef DEBUG_SPEW
   errs() << "Stuff to do for: " << func_.getName() << "\n";
   for (auto & edge : edges_) {

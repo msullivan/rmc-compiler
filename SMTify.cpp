@@ -2,7 +2,11 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
+#undef NDEBUG
+#include "sassert.h"
 #include "RMCInternal.h"
+
+#include <exception>
 
 #if USE_Z3
 
@@ -277,7 +281,8 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   //// Extract a solution.
   DenseMap<EdgeKey, int> caps;
 
-  doCheck(s);
+  bool success = doCheck(s);
+  assert_(success);
   SmtModel model = s.get_model();
   for (auto & entry : edgeCapM.map) {
     EdgeKey edge = entry.first;
@@ -596,7 +601,7 @@ void processMap(DeclMap<T> &map, SmtModel &model,
   }
 }
 
-std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
+std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   SmtContext c;
   SmtSolver s(c);
 
@@ -750,10 +755,23 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
   return cuts;
 }
 
-#else /* !USE_Z3 */
-#include <stdlib.h>
-using namespace llvm;
 std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
-  abort();
+  try {
+    return smtAnalyzeInner();
+  } catch (z3::exception &e) {
+    errs() << "Unexpected Z3 error: " << e.msg() << "\n";
+    std::terminate();
+  }
+}
+
+
+#else /* !USE_Z3 */
+#include <exception>
+using namespace llvm;
+std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
+  std::terminate();
+}
+std::vector<EdgeCut> RealizeRMC::smtAnalyze() {
+  std::terminate();
 }
 #endif

@@ -223,6 +223,7 @@ private:
 
   // SMT compilation
   void insertCut(const EdgeCut &cut);
+  std::vector<EdgeCut> smtAnalyzeInner();
   std::vector<EdgeCut> smtAnalyze();
 
 public:
