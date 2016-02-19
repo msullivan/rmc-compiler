@@ -47,7 +47,7 @@ TESTS=$(foreach epoch,$(EPOCH_TYPES), \
 all: $(TESTS)
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --use-smt) \
+CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --smt --cleanup) \
 	$(MARCH) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads

@@ -57,7 +57,7 @@ if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
 		   printf -- "-Xclang -mllvm -Xclang -rmc-use-smt "
 	   fi
 
-	   if [ $USE_CLEANUP ]; then
+	   if [ $DO_CLEANUP ]; then
 		   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
 	   fi
    fi
