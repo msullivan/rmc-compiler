@@ -27,7 +27,7 @@ using namespace llvm;
 
 // Should we pick the initial upper bound by seeing what the solver
 // produces without constraints instead of by binary searching up?
-const bool kGuessUpperBound = false;
+const bool kGuessUpperBound = true;
 const int kFirstUpperBound = 16;
 // If we guess an upper bound, should we hope that it is optimal and
 // check the bound - 1 before we binary search?
@@ -234,6 +234,7 @@ SmtExpr getPathFunc(DeclMap<PathKey> &map,
 // these values while trying to optimize the problems.
 // We should maybe compute these with normal linear algebra instead of
 // giving it to the SMT solver, though.
+// N.B. that capacity gets invented out of nowhere in loops
 DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   SmtContext c;
   SmtSolver s(c);
@@ -242,6 +243,7 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
   DeclMap<EdgeKey> edgeCapM(c.int_sort(), "edge_cap");
 
   //// Build the equations.
+  SmtExpr incomingEntryCap = c.int_val(0);
   for (auto & block : F) {
     SmtExpr nodeCap = getFunc(nodeCapM, &block);
 
@@ -267,16 +269,19 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     }
     // Populate the capacities for the fictional back edges to the
     // function entry point.
-    // N.B: we don't bother establishing the equation holds on the
-    // *other* side, but I think it should work out OK.
-    // Blocks that don't have anny succesors end in a return or the like.
+    // Blocks that don't have any succesors end in a return or the like.
     if (childCount == 0) {
-      s.add(getEdgeFunc(edgeCapM, &block, &F.getEntryBlock()) == nodeCap);
+      SmtExpr returnCap = getEdgeFunc(edgeCapM, &block, &F.getEntryBlock());
+      s.add(returnCap == nodeCap);
+      incomingEntryCap = incomingEntryCap + returnCap;
     }
   }
 
+  SmtExpr entryNodeCap = getFunc(nodeCapM, &F.getEntryBlock());
+  // Make the entry node equations add up.
+  s.add(entryNodeCap == incomingEntryCap);
   // Keep all zeros from working:
-  s.add(getFunc(nodeCapM, &F.getEntryBlock()) > c.int_val(0));
+  s.add(entryNodeCap > c.int_val(0));
 
   //// Extract a solution.
   DenseMap<EdgeKey, int> caps;
@@ -289,7 +294,10 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     SmtExpr cst = entry.second;
     int cap = extractInt(model.eval(cst));
     caps.insert(std::make_pair(edge, cap));
+    //errs() << "Edge cap: " << makeVarString(edge) << ": " << cap << "\n";
   }
+
+  //errs() << "Entry cap: " << extractInt(model.eval(entryNodeCap)) << "\n";
 
   return caps;
 }
