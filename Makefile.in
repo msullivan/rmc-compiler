@@ -89,8 +89,9 @@ RMC.so: $(OBJ_FILES) $(CONFIG_FILES)
 # this more general. Autoconf would make this easy...
 run-rmc: scripts/run-rmc.in $(CONFIG_FILES)
 	@$(call E, CREATE $@)
+	@rm -f $@
 	$(Q)sed "s|@CFG_LLVM_CONFIG@|$(CFG_LLVM_CONFIG)|" $< > $@
-	$(Q)chmod +x $@
+	$(Q)chmod +x-w $@
 
 clean:
 	rm -rf *~ *.so $(OBJDIR) run-rmc

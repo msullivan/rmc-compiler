@@ -7,7 +7,7 @@ EPOCH_TYPES=sc c11 rmc leak
 include ../../config.mk uppercase.mk
 
 # Files that force rebuilding everything
-CONFIG_FILES=Makefile ../../config.mk uppercase.mk
+CONFIG_FILES=Makefile ../../config.mk ../../RMC.so uppercase.mk
 
 OBJDIR=build
 

@@ -61,7 +61,7 @@ done
 if [ "$(basename $1 .cpp).cpp" = "$(basename $1)" ]; then
 	IS_CPP=1
 	NAME=$(basename $1 .cpp)
-	STD_FLAG=--std=gnu++11
+	STD_FLAG=--std=gnu++14
 else
 	NAME=$(basename $1 .c)
 	STD_FLAG=--std=gnu11
@@ -103,7 +103,7 @@ else
     DEF_FLAGS="-DNO_TEST -DONLY_RMC"
 fi
 
-clang $STD_FLAG $OPT_FLAG $PLATFORM_FLAGS -I "$RMC_INCLUDE_DIR" $INCLUDE_FLAGS $DEF_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
+clang $STD_FLAG $OPT_FLAG $PLATFORM_FLAGS -I "$RMC_INCLUDE_DIR" $INCLUDE_FLAGS $DEF_FLAGS $EXTRA_FLAGS -DHAS_RMC=1 -Wall -emit-llvm -c -o $NAME.pre0.bc $1
 llvm-dis $NAME.pre0.bc
 
 # -instcombine is useful for annoying reasons; __c11_atomic_load
