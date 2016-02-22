@@ -36,7 +36,7 @@ Participant *Participants::enroll() {
 }
 
 /////// Participant is where most of the interesting stuff happens
-void Participant::enter() {
+void Participant::enter() noexcept {
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
     // Nothing to do if we were already in a critical section
@@ -55,7 +55,7 @@ void Participant::enter() {
     }
 }
 
-void Participant::exit() {
+void Participant::exit() noexcept {
     uintptr_t new_count = in_critical_ - 1;
     in_critical_ = new_count;
 }

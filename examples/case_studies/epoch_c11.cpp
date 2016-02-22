@@ -13,7 +13,7 @@ namespace rmclib {
 
 const std::memory_order mo_rlx = std::memory_order_relaxed;
 const std::memory_order mo_rel = std::memory_order_release;
-const std::memory_order mo_acq = std::memory_order_acquire;
+//const std::memory_order mo_acq = std::memory_order_acquire;
 const std::memory_order mo_sc  = std::memory_order_seq_cst;
 
 const int kNumEpochs = 3;
@@ -41,7 +41,7 @@ Participant *Participants::enroll() {
 }
 
 /////// Participant is where most of the interesting stuff happens
-void Participant::enter() {
+void Participant::enter() noexcept {
     uintptr_t new_count = in_critical_.load(mo_rlx) + 1;
     in_critical_.store(new_count, mo_rlx);
     // Nothing to do if we were already in a critical section
@@ -62,7 +62,7 @@ void Participant::enter() {
     }
 }
 
-void Participant::exit() {
+void Participant::exit() noexcept {
     uintptr_t new_count = in_critical_.load(mo_rlx) - 1;
     // XXX: this may not need to be release
     // in our current setup, nothing can get freed until we do another

@@ -134,8 +134,8 @@ private:
     bool tryCollect();
 
 public:
-    void enter();
-    void exit();
+    void enter() noexcept;
+    void exit() noexcept;
 
     void registerCleanup(GarbageCleanup f) {
         garbage_.registerCleanup(f);
