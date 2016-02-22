@@ -235,7 +235,7 @@ SmtExpr getPathFunc(DeclMap<PathKey> &map,
 // We should maybe compute these with normal linear algebra instead of
 // giving it to the SMT solver, though.
 // N.B. that capacity gets invented out of nowhere in loops
-DenseMap<EdgeKey, int> computeCapacities(Function &F) {
+DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
   SmtContext c;
   SmtSolver s(c);
 
@@ -257,15 +257,32 @@ DenseMap<EdgeKey, int> computeCapacities(Function &F) {
     }
 
     // Setup equations for outgoing edges
+    auto numerator =
+      [&] (BasicBlock *target) {
+      // If the block is a loop exit block, we make the probability
+      // higher for exits that stay in the loop.
+      // TODO: handle loop nesting in a smarter way.
+      auto *loop = loops[&block];
+      if (loop && !loop->isLoopExiting(&block)) return 1;
+      return loops[target] == loop ? 1 : 4;
+    };
+
     auto i = succ_begin(&block), e = succ_end(&block);
     int childCount = e - i;
+    int denominator = 0;
+    for (; i != e; ++i) {
+      denominator += numerator(*i);
+    }
+    i = succ_begin(&block), e = succ_end(&block);
     for (; i != e; ++i) {
       // For now, we assume even probabilities.
       // Would be an improvement to do better
       SmtExpr edgeCap = getEdgeFunc(edgeCapM, &block, *i);
-      // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= 1/n, we do
-      // n * c(v, u) == c(v)
-      s.add(edgeCap * c.int_val(childCount) == nodeCap);
+      // We want: c(v, u) == Pr(v, u) * c(v). Since Pr(v, u) ~= n(v,u)/d(v,u),
+      // we do
+      // d(v,u) * c(v, u) == c(v) * n(v,u)
+      s.add(edgeCap * c.int_val(denominator) ==
+            nodeCap * c.int_val(numerator(*i)));
     }
     // Populate the capacities for the fictional back edges to the
     // function entry point.
@@ -645,14 +662,17 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   };
 
   // Compute the capacity function
-  DenseMap<EdgeKey, int> edgeCap = computeCapacities(func_);
+  DenseMap<EdgeKey, int> edgeCap = computeCapacities(loopInfo_, func_);
   auto weight =
     [&] (BasicBlock *src, BasicBlock *dst) {
     // The weight of an edge is based on its graph capacity and its loop depth.
     // We use 4^depth as a scaling factor for loop depth so that a loop body
     // will have twice the cost of its parent (since the parent probably has
     // twice the capacity).
-    return edgeCap[makeEdgeKey(src, dst)] * pow(4, loopInfo_.getLoopDepth(src));
+    // XXX: Turning that all off in favor of trying to be smarter about
+    // probabilities for loop exits.
+    //return edgeCap[makeEdgeKey(src, dst)] * pow(4, loopInfo_.getLoopDepth(src));
+    return edgeCap[makeEdgeKey(src, dst)];
   };
 
   //////////
