@@ -1028,7 +1028,7 @@ bool RealizeRMC::run() {
   // give a bogus name to any unnamed edges.
   for (auto & block : func_) {
     if (!block.hasName()) {
-      block.setName("unnamed");
+      block.setName("<unnamed>");
     }
   }
 
