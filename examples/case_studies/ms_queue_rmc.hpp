@@ -173,7 +173,7 @@ optional<T> MSQueue<T>::dequeue() {
     // OK, everything set up.
     // next contains the value we are reading
     // head can be freed
-    Epoch::unlinked(head);
+    guard.unlinked(head);
     optional<T> ret(std::move(next->data_));
     next->data_ = optional<T>{}; // destroy the object
 

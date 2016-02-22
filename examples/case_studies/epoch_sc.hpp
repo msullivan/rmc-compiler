@@ -155,7 +155,6 @@ public:
 };
 
 
-
 class LocalEpoch {
 private:
     Participant *me_;
@@ -170,45 +169,50 @@ public:
     lf_ptr<Participant> get() { return me_; }
 };
 
+// Guard manages the lifecycle of an Epoch critical section.
+// To ensure that nodes are only freed in a critical section,
+// unlinked is a member of Guard.
 class Guard {
-public:
-    ~Guard();
-};
-
-class Epoch {
 private:
-    static thread_local LocalEpoch local_epoch_;
-
     template <typename T>
     static void delete_ptr(void *p) {
         delete reinterpret_cast<T *>(p);
     }
 
-
+    // Cache the participant so that we don't need to do TLS
+    // initialization checks
+    Participant *participant_;
 public:
-    static void enter() { local_epoch_.get()->enter(); }
-    static void exit() { local_epoch_.get()->exit(); }
+    Guard(Participant *participant) : participant_(participant) {
+        participant_->enter();
+    }
+    ~Guard() {
+        participant_->exit();
+    }
 
     // Register a cleanup function to be called on the next GC
     // template <typename F>
     // static void registerCleanup(F f) {
-    static void registerCleanup(GarbageCleanup f) {
-        local_epoch_.get()->registerCleanup(f);
+    void registerCleanup(GarbageCleanup f) {
+        participant_->registerCleanup(f);
     }
 
     // Register a pointer to be deleted on the next gc
     template <typename T>
-    static void unlinked(T *p) {
+    void unlinked(T *p) {
         registerCleanup(GarbageCleanup(delete_ptr<T>,
                                        reinterpret_cast<void *>(p)));
     }
+};
 
+class Epoch {
+private:
+    static thread_local LocalEpoch local_epoch_;
+public:
     static Guard pin() {
-        enter();
-        return Guard();
+        return Guard(local_epoch_.get());
     }
 };
-inline Guard::~Guard() { Epoch::exit(); }
 
 //////
 

@@ -14,19 +14,18 @@ template<class T> using lf_ptr = T*;
 ////////////////////////////
 
 class Guard {
+private:
 public:
-    ~Guard() {}
+    Guard() { }
+    ~Guard() { }
+    template <typename F>
+    void registerCleanup(F f) { }
+    template <typename T>
+    void unlinked(T *p) { }
 };
 
 class Epoch {
 public:
-    static void enter() {  }
-    static void exit() {  }
-    template <typename F>
-    static void registerCleanup(F f) { }
-    template <typename T>
-    static void unlinked(T *p) { }
-
     static Guard pin() {
         return Guard();
     }
