@@ -140,6 +140,8 @@ enum CutType {
   CutLwsync,
   CutSync,
   CutData,
+  CutRelease,
+  CutAcquire,
 };
 struct BlockCut {
   BlockCut() : type(CutNone), isFront(false), read(nullptr) {}

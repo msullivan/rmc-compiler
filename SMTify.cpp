@@ -45,6 +45,9 @@ const int kIsyncCost = 20;
 const int kUseCtrlCost = 1;
 const int kAddCtrlCost = 7;
 const int kUseDataCost = 1;
+const int kMakeReleaseCost = 49;
+const int kMakeAcquireCost = 49;
+
 
 bool debugSpew = false;
 
@@ -144,11 +147,15 @@ void minimize(SmtSolver &s, SmtExpr &costVar) {
 
 // Is it worth having our own mapping? Is z3 going to be doing a bunch
 // of string lookups anyways? Dunno.
+typedef BasicBlock* BlockKey;
 typedef std::pair<BasicBlock *, BasicBlock *> EdgeKey;
 typedef PathID PathKey;
 typedef std::pair<BasicBlock *, PathID> BlockPathKey;
 typedef std::pair<EdgeKey, PathID> EdgePathKey;
 typedef std::pair<BasicBlock *, EdgeKey> BlockEdgeKey;
+BlockKey makeBlockKey(BasicBlock *block) {
+  return block;
+}
 EdgeKey makeEdgeKey(BasicBlock *src, BasicBlock *dst) {
   return std::make_pair(src, dst);
 }
@@ -216,6 +223,11 @@ SmtExpr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
   map.map.insert(std::make_pair(key, e));
 
   return e;
+}
+SmtExpr getBlockFunc(DeclMap<BlockKey> &map,
+                     BasicBlock *block,
+                     bool *alreadyThere = nullptr) {
+  return getFunc(map, makeBlockKey(block), alreadyThere);
 }
 SmtExpr getEdgeFunc(DeclMap<EdgeKey> &map,
                      BasicBlock *src, BasicBlock *dst,
@@ -308,11 +320,17 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
   SmtModel model = s.get_model();
   for (auto & entry : edgeCapM.map) {
     EdgeKey edge = entry.first;
-    SmtExpr cst = entry.second;
-    int cap = extractInt(model.eval(cst));
+    int cap = extractInt(model.eval(entry.second));
     caps.insert(std::make_pair(edge, cap));
     //errs() << "Edge cap: " << makeVarString(edge) << ": " << cap << "\n";
   }
+  // Cram the node weights in with <block, nullptr> keys
+  for (auto & entry : nodeCapM.map) {
+    EdgeKey edge = std::make_pair(entry.first, nullptr);
+    int cap = extractInt(model.eval(entry.second));
+    caps.insert(std::make_pair(edge, cap));
+  }
+
 
   //errs() << "Entry cap: " << extractInt(model.eval(entryNodeCap)) << "\n";
 
@@ -329,6 +347,8 @@ struct VarMaps {
 
   DeclMap<EdgeKey> sync;
   DeclMap<EdgeKey> lwsync;
+  DeclMap<BlockKey> release;
+  DeclMap<BlockKey> acquire;
   // XXX: Make arrays keyed by edge type
   DeclMap<EdgeKey> pcut;
   DeclMap<EdgeKey> vcut;
@@ -604,14 +624,30 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst) {
   return isCut;
 }
 
-SmtExpr makeVcut(SmtSolver &s, VarMaps &m, BasicBlock *src, BasicBlock *dst,
+SmtExpr makeRelAcqVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
+                       bool isPush) {
+  // TODO: This is a proof of concept setup. do more.
+  if (!isPush /* but could be on ARMv8?? */ &&
+      // TODO src needs to be a write from a C++11 perspective
+      // but other things work on x86 and I think ARMv8
+      src.type == ActionSimpleWrites &&
+      (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
+    return getBlockFunc(m.release, dst.bb);
+  }
+  return s.ctx().bool_val(false);
+}
+
+SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  bool isPush) {
-  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut, src, dst);
+  // XXX: is this wrong for multiblock actions???
+  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut, src.bb, dst.bb);
 
   SmtExpr allPathsCut = forAllPaths(
-    s, m, src, dst,
+    s, m, src.bb, dst.bb,
     [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
-  s.add(isCut == allPathsCut);
+  SmtExpr relAcqCut = makeRelAcqVcut(s, m, src, dst, isPush);
+
+  s.add(isCut == allPathsCut || relAcqCut);
 
   return isCut;
 }
@@ -648,6 +684,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     actionsBoundOutside_,
     DeclMap<EdgeKey>(c.bool_sort(), "sync"),
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
+    DeclMap<BlockKey>(c.bool_sort(), "release"),
+    DeclMap<BlockKey>(c.bool_sort(), "acquire"),
     DeclMap<EdgeKey>(c.bool_sort(), "pcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "xcut"),
@@ -681,15 +719,19 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     //return edgeCap[makeEdgeKey(src, dst)] * pow(4, loopInfo_.getLoopDepth(src));
     return edgeCap[makeEdgeKey(src, dst)];
   };
+  auto block_weight =
+    [&] (BasicBlock *block) {
+    return edgeCap[makeEdgeKey(block, nullptr)];
+  };
 
   //////////
   // HOK. Make sure everything is cut.
   for (auto & src : actions_) {
     for (auto dst : src.pushTransEdges) {
-      s.add(makeVcut(s, m, src.bb, dst->bb, true));
+      s.add(makeVcut(s, m, src, *dst, true));
     }
     for (auto dst : src.visTransEdges) {
-      s.add(makeVcut(s, m, src.bb, dst->bb, false));
+      s.add(makeVcut(s, m, src, *dst, false));
     }
     for (auto dst : src.execTransEdges) {
       s.add(makeXcut(s, m, src.bb, dst));
@@ -717,11 +759,25 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     cost = cost +
       boolToInt(v, kLwsyncCost*weight(src, dst)+1);
   }
+  // Release cost
+  for (auto & entry : m.release.map) {
+    unpack(src, v) = fix_pair(entry);
+    cost = cost +
+      boolToInt(v, kMakeReleaseCost*block_weight(src)+1);
+  }
+  // Acquire cost
+  for (auto & entry : m.acquire.map) {
+    unpack(src, v) = fix_pair(entry);
+    cost = cost +
+      boolToInt(v, kMakeReleaseCost*block_weight(src)+1);
+  }
+  // Isync cost
   for (auto & entry : m.isync.map) {
     unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
       boolToInt(v, kIsyncCost*weight(src, dst)+1);
   }
+  // Ctrl cost
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
     unpack(unpack(dep, unpack(src, dst)), v) = fix_pair(entry);
@@ -730,6 +786,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     cost = cost +
       boolToInt(v, ctrlWeight*weight(src, dst));
   }
+  // Data dep cost
   for (auto & entry : m.usesData.map) {
     PathID path;
     unpack(unpack(unpack(src, dst), path), v) = fix_pair(entry);
@@ -766,6 +823,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   processMap<EdgeKey>(m.lwsync, model, [&] (EdgeKey &edge) {
     cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
   });
+  // Find the releases we are inserting
+  processMap<BlockKey>(m.release, model, [&] (BlockKey &block) {
+    cuts.push_back(EdgeCut(CutRelease, block, nullptr));
+  });
+  // Find the Acquires we are inserting
+  processMap<BlockKey>(m.acquire, model, [&] (BlockKey &block) {
+    cuts.push_back(EdgeCut(CutAcquire, block, nullptr));
+  });
   // Find the isyncs we are inserting
   processMap<EdgeKey>(m.isync, model, [&] (EdgeKey &edge) {
     cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
@@ -777,6 +842,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     Value *read = bb2action_[dep]->soleLoad;
     cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
   });
+  // Find data deps to preserve
   processMap<EdgePathKey>(m.usesData, model, [&] (EdgePathKey &entry) {
     BasicBlock *src, *dst; PathID path;
     unpack(unpack(src, dst), path) = entry;

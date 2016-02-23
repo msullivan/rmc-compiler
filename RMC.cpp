@@ -956,6 +956,37 @@ Instruction *getCutInstr(const EdgeCut &cut) {
   return term;
 }
 
+AtomicOrdering strengthenOrder(AtomicOrdering order, AtomicOrdering strength) {
+  if (order == SequentiallyConsistent) return order;
+  if (order == Acquire && strength == Release) return AcquireRelease;
+  if (order == Release && strength == Acquire) return AcquireRelease;
+  return strength;
+}
+
+void strengthenBlockOrders(BasicBlock *block, AtomicOrdering strength) {
+  for (auto & i : *block) {
+    if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
+      store->setOrdering(strengthenOrder(store->getOrdering(), strength));
+    }
+    if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
+      load->setOrdering(strengthenOrder(load->getOrdering(), strength));
+    }
+    if (AtomicRMWInst *rmw = dyn_cast<AtomicRMWInst>(&i)) {
+      rmw->setOrdering(strengthenOrder(rmw->getOrdering(), strength));
+    }
+    if (AtomicCmpXchgInst *cas = dyn_cast<AtomicCmpXchgInst>(&i)) {
+      cas->setSuccessOrdering(
+        strengthenOrder(cas->getSuccessOrdering(), strength));
+      // Failure orderings are just loads, so making them Release
+      // doesn't make any sense.
+      if (strength == Acquire) {
+        cas->setFailureOrdering(
+          strengthenOrder(cas->getFailureOrdering(), strength));
+      }
+    }
+  }
+}
+
 void RealizeRMC::insertCut(const EdgeCut &cut) {
   //errs() << cut.type << ": "
   //       << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
@@ -992,6 +1023,12 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     enforceAddrDeps(end, trail);
     break;
   }
+  case CutRelease:
+    strengthenBlockOrders(cut.src, Release);
+    break;
+  case CutAcquire:
+    strengthenBlockOrders(cut.src, Acquire);
+    break;
   default:
     assert(false && "Unimplemented insertCut case");
   }
