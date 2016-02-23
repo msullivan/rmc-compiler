@@ -627,6 +627,13 @@ void processMap(DeclMap<T> &map, SmtModel &model,
 }
 
 std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
+  // XXX: Workaround a Z3 bug. When 'enable_sat' is set, we sometimes
+  // hit an exception (which should probably be an assertion) in
+  // inc_sat_solver. Setting opt.enable_set=false disables
+  // inc_sat_solver, which makes the problem go away.
+  // I should try to minimize this and file a bug.
+  z3::set_param("opt.enable_sat", false);
+
   SmtContext c;
   SmtSolver s(c);
 
