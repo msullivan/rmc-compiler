@@ -66,6 +66,7 @@ enum ActionType {
   ActionSimpleRMW,
 };
 struct Action {
+  explicit
   Action(BasicBlock *p_bb,
          BasicBlock *p_startBlock = nullptr, BasicBlock *p_endBlock = nullptr,
          std::string p_name = "") :

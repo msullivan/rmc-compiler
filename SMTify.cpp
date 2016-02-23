@@ -491,10 +491,10 @@ SmtExpr makeAllPathsCtrl(SmtSolver &s, VarMaps &m,
 }
 
 SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
-                         PathID path, Action *tail) {
+                        PathID path, Action &tail) {
   // XXX: do we care about actually using the variable pathCtrlCut?
   // TODO: support isync cuts also
-  if (tail->type == ActionSimpleWrites) {
+  if (tail.type == ActionSimpleWrites) {
     return makePathCtrl(s, m, path);
   } else {
     return makePathCtrlIsync(s, m, path);
@@ -515,7 +515,7 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
 
 // Does it make sense for this to be a path variable at all???
 SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
-                        PathID fullPath, Action *tail) {
+                        PathID fullPath, Action &tail) {
   SmtContext &c = s.ctx();
   if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(fullPath);
@@ -534,7 +534,7 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
       SmtExpr cut = makeData(s, m, dep, dst, fullPath);
       path = m.pc.getTail(path);
-      if (dst != tail->bb) {
+      if (dst != tail.bb) {
         cut = cut &&
           (makePathCtrlCut(s, m, path, tail) ||
            makePathDataCut(s, m, path, tail));
@@ -582,27 +582,28 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
 }
 
 
-SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst);
+SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst);
 
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
-                     PathID path, Action *tail) {
+                     PathID path, Action &tail) {
   bool alreadyMade;
   SmtExpr isCut = getPathFunc(m.pathXcut, path, &alreadyMade);
   if (alreadyMade) return isCut;
 
   BasicBlock *head = m.pc.getHead(path);
-  bool isSelfPath = head == tail->bb;
+  bool isSelfPath = head == tail.bb;
 
   SmtExpr pathCtrlCut = makePathCtrlCut(s, m, path, tail);
+  Action *headAction = m.bb2action[head];
   if (!isSelfPath) {
     pathCtrlCut = pathCtrlCut &&
       (makeAllPathsCtrl(s, m, head, head) ||
-      makeXcut(s, m, head, m.bb2action[head]));
+       makeXcut(s, m, *headAction, *headAction));
   }
   SmtExpr pathDataCut = makePathDataCut(s, m, path, tail);
   if (!isSelfPath) {
     pathDataCut = pathDataCut &&
-      makeXcut(s, m, head, m.bb2action[head]);
+      makeXcut(s, m, *headAction, *headAction);
   }
 
   s.add(isCut ==
@@ -611,13 +612,13 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
-SmtExpr makeXcut(SmtSolver &s, VarMaps &m, BasicBlock *src, Action *dst) {
+SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst) {
   bool alreadyMade;
-  SmtExpr isCut = getEdgeFunc(m.xcut, src, dst->bb, &alreadyMade);
+  SmtExpr isCut = getEdgeFunc(m.xcut, src.bb, dst.bb, &alreadyMade);
   if (alreadyMade) return isCut;
 
   SmtExpr allPathsCut = forAllPaths(
-    s, m, src, dst->bb,
+    s, m, src.bb, dst.bb,
     [&] (PathID path) { return makePathXcut(s, m, path, dst); });
   s.add(isCut == allPathsCut);
 
@@ -734,7 +735,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
       s.add(makeVcut(s, m, src, *dst, false));
     }
     for (auto dst : src.execTransEdges) {
-      s.add(makeXcut(s, m, src.bb, dst));
+      s.add(makeXcut(s, m, src, *dst));
     }
   }
 
