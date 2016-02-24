@@ -148,7 +148,7 @@ Instruction *makeSync(Instruction *to_precede) {
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "dmb @ sync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb // sync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "sync # sync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -161,7 +161,7 @@ Instruction *makeLwsync(Instruction *to_precede) {
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "dmb @ lwsync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb // lwsync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "lwsync # lwsync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -175,7 +175,7 @@ Instruction *makeIsync(Instruction *to_precede) {
     FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "isb @ isync", "~{memory}", true);
+    a = makeAsm(f_ty, "isb // isync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "isync # isync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -189,7 +189,7 @@ Instruction *makeCtrl(Value *v, Instruction *to_precede) {
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a = nullptr;
   if (target == TargetARM) {
-    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: @ ctrl", "r,~{memory}", true);
+    a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: // ctrl", "r,~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "cmpw $0, $0;beq 1f;1: # ctrl", "r,~{memory}", true);
   } else if (target == TargetX86) {
