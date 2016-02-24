@@ -612,6 +612,41 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
+const bool kAcqRelAbuse = false;
+
+SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
+                      RMCEdgeType type) {
+  // W1 -v-> W/RW2  -- W/RW2 = rel
+  if (type == VisibilityEdge &&
+      src.type == ActionSimpleWrites &&
+      (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
+    return getBlockFunc(m.release, dst.bb);
+  }
+  // R/RW1 -x-> *   -- R/RW1 = acq
+  if (type == ExecutionEdge &&
+      (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
+    return getBlockFunc(m.acquire, src.bb);
+  }
+  // R/RW1 -v-> W/RW2 -- complicated
+  if (type == VisibilityEdge &&
+      (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
+      (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
+
+    // On x86 and (I think) on ARMv8, it suffices to make W/RW2 = rel
+    // On x86 we could probably also use an acquire but why bother.
+    // XXX: double check the ARMv8 thing against the model paper, not
+    // just the ARM documentation
+    if (kAcqRelAbuse) {
+      return getBlockFunc(m.release, dst.bb);
+    } else {
+      return getBlockFunc(m.release, dst.bb) &&
+        getBlockFunc(m.acquire, src.bb);
+    }
+  }
+
+  return s.ctx().bool_val(false);
+}
+
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst) {
   bool alreadyMade;
   SmtExpr isCut = getEdgeFunc(m.xcut, src.bb, dst.bb, &alreadyMade);
@@ -620,23 +655,12 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst) {
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.bb, dst.bb,
     [&] (PathID path) { return makePathXcut(s, m, path, dst); });
-  s.add(isCut == allPathsCut);
+  SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, ExecutionEdge);
+  s.add(isCut == allPathsCut || relAcqCut);
 
   return isCut;
 }
 
-SmtExpr makeRelAcqVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                       bool isPush) {
-  // TODO: This is a proof of concept setup. do more.
-  if (!isPush /* but could be on ARMv8?? */ &&
-      // TODO src needs to be a write from a C++11 perspective
-      // but other things work on x86 and I think ARMv8
-      src.type == ActionSimpleWrites &&
-      (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
-    return getBlockFunc(m.release, dst.bb);
-  }
-  return s.ctx().bool_val(false);
-}
 
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  bool isPush) {
@@ -646,8 +670,8 @@ SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.bb, dst.bb,
     [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
-  SmtExpr relAcqCut = makeRelAcqVcut(s, m, src, dst, isPush);
-
+  SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst,
+                                    isPush ? PushEdge : VisibilityEdge);
   s.add(isCut == allPathsCut || relAcqCut);
 
   return isCut;
