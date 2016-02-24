@@ -2,7 +2,6 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-#undef NDEBUG
 #include "sassert.h"
 #include "RMCInternal.h"
 
@@ -18,6 +17,9 @@
 #include <llvm/IR/Dominators.h>
 
 #include "smt.h"
+
+#undef NDEBUG
+#include <assert.h>
 
 using namespace llvm;
 

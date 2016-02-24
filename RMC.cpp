@@ -49,6 +49,10 @@
 #include <map>
 #include <set>
 
+#undef NDEBUG
+#include <assert.h>
+
+
 using namespace llvm;
 
 static void rmc_error() {
