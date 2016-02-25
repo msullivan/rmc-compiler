@@ -55,7 +55,9 @@ void consumer(Test *t) {
                 printf("owned %lu\n", val);
                 abort();
             }
-            assert(t->producers > 1 || val > max);
+            if (t->producers == 1) {
+                assert_op(val, >, max);
+            }
             max = val;
             sum += val;
         }
@@ -102,7 +104,7 @@ void test(Test &t) {
     expected *= t.producers;
 
     //printf("Final sum: %ld\n", t.totalSum.load());
-    assert(t.totalSum == expected);
+    assert_eq(t.totalSum.load(), expected);
 }
 
 int main(int argc, char** argv) {

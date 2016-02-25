@@ -3,6 +3,20 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
+
+#define assert_op(e1, op, e2) do {               \
+        __typeof__(e1) _____t1 = (e1);          \
+        __typeof__(e1) _____t2 = (e2);          \
+        if (!(_____t1 op _____t2)) {            \
+            fprintf(stderr, "Assertion failed: %s (%ld) %s %s (%ld)\n", \
+                    #e1, (long)_____t1, #op, #e2, (long)_____t2);       \
+            abort();                                                    \
+        }                                                               \
+    } while (0)
+#define assert_eq(e1, e2) assert_op(e1, ==, e2)
+#define assert_ne(e1, e2) assert_op(e1, !=, e2)
+
 
 namespace rmclib {
 
