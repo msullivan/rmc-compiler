@@ -21,18 +21,27 @@ public:
             stopped_ = true;
         }
     }
-    void report(long numOps = 0) {
+    void report(long numOps = 0, bool verbose = true) {
         stop();
         auto int_ms = std::chrono::duration_cast<
             std::chrono::milliseconds>(stop_ - start_);
-        printf("Runtime: %lldms\n", (long long)int_ms.count());
-        if (numOps > 0) {
-            auto int_ns = std::chrono::duration_cast<
-                std::chrono::nanoseconds>(stop_ - start_);
-            std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
 
-            printf("Time/op: %lldns (or %lfns)\n",
-                   (long long)int_ns.count() / numOps, fp_ns.count() / numOps);
+        auto int_ns = std::chrono::duration_cast<
+            std::chrono::nanoseconds>(stop_ - start_);
+        std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
+
+        if (verbose) {
+            printf("Runtime: %lldms\n", (long long)int_ms.count());
+            if (numOps > 0) {
+
+                printf("Time/op: %lldns (or %lfns)\n",
+                       (long long)int_ns.count() / numOps,
+                       fp_ns.count() / numOps);
+            }
+        } else {
+            printf("%lld,%lf\n",
+                   (long long)int_ms.count(),
+                   fp_ns.count() / numOps);
         }
     }
 };

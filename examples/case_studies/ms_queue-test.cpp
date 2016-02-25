@@ -12,7 +12,7 @@
 
 typedef unsigned long ulong;
 
-static ulong kCount = 10000000;
+const ulong kCount = 10000000;
 
 struct Test {
     rmclib::MSQueue<ulong> queue;
@@ -71,6 +71,8 @@ void joinAll(std::vector<std::thread> &threads) {
     }
 }
 
+static bool verboseOutput = true;
+
 void test(Test &t) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
@@ -90,7 +92,7 @@ void test(Test &t) {
     t.producersDone = true;
     joinAll(consumers);
 
-    timer.report(t.count * (t.producers+t.consumers));
+    timer.report(t.count * (t.producers+t.consumers), verboseOutput);
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
@@ -112,7 +114,7 @@ int main(int argc, char** argv) {
     // getopt kind of ugly. I kind of want to use llvm's arg parsing,
     // which I <3, but it is such a big hammer
     int opt;
-    while ((opt = getopt(argc, argv, "p:c:n:r:d:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:c:n:r:d:b")) != -1) {
         switch (opt) {
         case 'p':
             producers = atoi(optarg);
@@ -128,6 +130,9 @@ int main(int argc, char** argv) {
             break;
         case 'd':
             dups = atoi(optarg);
+            break;
+        case 'b':
+            verboseOutput = false;
             break;
         default:
             fprintf(stderr, "Argument parsing error\n");
