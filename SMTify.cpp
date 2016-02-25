@@ -50,6 +50,8 @@ const int kUseDataCost = 1;
 const int kMakeReleaseCost = 49;
 const int kMakeAcquireCost = 49;
 
+// OK, isync actually sucks on ARM mostly, I think, Don't bother.
+const bool kUseIsync = false;
 
 bool debugSpew = false;
 
@@ -495,11 +497,16 @@ SmtExpr makeAllPathsCtrl(SmtSolver &s, VarMaps &m,
 SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
                         PathID path, Action &tail) {
   // XXX: do we care about actually using the variable pathCtrlCut?
-  // TODO: support isync cuts also
   if (tail.type == ActionSimpleWrites) {
     return makePathCtrl(s, m, path);
   } else {
-    return makePathCtrlIsync(s, m, path);
+    // I think isb actually sucks on ARM, so make whether we try it
+    // configurable.
+    if (kUseIsync) {
+      return makePathCtrlIsync(s, m, path);
+    } else {
+      return s.ctx().bool_val(false);
+    }
   }
 }
 
