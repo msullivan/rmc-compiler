@@ -114,10 +114,15 @@ void transitiveClosure(Range &actions,
 enum RMCTarget {
   TargetX86,
   TargetARM,
+  TargetARMv8,
   TargetPOWER
 };
 // It is sort of bogus to make this global.
 RMCTarget target;
+
+bool isARM(RMCTarget target) {
+  return target == TargetARM || target == TargetARMv8;
+}
 
 // Generate a unique str that we add to comments in our inline
 // assembly to keep llvm from getting clever and merging them.
@@ -151,8 +156,8 @@ Instruction *makeSync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
-  if (target == TargetARM) {
-    a = makeAsm(f_ty, "dmb // sync", "~{memory}", true);
+  if (isARM(target)) {
+    a = makeAsm(f_ty, "dmb sy // sync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "sync # sync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -164,8 +169,8 @@ Instruction *makeLwsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
-  if (target == TargetARM) {
-    a = makeAsm(f_ty, "dmb // lwsync", "~{memory}", true);
+  if (isARM(target)) {
+    a = makeAsm(f_ty, "dmb sy // lwsync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "lwsync # lwsync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -178,7 +183,7 @@ Instruction *makeIsync(Instruction *to_precede) {
   FunctionType *f_ty =
     FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
-  if (target == TargetARM) {
+  if (isARM(target)) {
     a = makeAsm(f_ty, "isb // isync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "isync # isync", "~{memory}", true);
@@ -192,7 +197,7 @@ Instruction *makeCtrl(Value *v, Instruction *to_precede) {
   FunctionType *f_ty =
     FunctionType::get(FunctionType::getVoidTy(C), v->getType(), false);
   InlineAsm *a = nullptr;
-  if (target == TargetARM) {
+  if (isARM(target)) {
     a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: // ctrl", "r,~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "cmpw $0, $0;beq 1f;1: # ctrl", "r,~{memory}", true);
@@ -1129,6 +1134,8 @@ public:
       target = TargetX86;
     } else if (triple.find("arm") == 0) {
       target = TargetARM;
+    } else if (triple.find("aarch64") == 0) {
+      target = TargetARMv8;
     } else if (triple.find("powerpc") == 0) {
       target = TargetPOWER;
     } else {

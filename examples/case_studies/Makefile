@@ -21,7 +21,9 @@ endif
 
 # Need to specify -march for arm or clang gets mad about barriers??
 ifeq (arm,$(findstring arm,$(shell uname -m)))
+ifneq (armv8,$(findstring armv8,$(shell uname -m)))
 MARCH:=-march=$(shell uname -m)
+endif
 endif
 
 # Clang and gcc disagree for -march=armv6 on whether to define
