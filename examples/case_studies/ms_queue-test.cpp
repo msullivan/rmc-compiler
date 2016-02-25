@@ -19,6 +19,7 @@ struct Test {
 
     std::atomic<bool> producersDone{false};
     std::atomic<ulong> totalSum{0};
+    std::atomic<ulong> totalCount{0};
 
     const long count;
     const int producers;
@@ -44,27 +45,36 @@ void producer(Test *t) {
 void consumer(Test *t) {
     ulong max = 0;
     ulong sum = 0;
+    ulong count = 1; // lurr
+    bool producersDone = false;
     for (;;) {
         auto res = t->queue.dequeue();
         work();
         if (!res) {
-            if (t->producersDone) break;
+            // Bail once we fail to do a dequeue /after/ having
+            // observered that the producers are done.  Otherwise we
+            // could fail, the producer enqueues a bunch more,
+            // finishes, and then we exit without dequeueing it.
+            if (producersDone) break;
+            producersDone = t->producersDone;
         } else {
             ulong val = *res;
-            if (!(val < t->count)) {
-                printf("owned %lu\n", val);
-                abort();
-            }
+            assert_op(val, <, t->count);
             if (t->producers == 1) {
                 assert_op(val, >, max);
+                if (t->consumers == 1) {
+                    assert_eq(val, max+1);
+                }
             }
             max = val;
             sum += val;
+            count++;
         }
     }
     // Stupidly, this winds up being "more atomic" than using cout
     //printf("Done: %lu\n", sum);
     t->totalSum += sum;
+    t->totalCount += count;
 }
 
 void joinAll(std::vector<std::thread> &threads) {
@@ -104,6 +114,7 @@ void test(Test &t) {
     expected *= t.producers;
 
     //printf("Final sum: %ld\n", t.totalSum.load());
+    assert_eq(t.totalCount.load(), t.producers*t.count);
     assert_eq(t.totalSum.load(), expected);
 }
 
