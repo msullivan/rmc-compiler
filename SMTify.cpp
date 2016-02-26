@@ -432,9 +432,9 @@ SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
   // the dst must have multiple incoming edges while the src only has
   // one outgoing).
   //
-  // If the "load" isn't an instruction, then it's a parameter and
-  // treet it like it dominates.
-  Instruction *load = dyn_cast<Instruction>(m.bb2action[dep]->soleLoad);
+  // If the outgoing dep isn't an instruction, then it's a parameter
+  // and so we treat it like it dominates.
+  Instruction *load = dyn_cast<Instruction>(m.bb2action[dep]->outgoingDep);
   if (src == dep || !load || m.domTree.dominates(load, src)) {
     return getFunc(m.usesCtrl, makeBlockEdgeKey(dep, src, dst));
   } else {
@@ -459,7 +459,7 @@ SmtExpr makePathCtrlIsync(SmtSolver &s, VarMaps &m,
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -477,7 +477,7 @@ SmtExpr makePathCtrl(SmtSolver &s, VarMaps &m, PathID path) {
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -519,8 +519,8 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
                  PathID path) {
   Action *src = m.bb2action[dep];
   Action *tail = m.bb2action[dst];
-  if (src && tail && src->soleLoad && tail->incomingDep &&
-      addrDepsOn(tail->incomingDep, src->soleLoad, &m.pc, path))
+  if (src && tail && src->outgoingDep && tail->incomingDep &&
+      addrDepsOn(tail->incomingDep, src->outgoingDep, &m.pc, path))
     return getFunc(m.usesData, makeEdgePathKey(src->bb, tail->bb, path));
 
   return s.ctx().bool_val(false);
@@ -534,7 +534,7 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
   BasicBlock *dep = m.pc.getHead(fullPath);
   // Can't have a addr dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->soleLoad) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
 
    return forAllPathEdges(
     s, m, fullPath,
@@ -821,7 +821,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     BasicBlock *dep;
     unpack(unpack(dep, unpack(src, dst)), v) = fix_pair(entry);
     auto ctrlWeight =
-      branchesOn(src, bb2action_[dep]->soleLoad) ? kUseCtrlCost : kAddCtrlCost;
+      branchesOn(src, bb2action_[dep]->outgoingDep) ? kUseCtrlCost : kAddCtrlCost;
     cost = cost +
       boolToInt(v, ctrlWeight*weight(src, dst));
   }
@@ -878,14 +878,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   processMap<BlockEdgeKey>(m.usesCtrl, model, [&] (BlockEdgeKey &entry) {
     EdgeKey edge; BasicBlock *dep;
     unpack(dep, edge) = entry;
-    Value *read = bb2action_[dep]->soleLoad;
+    Value *read = bb2action_[dep]->outgoingDep;
     cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
   });
   // Find data deps to preserve
   processMap<EdgePathKey>(m.usesData, model, [&] (EdgePathKey &entry) {
     BasicBlock *src, *dst; PathID path;
     unpack(unpack(src, dst), path) = entry;
-    Value *read = bb2action_[src]->soleLoad;
+    Value *read = bb2action_[src]->outgoingDep;
     cuts.push_back(EdgeCut(CutData, src, dst, read, path));
   });
 

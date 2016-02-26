@@ -96,7 +96,7 @@ struct Action {
   int RMWs{0};
   int calls{0};
 
-  Value *soleLoad{nullptr};
+  Value *outgoingDep{nullptr};
   Use *incomingDep{nullptr};
 
 

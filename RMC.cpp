@@ -499,13 +499,13 @@ void analyzeAction(Action &info) {
     assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
     info.type = ActionPush;
   } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
-    info.soleLoad = soleLoad;
+    info.outgoingDep = soleLoad;
     info.incomingDep = &soleLoad->getOperandUse(0);
     info.type = ActionSimpleRead;
   } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
     info.type = ActionSimpleWrites;
   } else if (info.RMWs == 1 && info.stores+info.loads+info.calls == 0) {
-    info.soleLoad = soleLoad;
+    info.outgoingDep = soleLoad;
     info.type = ActionSimpleRMW;
   } else if (info.RMWs+info.stores+info.loads+info.calls == 0) {
     info.type = ActionNop;
@@ -794,7 +794,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
-  Value *soleLoad = edge.src->soleLoad;
+  Value *outgoingDep = edge.src->outgoingDep;
 
   // Paths are backwards.
   for (auto i = path.begin(), e = path.end(); i != e; ++i) {
@@ -817,7 +817,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
         // ctrlisync cuts
         if (edge.edgeType == ExecutionEdge &&
             cut.type == CutCtrlIsync &&
-            cut.read == soleLoad) {
+            cut.read == outgoingDep) {
           return SoftCut;
         }
       }
@@ -829,7 +829,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
     // control dependency to get a soft cut.  Also, if we are just
     // checking to make sure there is a control dep, we don't care
     // about what the dest does..
-    if (edge.edgeType != ExecutionEdge || !soleLoad) continue;
+    if (edge.edgeType != ExecutionEdge || !outgoingDep) continue;
     if (!(edge.dst->type == ActionSimpleWrites ||
           edge.dst->type == ActionSimpleRMW ||
           justCheckCtrl)) continue;
@@ -838,7 +838,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
     // Is there a branch on the load?
     int idx;
     ICmpInst *icmp;
-    hasSoftCut = branchesOn(bb, soleLoad, &icmp, &idx);
+    hasSoftCut = branchesOn(bb, outgoingDep, &icmp, &idx);
 
     if (hasSoftCut && enforceSoft) {
       BasicBlock *next = *(i+1);
@@ -853,8 +853,8 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   // FIXME: Should be able to handle writes also!
   std::vector<Instruction *> trail;
   auto trailp = enforceSoft ? &trail : nullptr;
-  if (edge.src->soleLoad && edge.dst->incomingDep &&
-      addrDepsOn(edge.dst->incomingDep, edge.src->soleLoad,
+  if (edge.src->outgoingDep && edge.dst->incomingDep &&
+      addrDepsOn(edge.dst->incomingDep, edge.src->outgoingDep,
                  &pc_, pathid, trailp)) {
     if (enforceSoft) {
       enforceAddrDeps(edge.dst->incomingDep, trail);
