@@ -500,6 +500,7 @@ void analyzeAction(Action &info) {
     info.type = ActionPush;
   } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.soleLoad = soleLoad;
+    info.incomingDep = &soleLoad->getOperandUse(0);
     info.type = ActionSimpleRead;
   } else if (info.stores >= 1 && info.loads+info.calls+info.RMWs == 0) {
     info.type = ActionSimpleWrites;
@@ -662,7 +663,8 @@ void enforceBranchOn(BasicBlock *next, ICmpInst *icmp, int idx) {
   if (!isInstrBarrier(front)) makeBarrier(front);
 }
 
-void enforceAddrDeps(Instruction *end, std::vector<Instruction *> &trail) {
+void enforceAddrDeps(Use *use, std::vector<Instruction *> &trail) {
+  Instruction *end = cast<Instruction>(use->getUser());
   //errs() << "enforcing for: " << *end << "\n";
   for (auto is = trail.begin(), ie = trail.end(); is != ie; is++) {
     // Hide all the uses except for the other ones in the dep chain
@@ -772,10 +774,10 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
 }
 
 // Look for address dependencies on a read.
-bool addrDepsOn(Instruction *instr, Value *load,
+bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache, PathID path,
                 std::vector<Instruction *> *trail) {
-  Value *pointer = instr->getOperand(0);
+  Value *pointer = use->get();
   return addrDepsOnSearch(pointer, load, cache, path, trail);
 }
 
@@ -792,7 +794,7 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   if (path.size() <= 1) return HardCut;
 
   bool hasSoftCut = false;
-  Instruction *soleLoad = edge.src->soleLoad;
+  Value *soleLoad = edge.src->soleLoad;
 
   // Paths are backwards.
   for (auto i = path.begin(), e = path.end(); i != e; ++i) {
@@ -851,11 +853,11 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   // FIXME: Should be able to handle writes also!
   std::vector<Instruction *> trail;
   auto trailp = enforceSoft ? &trail : nullptr;
-  if (edge.src->soleLoad && edge.dst->soleLoad &&
-      addrDepsOn(edge.dst->soleLoad, edge.src->soleLoad,
+  if (edge.src->soleLoad && edge.dst->incomingDep &&
+      addrDepsOn(edge.dst->incomingDep, edge.src->soleLoad,
                  &pc_, pathid, trailp)) {
     if (enforceSoft) {
-      enforceAddrDeps(edge.dst->soleLoad, trail);
+      enforceAddrDeps(edge.dst->incomingDep, trail);
     }
     return DataCut;
   }
@@ -1053,7 +1055,7 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   case CutData:
   {
     std::vector<Instruction *> trail;
-    Instruction *end = bb2action_[cut.dst]->soleLoad;
+    Use *end = bb2action_[cut.dst]->incomingDep;
     bool deps = addrDepsOn(end, cut.read, &pc_, cut.path, &trail);
     assert_(deps);
     enforceAddrDeps(end, trail);

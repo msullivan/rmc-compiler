@@ -431,7 +431,11 @@ SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
   // dst is not, then we will always insert a ctrl in the src (since
   // the dst must have multiple incoming edges while the src only has
   // one outgoing).
-  if (src == dep || m.domTree.dominates(m.bb2action[dep]->soleLoad, src)) {
+  //
+  // If the "load" isn't an instruction, then it's a parameter and
+  // treet it like it dominates.
+  Instruction *load = dyn_cast<Instruction>(m.bb2action[dep]->soleLoad);
+  if (src == dep || !load || m.domTree.dominates(load, src)) {
     return getFunc(m.usesCtrl, makeBlockEdgeKey(dep, src, dst));
   } else {
     return s.ctx().bool_val(false);
@@ -515,8 +519,8 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
                  PathID path) {
   Action *src = m.bb2action[dep];
   Action *tail = m.bb2action[dst];
-  if (src && tail && src->soleLoad && tail->soleLoad &&
-      addrDepsOn(tail->soleLoad, src->soleLoad, &m.pc, path))
+  if (src && tail && src->soleLoad && tail->incomingDep &&
+      addrDepsOn(tail->incomingDep, src->soleLoad, &m.pc, path))
     return getFunc(m.usesData, makeEdgePathKey(src->bb, tail->bb, path));
 
   return s.ctx().bool_val(false);

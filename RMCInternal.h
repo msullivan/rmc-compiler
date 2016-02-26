@@ -95,7 +95,11 @@ struct Action {
   int loads{0};
   int RMWs{0};
   int calls{0};
-  Instruction *soleLoad{nullptr};
+
+  Value *soleLoad{nullptr};
+  Use *incomingDep{nullptr};
+
+
   Value *transferValue{nullptr};
   Use *giveUse;
 
@@ -181,7 +185,7 @@ enum CutStrength {
 // Utility functions
 bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
-bool addrDepsOn(Instruction *instr, Value *load,
+bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache = nullptr,
                 PathID path = PathCache::kEmptyPath,
                 std::vector<Instruction *> *trail = nullptr);
