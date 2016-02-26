@@ -9,6 +9,9 @@ Ignoring read-modify-writes, the algorithm is as follows:
 3. For all triples of the form i -vo-> push -xo/vo-> i', create a push
     edge i -push-> i'.  (These exist in the algorithm only, not in the
     theory.)
+XXX: I think that this isn't right. We can't necessarily find all such
+edges, since they might be in other functions or whatever.
+
 4. Discard any edges involving a push.
 5. Insert synchronization into the code such that:
 

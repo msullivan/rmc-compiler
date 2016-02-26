@@ -1093,8 +1093,6 @@ bool RealizeRMC::run() {
 
   buildActionGraph(actions_, numNormalActions_);
 
-  // XXX: In SMT mode (and maybe in regular mode too?) we ought to
-  // handle explicit pushes by generating push edges.
   cutPushes();
 
   if (!useSMT_) {

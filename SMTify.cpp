@@ -566,8 +566,9 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
   // EXCEPT: Now we *do* have push edges, but only when they are
   // written out explicitly. If you write a push explicitly, we do
   // what was said above, but if you write a push edge, we represent
-  // it as such. We should fix this and generate push edges from
-  // a -v-> push -x-> b pairings.
+  // it as such. Originally we had intended to generate push edges
+  // based on the constraints on pushes, but this doesn't work since
+  // we can't find them all.
   if (m.bb2action[src] && m.bb2action[src]->isPush) {
     return s.ctx().bool_val(true);
   } else if (isPush) {
