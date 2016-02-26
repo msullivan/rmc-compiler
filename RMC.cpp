@@ -433,23 +433,33 @@ void RealizeRMC::findEdges() {
   }
 }
 
+// XXX: document this scheme more?
+// And think a bit more about whether the disconnect between the
+// action location and where things are actually happening can cause
+// trouble.
 void handleTransfer(Action &info, CallInst *call) {
   uint64_t is_take = cast<ConstantInt>(call->getOperand(1))
     ->getValue().getLimitedValue();
-  info.type = is_take ? ActionTake : ActionGive;
+  Value *value = call->getOperand(0);
 
-  info.transferValue = call->getOperand(0);
-  // Get the use of it if it is a give
-  // XXX: might be fucked up if we didn't run mem2reg
-  if (!is_take) {
+  if (is_take) {
+    info.type = ActionTake;
+    info.outgoingDep = value;
+  } else {
+    // Get the one Use of the output that we need to make sure to push
+    // the value to.
+    // XXX: might be fucked up if we didn't run mem2reg
     assert(call->hasOneUse());
-    info.giveUse = &*call->use_begin();
+    info.type = ActionGive;
+    // XXX: This name is a little misleading since the dep isn't actually
+    // in this action...
+    info.incomingDep = &*call->use_begin();
   }
 
   // Get rid of the call
   BasicBlock::iterator ii(call);
   ReplaceInstWithValue(call->getParent()->getInstList(),
-                       ii, info.transferValue);
+                       ii, value);
 }
 
 void analyzeAction(Action &info) {

@@ -99,10 +99,6 @@ struct Action {
   Value *outgoingDep{nullptr};
   Use *incomingDep{nullptr};
 
-
-  Value *transferValue{nullptr};
-  Use *giveUse;
-
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
   // a <ptr, type> pair?
