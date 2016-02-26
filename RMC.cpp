@@ -52,7 +52,6 @@
 #undef NDEBUG
 #include <assert.h>
 
-
 using namespace llvm;
 
 static void rmc_error() {
@@ -434,10 +433,31 @@ void RealizeRMC::findEdges() {
   }
 }
 
+void handleTransfer(Action &info, CallInst *call) {
+  uint64_t is_take = cast<ConstantInt>(call->getOperand(1))
+    ->getValue().getLimitedValue();
+  info.type = is_take ? ActionTake : ActionGive;
+
+  info.transferValue = call->getOperand(0);
+  // Get the use of it if it is a give
+  // XXX: might be fucked up if we didn't run mem2reg
+  if (!is_take) {
+    assert(call->hasOneUse());
+    info.giveUse = &*call->use_begin();
+  }
+
+  // Get rid of the call
+  BasicBlock::iterator ii(call);
+  ReplaceInstWithValue(call->getParent()->getInstList(),
+                       ii, info.transferValue);
+}
+
 void analyzeAction(Action &info) {
   // Don't analyze the dummy pre/post actions!
   if (info.type == ActionPrePost) return;
   // If the action has multiple basic blocks, call it Complex
+  // XXX: an LTAKE of a function call might have multiple blocks and
+  // we should handle it better
   if (info.endBlock->getSinglePredecessor() != info.bb) {
     info.type = ActionComplex;
     return;
@@ -451,6 +471,13 @@ void analyzeAction(Action &info) {
     } else if (isa<StoreInst>(i)) {
       ++info.stores;
     } else if (CallInst *call = dyn_cast<CallInst>(&i)) {
+      // If this is a transfer, mark it as such
+      if (Function *target = call->getCalledFunction()) {
+        if (target->getName().startswith("__rmc_transfer_")) {
+          handleTransfer(info, call);
+          return;
+        }
+      }
       // Don't count functions that don't access memory
       // (for example, critically, llvm.dbg.* intrinsics)
       if (!(call->getCalledFunction() &&

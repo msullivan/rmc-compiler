@@ -70,6 +70,17 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 
 #define LS(label, stmt) LS_(label, XRCAT(label##_, __COUNTER__), stmt)
 
+
+#define LTRANSFER_(label, expr, is_take, ctr)         \
+  L(label, ({                                         \
+        extern __rmc_typeof(expr) XRCAT(__rmc_transfer_, ctr)(  \
+          __rmc_typeof(expr), int) RMC_NOEXCEPT RMC_NODUPLICATE; \
+        XRCAT(__rmc_transfer_, ctr)((expr), is_take);                  \
+      }))
+#define LTRANSFER(label, expr, is_take)         \
+  LTRANSFER_(label, expr, is_take, __COUNTER__)
+
+
 // What orders to use for the atomic ops. Always relaxed in the real version.
 #define __rmc_load_order memory_order_relaxed
 #define __rmc_store_order memory_order_relaxed
@@ -88,6 +99,7 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 #define __rmc_bind_inside() do { } while (0)
 
 #define LS(label, stmt) stmt
+#define LTRANSFER(label, expr, is_take) L(label, expr)
 
 // What orders to use for the atomic ops. We generally use seq_cst,
 // but if RMC_DISABLE_PEDGE is set, then push edges are turned off,
@@ -129,6 +141,9 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // force the dereference.
 #define L(label, expr)                                         \
   ({LS(label, __rmc_typeof(expr) _______t = expr); _______t;})
+
+#define LGIVE(label, expr) LTRANSFER(label, expr, 0)
+#define LTAKE(label, expr) LTRANSFER(label, expr, 1)
 
 // Convenience macros for labels that have relationships with
 // all program order successors or predecessors.

@@ -64,6 +64,8 @@ enum ActionType {
   ActionSimpleRead,
   ActionSimpleWrites, // needs to be paired with a dep
   ActionSimpleRMW,
+  ActionGive,
+  ActionTake,
 };
 struct Action {
   explicit
@@ -94,6 +96,8 @@ struct Action {
   int RMWs{0};
   int calls{0};
   Instruction *soleLoad{nullptr};
+  Value *transferValue{nullptr};
+  Use *giveUse;
 
   // Edges in the graph.
   // XXX: Would we be better off storing this some other way?
