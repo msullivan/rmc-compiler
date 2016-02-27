@@ -29,5 +29,28 @@ int use_widget(char *key) {
     XEDGE(load_widget, a);
 
     widget *w = LTAKE(load_widget, get_widget(key));
-    return L(a, w->foo);
+    return L(a, w->foo) + L(a, w->bar);
+}
+
+//
+__attribute__((noinline))
+int consume_widget(widget *w) {
+    LTAKE(w, w);
+    rmc_bind_inside();
+    XEDGE(w, ret);
+    return L(ret, w->foo);
+}
+
+int pass_widget() {
+    rmc_bind_inside();
+    XEDGE(get, pass);
+    widget *w = L(get, rmc_load(&widgets[0]));
+    return consume_widget(LGIVE(pass, w));
+}
+
+int givetake_widget(char *key) {
+    rmc_bind_inside();
+    XEDGE(get, pass);
+    widget *w = LTAKE(get, get_widget(key));
+    return consume_widget(LGIVE(pass, w));
 }

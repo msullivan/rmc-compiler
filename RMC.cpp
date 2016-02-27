@@ -443,6 +443,19 @@ void handleTransfer(Action &info, CallInst *call) {
   Value *value = call->getOperand(0);
 
   if (is_take) {
+    // The dependency tracking code wants everything to be an
+    // instruction. This doesn't obtain when we are trying to trace a
+    // dependency from a parameter, so in that case we make a dummy
+    // copy and replace all uses with it.
+    if (!isa<Instruction>(value)) {
+      // XXX: won't work if there are uses /before/ the TAKE, which
+      // there probably shouldn't be, so...
+      Instruction *newval = makeCopy(value, call);
+      value->replaceAllUsesWith(newval);
+      newval->setOperand(0, value);
+      value = newval;
+    }
+
     info.type = ActionTake;
     info.outgoingDep = value;
   } else {
@@ -678,6 +691,9 @@ void enforceAddrDeps(Use *use, std::vector<Instruction *> &trail) {
   //errs() << "enforcing for: " << *end << "\n";
   for (auto is = trail.begin(), ie = trail.end(); is != ie; is++) {
     // Hide all the uses except for the other ones in the dep chain
+    // XXX: maybe we need to hide more, in case the function gets
+    // inlined, which could provide more information.
+    // Think about, at least.
     Instruction *next = is+1 != ie ? *(is+1) : end;
     hideUses(*is, next);
   }
@@ -760,7 +776,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   // trace through GEPs?
   // TODO: less heavily restrict what we use?
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
-      isa<SExtInst>(instr) ||isa<IntToPtrInst>(instr)) {
+      isa<SExtInst>(instr) || isa<IntToPtrInst>(instr)) {
     for (auto v : instr->operand_values()) {
       if (addrDepsOnSearch(v, load, cache, path, trail)) {
         if (trail) trail->push_back(instr);
