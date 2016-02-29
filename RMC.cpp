@@ -91,18 +91,30 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 }
 
 // Compute the transitive closure of the action graph
-template <typename Range>
+template <typename Range, typename F>
 void transitiveClosure(Range &actions,
-                       Action::TransEdges Action::* edgeset) {
+                       Action::TransEdges Action::* edgeset,
+                       F merge) {
   // Use Warshall's algorithm to compute the transitive closure. More
   // or less. I can probably be a little more clever since I have
   // adjacency lists, right? But n is small and this is really easy.
   for (auto & k : actions) {
     for (auto & i : actions) {
       for (auto & j : actions) {
-        if ((i.*edgeset).count(&k) && (k.*edgeset).count(&j)) {
-          (i.*edgeset).insert(&j);
+        // OK, now we need to transitively join all of the ki and ij
+        // edges by merging the bind sites of each combination.
+        // (Although probably there is only one of each.)
+        // If there *aren't* both ik and kj edges, we skip the inner
+        // loop to avoid empty entries being automagically created.
+        if (!((i.*edgeset).count(&k) && (k.*edgeset).count(&j))) continue;
+
+        for (BasicBlock *bind_ik : (i.*edgeset)[&k]) {
+          for (BasicBlock *bind_kj : (k.*edgeset)[&j]) {
+            BasicBlock *bind_ij = merge(bind_ik, bind_kj);
+            (i.*edgeset)[&j].insert(bind_ij);
+          }
         }
+
       }
     }
   }
@@ -322,16 +334,17 @@ Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
 
 void registerEdge(std::vector<RMCEdge> &edges,
                   RMCEdgeType edgeType,
+                  BasicBlock *bindSite,
                   Action *src, Action *dst) {
   // Insert into the graph and the list of edges
   if (edgeType == VisibilityEdge) {
-    src->visEdges.insert(dst);
+    src->visEdges[dst].insert(bindSite);
   } else if (edgeType == ExecutionEdge) {
-    src->execEdges.insert(dst);
+    src->execEdges[dst].insert(bindSite);
   } else {
-    src->pushEdges.insert(dst);
+    src->pushEdges[dst].insert(bindSite);
   }
-  edges.push_back({edgeType, src, dst});
+  edges.push_back({edgeType, src, dst, bindSite});
 }
 
 TinyPtrVector<Action *> RealizeRMC::collectEdges(StringRef name) {
@@ -365,12 +378,18 @@ void RealizeRMC::processEdge(CallInst *call) {
   RMCEdgeType edgeType = (RMCEdgeType)val; // a bit dubious
   StringRef srcName = getStringArg(call->getOperand(1));
   StringRef dstName = getStringArg(call->getOperand(2));
+  uint64_t bindHere = cast<ConstantInt>(call->getOperand(3))
+    ->getValue().getLimitedValue();
+
   auto srcs = collectEdges(srcName);
   auto dsts = collectEdges(dstName);
+  // If bindHere was set, then the binding site is this basic block,
+  // otherwise it is nullptr to represent outside the function.
+  BasicBlock *bindSite = bindHere ? call->getParent() : nullptr;
 
   for (auto src : srcs) {
     for (auto dst : dsts) {
-      registerEdge(edges_, edgeType, src, dst);
+      registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
 
@@ -378,13 +397,13 @@ void RealizeRMC::processEdge(CallInst *call) {
   if (srcName == "pre") {
     for (auto dst : dsts) {
       Action *src = makePrePostAction(dst->startBlock);
-      registerEdge(edges_, edgeType, src, dst);
+      registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
   if (dstName == "post") {
     for (auto src : srcs) {
       Action *dst = makePrePostAction(src->endBlock);
-      registerEdge(edges_, edgeType, src, dst);
+      registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
 }
@@ -592,17 +611,34 @@ void RealizeRMC::findActions() {
 void dumpGraph(std::vector<Action> &actions) {
   // Debug spew!!
   for (auto & src : actions) {
-    for (auto dst : src.execTransEdges) {
-      errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst} << "\n";
+    for (auto entry : src.execTransEdges) {
+      auto *dst = entry.first;
+      for (auto *bindSite : entry.second) {
+        errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst, bindSite} <<
+          "\n";
+      }
     }
-    for (auto dst : src.visTransEdges) {
-      errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst} << "\n";
+    for (auto entry : src.visTransEdges) {
+      auto *dst = entry.first;
+      for (auto *bindSite : entry.second) {
+        errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst, bindSite} <<
+          "\n";
+      }
     }
   }
   errs() << "\n";
 }
 
-void buildActionGraph(std::vector<Action> &actions, int numReal) {
+BasicBlock *mergeBindPoints(DominatorTree &domTree,
+                            BasicBlock *b1, BasicBlock *b2) {
+  if (!b1 || !b2) return nullptr;
+  BasicBlock *dom = domTree.findNearestCommonDominator(b1, b2);
+  assert(dom == b1 || dom == b2); // XXX testing
+  return dom;
+}
+
+void buildActionGraph(std::vector<Action> &actions, int numReal,
+                      DominatorTree &domTree) {
   // Copy the initial edge specifications into the transitive graph
   for (auto & a : actions) {
     a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
@@ -617,14 +653,20 @@ void buildActionGraph(std::vector<Action> &actions, int numReal) {
     // (Although maybe we ought to, for consistency?)
   }
 
+  auto merge = [&] (BasicBlock *b1, BasicBlock *b2) {
+    return mergeBindPoints(domTree, b1, b2);
+  };
+
   // Now compute the closures.  We previously ignored pre/post edges,
   // which was wrong; was it on to /anything/, though?
   //auto realActions = make_range(actions.begin(), actions.begin() + numReal);
-  transitiveClosure(actions, &Action::execTransEdges);
-  transitiveClosure(actions, &Action::visTransEdges);
-  transitiveClosure(actions, &Action::pushTransEdges);
+  transitiveClosure(actions, &Action::execTransEdges, merge);
+  transitiveClosure(actions, &Action::visTransEdges, merge);
+  transitiveClosure(actions, &Action::pushTransEdges, merge);
 
-  //dumpGraph(actions);
+#ifdef DEBUG_SPEW
+  dumpGraph(actions);
+#endif
 }
 
 ////////////// Chicanary to handle disguising operands
@@ -907,25 +949,27 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
 }
 
 bool RealizeRMC::isCut(const RMCEdge &edge) {
+  RMCEdge selfEdge = RMCEdge{edge.edgeType, edge.src, edge.src, edge.bindSite};
+
   switch (isEdgeCut(edge)) {
   case HardCut: return true;
   case NoCut: return false;
   case DataCut:
     // We need to make sure we have a cut from src->src but it *isn't*
     // enough to just check ctrl!
-    if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, false)
+    if (isEdgeCut(selfEdge, false, false)
         > NoCut) {
       isEdgeCut(edge, true, false);
-      isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, false);
+      isEdgeCut(selfEdge, true, false);
       return true;
     } else {
       return false;
     }
   case SoftCut:
-    if (isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, false, true)
+    if (isEdgeCut(selfEdge, false, true)
         > NoCut) {
       isEdgeCut(edge, true, true);
-      isEdgeCut(RMCEdge{edge.edgeType, edge.src, edge.src}, true, true);
+      isEdgeCut(selfEdge, true, true);
       return true;
     } else {
       return false;
@@ -971,26 +1015,26 @@ void removeUselessEdges(std::vector<Action> &actions) {
     // iterator invalidation woes.
     auto newExec = std::move(src.execTransEdges);
     src.execTransEdges.clear();
-    for (Action *dst : newExec) {
-      ActionType dt = dst->type;
+    for (auto & entry : newExec) {
+      ActionType dt = entry.first->type;
       if (!(st == ActionPush || dt == ActionPush ||
             st == ActionNop || dt == ActionNop ||
             st == ActionSimpleWrites)) {
-        src.execTransEdges.insert(dst);
+        src.execTransEdges.insert(std::move(entry));
       }
     }
 
     auto newVis = std::move(src.visTransEdges);
     src.visTransEdges.clear();
-    for (Action *dst : newVis) {
-      ActionType dt = dst->type;
+    for (auto & entry : newVis) {
+      ActionType dt = entry.first->type;
       if (!(st == ActionPush || dt == ActionPush ||
             st == ActionNop || dt == ActionNop ||
             /* R->R has same force as execution, and we made execution
              * versions of all the vis edges. */
             (st == ActionSimpleRead && dt == ActionSimpleRead) ||
             (st == ActionSimpleWrites && dt == ActionSimpleRead))) {
-        src.visTransEdges.insert(dst);
+        src.visTransEdges.insert(std::move(entry));
       }
     }
 
@@ -1146,7 +1190,7 @@ bool RealizeRMC::run() {
     analyzeAction(action);
   }
 
-  buildActionGraph(actions_, numNormalActions_);
+  buildActionGraph(actions_, numNormalActions_, domTree_);
 
   cutPushes();
 

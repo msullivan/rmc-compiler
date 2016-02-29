@@ -104,14 +104,27 @@ struct Action {
   // a <ptr, type> pair?
   // And should we store v edges in x
   // XXX: we should keep an array of the edge sets.
-  SmallPtrSet<Action *, 2> execEdges;
-  SmallPtrSet<Action *, 2> visEdges;
-  SmallPtrSet<Action *, 2> pushEdges;
 
-  typedef SmallPtrSet<Action *, 8> TransEdges;
-  TransEdges execTransEdges;
-  TransEdges visTransEdges;
-  TransEdges pushTransEdges;
+  // For each outgoing edge, we need to store the binding site that
+  // the edge is associated with. It is possible, though not likely,
+  // that there will be multiple binding sites associated with the
+  // same target. To deal with this, the "set" of outgoing edges is
+  // actually a map from destination Action*s to a set of binding
+  // sites associated with edges to that action.
+
+  // As a binding site, null represents being bound outside of the
+  // function.
+  typedef SmallPtrSet<BasicBlock *, 1> BindingSites;
+  typedef DenseMap<Action *, BindingSites> OutEdges;
+
+  OutEdges execEdges;
+  OutEdges visEdges;
+  OutEdges pushEdges;
+
+  typedef OutEdges TransEdges;
+  OutEdges execTransEdges;
+  OutEdges visTransEdges;
+  OutEdges pushTransEdges;
 };
 
 //// Info about an RMC edge
@@ -121,6 +134,8 @@ struct RMCEdge {
   // This is a little frumious.
   Action *src;
   Action *dst;
+  // Null indicates bound outside the function.
+  BasicBlock *bindSite;
 
   bool operator<(const RMCEdge& rhs) const {
     return std::tie(edgeType, src, dst)
@@ -131,7 +146,9 @@ struct RMCEdge {
     // substr(5) is to drop "_rmc_" from the front
     auto srcName = src ? src->bb->getName().substr(5) : "pre";
     auto dstName = dst ? dst->bb->getName().substr(5) : "post";
-    os << srcName << " -" << edgeType << "-> " << dstName;
+    auto bindName = bindSite ? bindSite->getName() : "<outside>";
+    os << srcName << " -" << edgeType << "-> " << dstName <<
+      " @ " << bindName;
   }
 };
 raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e);

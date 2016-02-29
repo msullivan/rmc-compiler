@@ -766,14 +766,17 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   //////////
   // HOK. Make sure everything is cut.
   for (auto & src : actions_) {
-    for (auto dst : src.pushTransEdges) {
-      s.add(makeVcut(s, m, src, *dst, true));
+    for (auto & entry : src.pushTransEdges) {
+      Action &dst = *entry.first;
+      s.add(makeVcut(s, m, src, dst, true));
     }
-    for (auto dst : src.visTransEdges) {
-      s.add(makeVcut(s, m, src, *dst, false));
+    for (auto & entry : src.visTransEdges) {
+      Action &dst = *entry.first;
+      s.add(makeVcut(s, m, src, dst, false));
     }
-    for (auto dst : src.execTransEdges) {
-      s.add(makeXcut(s, m, src, *dst));
+    for (auto & entry : src.execTransEdges) {
+      Action &dst = *entry.first;
+      s.add(makeXcut(s, m, src, dst));
     }
   }
 
