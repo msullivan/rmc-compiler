@@ -47,7 +47,7 @@ Path PathCache::extractPath(PathID k) const {
   return path;
 }
 
-PathList PathCache::findAllSimplePaths(GreySet *grey,
+PathList PathCache::findAllSimplePaths(SkipSet *grey,
                                        BasicBlock *src, BasicBlock *dst,
                                        bool includeReturnLoop,
                                        bool allowSelfCycle) {
@@ -91,7 +91,7 @@ PathList PathCache::findAllSimplePaths(GreySet *grey,
 PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
                                        bool includeReturnLoop,
                                        bool allowSelfCycle) {
-  GreySet grey;
+  SkipSet grey;
   return findAllSimplePaths(&grey, src, dst, includeReturnLoop, allowSelfCycle);
 }
 

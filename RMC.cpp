@@ -936,7 +936,10 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
                                   bool enforceSoft, bool justCheckCtrl) {
   CutStrength strength = HardCut;
-  PathList paths = pc_.findAllSimplePaths(edge.src->bb, edge.dst->bb,
+
+  PathCache::SkipSet skip;
+  if (edge.bindSite) skip.insert(edge.bindSite);
+  PathList paths = pc_.findAllSimplePaths(&skip, edge.src->bb, edge.dst->bb,
                                           actionsBoundOutside_, true);
   //pc_.dumpPaths(paths);
   for (auto & path : paths) {

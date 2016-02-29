@@ -25,6 +25,11 @@ public:
   PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
                               bool includeReturnLoop,
                               bool allowSelfCycle = false);
+  typedef SmallPtrSet<BasicBlock *, 8> SkipSet;
+  PathList findAllSimplePaths(SkipSet *grey, BasicBlock *src, BasicBlock *dst,
+                              bool includeReturnLoop,
+                              bool allowSelfCycle = false);
+
   Path extractPath(PathID k) const;
 
   static const PathID kEmptyPath = -1;
@@ -46,11 +51,6 @@ private:
   DenseMap<PathCacheEntry, PathID> cache_;
 
   PathID addToPath(BasicBlock *b, PathID id);
-
-  typedef SmallPtrSet<BasicBlock *, 8> GreySet;
-  PathList findAllSimplePaths(GreySet *grey, BasicBlock *src, BasicBlock *dst,
-                              bool includeReturnLoop,
-                              bool allowSelfCycle = false);
 };
 
 }
