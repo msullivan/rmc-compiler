@@ -53,7 +53,7 @@ typedef struct list_head_rmc_t {
     container_of(L(tag, rmc_load(&ptr)), type, member)
 
 #define list_for_each_entry_rcu_rmc2(pos, head, member, tag_a, tag_b) \
-    XEDGE(tag_a, tag_a); XEDGE(tag_a, tag_b); \
+    XEDGE_HERE(tag_a, tag_a); XEDGE_HERE(tag_a, tag_b); \
     for (pos = list_entry_rcu_rmc((head)->head.next, __typeof__(*pos), \
                                   member, tag_a); \
          &pos->member != &(head)->head; \
@@ -123,8 +123,8 @@ int noob_search_rmc(_Rmc(noob_node_t *) *head, int key) {
     rmc_bind_inside();
 
     int res = -1;
-    XEDGE(a, b);
-    XEDGE(a, a);
+    XEDGE_HERE(a, b);
+    XEDGE_HERE(a, a);
 
     rcu_read_lock();
     for (noob_node_t *node = L(a, rmc_load(head)); node;
