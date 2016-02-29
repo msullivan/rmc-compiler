@@ -48,7 +48,8 @@ extern "C" {
 // so it will generate calls instead of invokes.
 extern int __rmc_action_register(const char *name) RMC_NOEXCEPT RMC_NODUPLICATE;
 extern int __rmc_action_close(int x) RMC_NOEXCEPT RMC_NODUPLICATE;
-extern int __rmc_edge_register(int edge_type, const char *src, const char *dst)
+extern int __rmc_edge_register(int edge_type, const char *src, const char *dst,
+                               int bind_here)
   RMC_NOEXCEPT RMC_NODUPLICATE;
 extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
@@ -57,10 +58,8 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 }
 #endif
 
-#define RMC_EDGE(t, x, y) __rmc_edge_register(t, #x, #y)
-#define XEDGE(x, y) RMC_EDGE(0, x, y)
-#define VEDGE(x, y) RMC_EDGE(1, x, y)
-#define PEDGE(x, y) RMC_EDGE(2, x, y)
+#define RMC_EDGE(t, x, y, h) __rmc_edge_register(t, #x, #y, h)
+
 // This is unhygenic in a nasty way.
 // Maybe we should throw some barrier()s in also, to be on the safe side?
 #define LS_(name, label, stmt)                                   \
@@ -92,9 +91,7 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // implementation based on making all atomic operations sequentially
 // consistent.
 
-#define XEDGE(x, y) do { } while (0)
-#define VEDGE(x, y) do { } while (0)
-#define PEDGE(x, y) do { } while (0)
+#define RMC_EDGE(t, x, y, h) do { } while (0)
 
 #define __rmc_bind_inside() do { } while (0)
 
@@ -129,9 +126,22 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 
 #endif /* HAS_RMC */
 
+// Shared stuff for both backends.
+
+#define XEDGE(x, y) RMC_EDGE(0, x, y, 0)
+#define VEDGE(x, y) RMC_EDGE(1, x, y, 0)
+#define PEDGE(x, y) RMC_EDGE(2, x, y, 0)
+// XXX: _HERE? Want a better name?
+#define XEDGE_HERE(x, y) RMC_EDGE(0, x, y, 1)
+#define VEDGE_HERE(x, y) RMC_EDGE(1, x, y, 1)
+#define PEDGE_HERE(x, y) RMC_EDGE(2, x, y, 1)
+
+
 #if RMC_DISABLE_PEDGE
 #undef PEDGE
+#undef PEDGE_HERE
 #define PEDGE(a, b) __PEDGE_has_been_disabled_by_RMC_DISABLE_PEDGE
+#define PEDGE_HERE(a, b) PEDGE(a, b)
 #endif
 
 // Nice way to extract a value directly from a named read
