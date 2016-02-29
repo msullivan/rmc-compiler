@@ -238,7 +238,6 @@ int mp_recv_le(rmc_int *flag, int *data) {
 
 // Consume style stuff
 int recv_consume(_Rmc(int *)*pdata) {
-    rmc_bind_inside();
     XEDGE_HERE(rp, rdata);
     int *p = L(rp, rmc_load(pdata));
     int rd = L(rdata, *p);
@@ -247,7 +246,6 @@ int recv_consume(_Rmc(int *)*pdata) {
 
 // Same as above but indexing
 int recv_consume2(int *parray, rmc_int *pidx) {
-    rmc_bind_inside();
     XEDGE_HERE(rp, rdata);
     int idx = L(rp, rmc_load(pidx));
     int rd = L(rdata, parray[idx]);
@@ -255,7 +253,6 @@ int recv_consume2(int *parray, rmc_int *pidx) {
 }
 
 int recv_consume_loop(_Rmc(int *)*pdata) {
-    rmc_bind_inside();
     XEDGE_HERE(rp, rdata);
     int *p;
     while ((p = L(rp, rmc_load(pdata))) == 0)
@@ -265,7 +262,6 @@ int recv_consume_loop(_Rmc(int *)*pdata) {
 }
 
 int recv_consume_twice(int *parray, rmc_int *pidx) {
-    rmc_bind_inside();
     // We don't handle this well yet because of how we handle transitivity
     // in the SMT version.
     XEDGE_HERE(rp, rdata);

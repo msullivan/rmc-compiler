@@ -120,8 +120,6 @@ typedef struct test_node_t {
 ////////////
 
 int noob_search_rmc(_Rmc(noob_node_t *) *head, int key) {
-    rmc_bind_inside();
-
     int res = -1;
     XEDGE_HERE(a, b);
     XEDGE_HERE(a, a);
@@ -141,8 +139,6 @@ int noob_search_rmc(_Rmc(noob_node_t *) *head, int key) {
 
 
 int list_search_rmc(list_head_rmc_t *head, int key) {
-    rmc_bind_inside();
-
     int res = -1;
     test_node_rmc_t *node;
     rcu_read_lock();

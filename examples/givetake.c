@@ -16,7 +16,6 @@ widget *butt;
 
 __attribute__((noinline))
 widget *get_widget(char *key) {
-    rmc_bind_inside();
     XEDGE_HERE(get, ret);
     int idx = calculate_idx(key);
     widget *w = L(get, rmc_load(&widgets[idx]));
@@ -25,7 +24,6 @@ widget *get_widget(char *key) {
 
 // Some client code
 int use_widget(char *key) {
-    rmc_bind_inside();
     XEDGE_HERE(load_widget, a);
 
     widget *w = LTAKE(load_widget, get_widget(key));
@@ -36,20 +34,17 @@ int use_widget(char *key) {
 __attribute__((noinline))
 int consume_widget(widget *w) {
     LTAKE(w, w);
-    rmc_bind_inside();
     XEDGE_HERE(w, ret);
     return L(ret, w->foo);
 }
 
 int pass_widget() {
-    rmc_bind_inside();
     XEDGE_HERE(get, pass);
     widget *w = L(get, rmc_load(&widgets[0]));
     return consume_widget(LGIVE(pass, w));
 }
 
 int givetake_widget(char *key) {
-    rmc_bind_inside();
     XEDGE_HERE(get, pass);
     widget *w = LTAKE(get, get_widget(key));
     return consume_widget(LGIVE(pass, w));
