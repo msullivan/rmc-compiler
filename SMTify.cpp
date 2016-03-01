@@ -687,15 +687,15 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
 
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                 bool isPush) {
+                 RMCEdgeType edgeType) {
   // XXX: is this wrong for multiblock actions???
-  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut, src.bb, dst.bb);
+  SmtExpr isCut = getEdgeFunc(edgeType == PushEdge ? m.pcut : m.vcut,
+                              src.bb, dst.bb);
 
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.bb, dst.bb,
-    [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
-  SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst,
-                                    isPush ? PushEdge : VisibilityEdge);
+    [&] (PathID path) { return makePathVcut(s, m, path, edgeType); });
+  SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
   s.add(isCut == allPathsCut || relAcqCut);
 
   return isCut;
@@ -775,19 +775,20 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   //////////
   // HOK. Make sure everything is cut.
   for (auto & src : actions_) {
-    // XXX: Does binding site ever matter for visibility/push edges??
-    for (auto & entry : src.pushTransEdges) {
-      Action &dst = *entry.first;
-      s.add(makeVcut(s, m, src, dst, true));
-    }
-    for (auto & entry : src.visTransEdges) {
-      Action &dst = *entry.first;
-      s.add(makeVcut(s, m, src, dst, false));
-    }
-    for (auto & entry : src.execTransEdges) {
-      Action &dst = *entry.first;
-      for (BasicBlock *bindSite : entry.second) {
-        s.add(makeXcut(s, m, src, dst, bindSite));
+    for (auto edgeType : kEdgeTypes) {
+      for (auto & entry : src.transEdges[edgeType]) {
+        Action &dst = *entry.first;
+
+        if (edgeType == ExecutionEdge) {
+          // For execution edges, we check all the binding sites.
+          for (BasicBlock *bindSite : entry.second) {
+            s.add(makeXcut(s, m, src, dst, bindSite));
+          }
+        } else {
+          // I'm pretty sure binding isn't useful for vis edges, so we
+          // don't bother checking binding sites here.
+          s.add(makeVcut(s, m, src, dst, edgeType));
+        }
       }
     }
   }

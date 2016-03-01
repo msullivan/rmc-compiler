@@ -51,8 +51,11 @@ enum RMCEdgeType {
   ExecutionEdge,
   VisibilityEdge,
   PushEdge,
-  NoEdge
+  NoEdge,
+  kNumEdgeTypes = NoEdge
 };
+const std::vector<RMCEdgeType> kEdgeTypes{
+  ExecutionEdge, VisibilityEdge, PushEdge};
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
 //// Information for a node in the RMC graph.
@@ -100,10 +103,6 @@ struct Action {
   Use *incomingDep{nullptr};
 
   // Edges in the graph.
-  // XXX: Would we be better off storing this some other way?
-  // a <ptr, type> pair?
-  // And should we store v edges in x
-  // XXX: we should keep an array of the edge sets.
 
   // For each outgoing edge, we need to store the binding site that
   // the edge is associated with. It is possible, though not likely,
@@ -116,15 +115,10 @@ struct Action {
   // function.
   typedef SmallPtrSet<BasicBlock *, 1> BindingSites;
   typedef DenseMap<Action *, BindingSites> OutEdges;
-
-  OutEdges execEdges;
-  OutEdges visEdges;
-  OutEdges pushEdges;
-
   typedef OutEdges TransEdges;
-  OutEdges execTransEdges;
-  OutEdges visTransEdges;
-  OutEdges pushTransEdges;
+
+  OutEdges edges[kNumEdgeTypes];
+  TransEdges transEdges[kNumEdgeTypes];
 };
 
 //// Info about an RMC edge

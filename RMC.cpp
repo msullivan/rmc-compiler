@@ -93,7 +93,7 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
 // Compute the transitive closure of the action graph
 template <typename Range, typename F>
 void transitiveClosure(Range &actions,
-                       Action::TransEdges Action::* edgeset,
+                       RMCEdgeType type,
                        F merge) {
   // Use Warshall's algorithm to compute the transitive closure. More
   // or less. I can probably be a little more clever since I have
@@ -106,12 +106,13 @@ void transitiveClosure(Range &actions,
         // (Although probably there is only one of each.)
         // If there *aren't* both ik and kj edges, we skip the inner
         // loop to avoid empty entries being automagically created.
-        if (!((i.*edgeset).count(&k) && (k.*edgeset).count(&j))) continue;
+        if (!(i.transEdges[type].count(&k) &&
+              k.transEdges[type].count(&j))) continue;
 
-        for (BasicBlock *bind_ik : (i.*edgeset)[&k]) {
-          for (BasicBlock *bind_kj : (k.*edgeset)[&j]) {
+        for (BasicBlock *bind_ik : i.transEdges[type][&k]) {
+          for (BasicBlock *bind_kj : k.transEdges[type][&j]) {
             BasicBlock *bind_ij = merge(bind_ik, bind_kj);
-            (i.*edgeset)[&j].insert(bind_ij);
+            i.transEdges[type][&j].insert(bind_ij);
           }
         }
 
@@ -337,13 +338,7 @@ void registerEdge(std::vector<RMCEdge> &edges,
                   BasicBlock *bindSite,
                   Action *src, Action *dst) {
   // Insert into the graph and the list of edges
-  if (edgeType == VisibilityEdge) {
-    src->visEdges[dst].insert(bindSite);
-  } else if (edgeType == ExecutionEdge) {
-    src->execEdges[dst].insert(bindSite);
-  } else {
-    src->pushEdges[dst].insert(bindSite);
-  }
+  src->edges[edgeType][dst].insert(bindSite);
   edges.push_back({edgeType, src, dst, bindSite});
 }
 
@@ -609,18 +604,12 @@ void RealizeRMC::findActions() {
 void dumpGraph(std::vector<Action> &actions) {
   // Debug spew!!
   for (auto & src : actions) {
-    for (auto entry : src.execTransEdges) {
-      auto *dst = entry.first;
-      for (auto *bindSite : entry.second) {
-        errs() << "Edge: " << RMCEdge{ExecutionEdge, &src, dst, bindSite} <<
-          "\n";
-      }
-    }
-    for (auto entry : src.visTransEdges) {
-      auto *dst = entry.first;
-      for (auto *bindSite : entry.second) {
-        errs() << "Edge: " << RMCEdge{VisibilityEdge, &src, dst, bindSite} <<
-          "\n";
+    for (auto edgeType : kEdgeTypes) {
+      for (auto entry : src.transEdges[edgeType]) {
+        auto *dst = entry.first;
+        for (auto *bindSite : entry.second) {
+          errs() << "Edge: " << RMCEdge{edgeType, &src, dst, bindSite} << "\n";
+        }
       }
     }
   }
@@ -639,11 +628,17 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
                       DominatorTree &domTree) {
   // Copy the initial edge specifications into the transitive graph
   for (auto & a : actions) {
-    a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
-    a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
-    a.pushTransEdges.insert(a.pushEdges.begin(), a.pushEdges.end());
+    for (auto edgeType : kEdgeTypes) {
+      a.transEdges[edgeType].insert(
+        a.edges[edgeType].begin(), a.edges[edgeType].end());
+    }
+    //a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    //a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
+    //a.pushTransEdges.insert(a.pushEdges.begin(), a.pushEdges.end());
     // Visibility implies execution.
-    a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    a.transEdges[VisibilityEdge].insert(
+        a.edges[ExecutionEdge].begin(), a.edges[ExecutionEdge].end());
+    //a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
     // Push implies visibility and execution, but not in a way that we
     // need to track explicitly. Because push edges can't be useless,
     // they'll never get dropped from the graph, so it isn't important
@@ -658,9 +653,9 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
   // Now compute the closures.  We previously ignored pre/post edges,
   // which was wrong; was it on to /anything/, though?
   //auto realActions = make_range(actions.begin(), actions.begin() + numReal);
-  transitiveClosure(actions, &Action::execTransEdges, merge);
-  transitiveClosure(actions, &Action::visTransEdges, merge);
-  transitiveClosure(actions, &Action::pushTransEdges, merge);
+  for (auto edgeType : kEdgeTypes) {
+    transitiveClosure(actions, edgeType, merge);
+  }
 
 #ifdef DEBUG_SPEW
   dumpGraph(actions);
@@ -1013,19 +1008,19 @@ void removeUselessEdges(std::vector<Action> &actions) {
 
     // Move the set out and filter by building a new one to avoid
     // iterator invalidation woes.
-    auto newExec = std::move(src.execTransEdges);
-    src.execTransEdges.clear();
+    auto newExec = std::move(src.transEdges[ExecutionEdge]);
+    src.transEdges[ExecutionEdge].clear();
     for (auto & entry : newExec) {
       ActionType dt = entry.first->type;
       if (!(st == ActionPush || dt == ActionPush ||
             st == ActionNop || dt == ActionNop ||
             st == ActionSimpleWrites)) {
-        src.execTransEdges.insert(std::move(entry));
+        src.transEdges[ExecutionEdge].insert(std::move(entry));
       }
     }
 
-    auto newVis = std::move(src.visTransEdges);
-    src.visTransEdges.clear();
+    auto newVis = std::move(src.transEdges[VisibilityEdge]);
+    src.transEdges[VisibilityEdge].clear();
     for (auto & entry : newVis) {
       ActionType dt = entry.first->type;
       if (!(st == ActionPush || dt == ActionPush ||
@@ -1034,7 +1029,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
              * versions of all the vis edges. */
             (st == ActionSimpleRead && dt == ActionSimpleRead) ||
             (st == ActionSimpleWrites && dt == ActionSimpleRead))) {
-        src.visTransEdges.insert(std::move(entry));
+        src.transEdges[VisibilityEdge].insert(std::move(entry));
       }
     }
 
