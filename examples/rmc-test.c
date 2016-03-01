@@ -253,6 +253,8 @@ int recv_consume2(int *parray, rmc_int *pidx) {
 }
 
 int recv_consume_loop(_Rmc(int *)*pdata) {
+    // This doesn't work, since *every* rp needs to precede rdata and
+    // only one of them has a dep...
     XEDGE_HERE(rp, rdata);
     int *p;
     while ((p = L(rp, rmc_load(pdata))) == 0)
@@ -260,6 +262,16 @@ int recv_consume_loop(_Rmc(int *)*pdata) {
     int rd = L(rdata, *p);
     return rd;
 }
+
+int recv_consume_loop_inner(_Rmc(int *)*pdata) {
+    for (;;) {
+        // But if we bind the edge *inside* of the loop, it works!
+        XEDGE_HERE(rp, rdata);
+        int *p = L(rp, rmc_load(pdata));
+        if (p) return L(rdata, *p);
+    }
+}
+
 
 int recv_consume_twice(int *parray, rmc_int *pidx) {
     // We don't handle this well yet because of how we handle transitivity
