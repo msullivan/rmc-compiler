@@ -52,7 +52,6 @@ extern int __rmc_edge_register(int edge_type, const char *src, const char *dst,
                                int bind_here)
   RMC_NOEXCEPT RMC_NODUPLICATE;
 extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
-extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 
 #ifdef __cplusplus
 }
@@ -92,8 +91,6 @@ extern int __rmc_bind_inside(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // consistent.
 
 #define RMC_EDGE(t, x, y, h) do { } while (0)
-
-#define __rmc_bind_inside() do { } while (0)
 
 #define LS(label, stmt) stmt
 #define LTRANSFER(label, expr, is_take) L(label, expr)

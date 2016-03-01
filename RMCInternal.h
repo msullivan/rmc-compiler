@@ -212,8 +212,6 @@ private:
   LoopInfo &loopInfo_;
   const bool useSMT_;
 
-  bool actionsBoundOutside_{true};
-
   int numNormalActions_{0};
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;

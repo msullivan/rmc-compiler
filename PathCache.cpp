@@ -65,11 +65,12 @@ PathList PathCache::findAllSimplePaths(SkipSet *grey,
   // edge, so we need to handle that unfortunate case.
   if (includeReturnLoop && isa<ReturnInst>(src->getTerminator())) {
     BasicBlock *entry = &src->getParent()->getEntryBlock();
-    paths = findAllSimplePaths(grey, entry, dst, includeReturnLoop);
+    paths = findAllSimplePaths(grey, entry, dst, includeReturnLoop, false);
   }
   // Go search all the normal successors
   for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllSimplePaths(grey, *i, dst, includeReturnLoop);
+    PathList subpaths = findAllSimplePaths(grey, *i, dst,
+                                           includeReturnLoop, false);
     std::move(subpaths.begin(), subpaths.end(), std::back_inserter(paths));
   }
 

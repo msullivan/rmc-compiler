@@ -442,8 +442,6 @@ void RealizeRMC::findEdges() {
       processEdge(call);
     } else if (target->getName() == "__rmc_push") {
       if (!processPush(call)) continue;
-    } else if (target->getName() == "__rmc_bind_inside") {
-      actionsBoundOutside_ = false;
     } else {
       continue;
     }
@@ -939,8 +937,7 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
 
   PathCache::SkipSet skip;
   if (edge.bindSite) skip.insert(edge.bindSite);
-  PathList paths = pc_.findAllSimplePaths(&skip, edge.src->bb, edge.dst->bb,
-                                          actionsBoundOutside_, true);
+  PathList paths = pc_.findAllSimplePaths(&skip, edge.src->bb, edge.dst->bb);
   //pc_.dumpPaths(paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(edge, path,

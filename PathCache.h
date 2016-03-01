@@ -23,12 +23,12 @@ class PathCache {
 public:
   void clear() { entries_.clear(); cache_.clear(); }
   PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                              bool includeReturnLoop,
-                              bool allowSelfCycle = false);
+                              bool includeReturnLoop = true,
+                              bool allowSelfCycle = true);
   typedef SmallPtrSet<BasicBlock *, 8> SkipSet;
   PathList findAllSimplePaths(SkipSet *grey, BasicBlock *src, BasicBlock *dst,
-                              bool includeReturnLoop,
-                              bool allowSelfCycle = false);
+                              bool includeReturnLoop = true,
+                              bool allowSelfCycle = true);
 
   Path extractPath(PathID k) const;
 
