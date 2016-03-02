@@ -272,6 +272,21 @@ int recv_consume_loop_inner(_Rmc(int *)*pdata) {
     }
 }
 
+int recv_consume_loop_weird(_Rmc(int *)*pdata) {
+    // This does work but is maybe a little weird. Even though the
+    // XEDGE_HERE dominates L(rdata), L(rdata) is certainly not in its
+    // scope in a C sense...
+    int *p;
+    for (;;) {
+        XEDGE_HERE(rp, rdata);
+        if ((p = L(rp, rmc_load(pdata))) != 0) {
+            break;
+        }
+    }
+    int rd = L(rdata, *p);
+    return rd;
+}
+
 
 int recv_consume_twice(int *parray, rmc_int *pidx) {
     // We don't handle this well yet because of how we handle transitivity
@@ -281,5 +296,17 @@ int recv_consume_twice(int *parray, rmc_int *pidx) {
     int idx = L(rp, rmc_load(pidx));
     int rd = L(rdata, parray[idx]);
     rd = L(rdata2, parray[rd]);
+    return rd;
+}
+
+int recv_consume_tricky_binding(_Rmc(int *)*pdata) {
+    // Even though there is an edge bound inside that won't require an
+    // lwsync, the stupid transitive edges through the no-ops do.
+    XEDGE(rp, dummy);
+    XEDGE(dummy, rp);
+    XEDGE_HERE(rp, rdata);
+    int *p = L(rp, rmc_load(pdata));
+    L(dummy, 0);
+    int rd = L(rdata, *p);
     return rd;
 }
