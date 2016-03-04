@@ -10,6 +10,11 @@ namespace rmclib {
 } // f. this
 #endif
 
+// WAIT THIS IS ACTUALLY FUCKED
+// read_unlocked is sort of a mythical "release load"
+// mo_rlx reads in the critical section could get reordered past the
+// release read
+
 class SeqLock {
 public:
     using Tag = uintptr_t;
