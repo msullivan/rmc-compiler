@@ -213,6 +213,9 @@ public:
     static Guard pin() {
         return Guard(local_epoch_.get());
     }
+    static Guard pinQuick() {
+        return Guard(local_epoch_.get());
+    }
 };
 
 //////

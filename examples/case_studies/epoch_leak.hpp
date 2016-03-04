@@ -39,6 +39,9 @@ public:
     static Guard pin() {
         return Guard();
     }
+    static Guard pinQuick() {
+        return Guard();
+    }
 };
 
 }

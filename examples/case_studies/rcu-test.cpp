@@ -1,3 +1,5 @@
+// Test using epochs like RCU
+
 #include <thread>
 #include <utility>
 #include <iostream>
@@ -37,7 +39,7 @@ const std::memory_order mo_rlx = std::memory_order_relaxed;
 const std::memory_order mo_rel = std::memory_order_release;
 template <typename T>
 T fake_consume(std::atomic<T> &val) {
-    // xxx alpha or some shit also compilers wtvr
+    // XXX: ALPHA or some shit also compilers wtvr
     return val.load(mo_rlx);
 }
 
@@ -75,7 +77,7 @@ void producer(Test *t) {
 void consumer(Test *t) {
     long max = 0;
     for (int i = 1; i < t->count; i++) {
-        auto guard = Epoch::pin();
+        auto guard = Epoch::pinQuick();
 
         Foo *foo = fake_consume(t->foo);
         if (!foo) continue;
