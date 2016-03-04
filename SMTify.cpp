@@ -689,12 +689,13 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  RMCEdgeType edgeType) {
   // XXX: is this wrong for multiblock actions???
-  SmtExpr isCut = getEdgeFunc(edgeType == PushEdge ? m.pcut : m.vcut,
+  bool isPush = edgeType == PushEdge;
+  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut,
                               src.bb, dst.bb);
 
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.bb, dst.bb,
-    [&] (PathID path) { return makePathVcut(s, m, path, edgeType); });
+    [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
   s.add(isCut == allPathsCut || relAcqCut);
 
