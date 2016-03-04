@@ -131,11 +131,10 @@ private:
     alignas(kCacheLinePadding)
     LocalGarbage garbage_;
 
-    bool tryCollect();
-
 public:
     void enter() noexcept;
     void exit() noexcept;
+    bool tryCollect();
 
     void registerCleanup(GarbageCleanup f) {
         garbage_.registerCleanup(f);
@@ -203,6 +202,8 @@ public:
         registerCleanup(GarbageCleanup(delete_ptr<T>,
                                        reinterpret_cast<void *>(p)));
     }
+
+    bool tryCollect() { return participant_->tryCollect(); }
 };
 
 class Epoch {

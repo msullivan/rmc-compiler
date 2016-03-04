@@ -13,15 +13,25 @@ template<class T> using lf_ptr = T*;
 
 ////////////////////////////
 
+class GarbageCleanup {
+private:
+    typedef void (*Func)(void *);
+    Func func_;
+    void *data_;
+public:
+    GarbageCleanup(Func func, void *data) : func_(func), data_(data) {}
+    void operator()() { func_(data_); }
+};
+
 class Guard {
 private:
 public:
     Guard() { }
     ~Guard() { }
-    template <typename F>
-    void registerCleanup(F f) { }
+    void registerCleanup(GarbageCleanup f) { }
     template <typename T>
     void unlinked(T *p) { }
+    bool tryCollect() { return false; }
 };
 
 class Epoch {
