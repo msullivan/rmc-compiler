@@ -1,5 +1,5 @@
-#ifndef SEQLOCK_SC
-#define SEQLOCK_SC
+#ifndef SEQLOCK_SC_H
+#define SEQLOCK_SC_H
 
 #include <atomic>
 #include <utility>
@@ -11,16 +11,16 @@ namespace rmclib {
 #endif
 
 class SeqLock {
-private:
-    std::atomic<uintptr_t> count_{0};
-
 public:
     using Tag = uintptr_t;
 
-    void delay() { }
+private:
+    std::atomic<uintptr_t> count_{0};
 
+    void delay() { }
     bool is_locked(Tag tag) { return (tag & 1) != 0; }
 
+public:
     Tag read_lock() {
         Tag tag;
         while (is_locked((tag = count_))) {
