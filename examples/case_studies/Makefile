@@ -38,16 +38,7 @@ ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
-# Compute what tests and stuff we are building
-LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES))
-
-TESTS=$(foreach epoch,$(EPOCH_TYPES), \
-       $(foreach thing,$(THINGS), \
-        $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-         $(OBJDIR)/$(thing)-e$(epoch)-$(type)-test)))
-
-
-all: $(TESTS)
+DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
 CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --smt --cleanup) \
@@ -64,16 +55,10 @@ else
   E = echo $(1)
 endif
 
-OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
-	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
-
-DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
-
--include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
 define TEST_template =
 $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
@@ -87,14 +72,31 @@ $$(OBJDIR)/$(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/ep
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
+
+TESTS += $$(OBJDIR)/$(1)-e$(3)-$(2)-test
 endef
 
 ########
+
+TESTS :=
 
 $(foreach epoch,$(EPOCH_TYPES), \
  $(foreach thing,$(THINGS), \
   $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
    $(eval $(call TEST_template,$(thing),$(type),$(epoch))))))
+
+########
+
+# Compute what tests and stuff we are building
+LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES))
+
+OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
+	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
+
+-include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
+
+all: $(TESTS)
+.DEFAULT_GOAL := all
 
 ########
 
