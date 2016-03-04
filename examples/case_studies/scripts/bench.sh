@@ -16,7 +16,7 @@ do
 	FILE=data/$PROGRAM-$TAG.csv
 	printf "%d,%s,%s %s,$PROGRAM,$ARGS," $I `hostname` \
 		   `date --rfc-3339=seconds -u` >> $FILE
-	./$PROGRAM -b "$ARGS" >> $FILE
+	./build/$PROGRAM -b "$ARGS" >> $FILE
 	#sleep 60 # evade, don't solve, temperature problems
     done
 done

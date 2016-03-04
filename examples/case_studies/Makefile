@@ -43,7 +43,7 @@ LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES))
 TESTS=$(foreach epoch,$(EPOCH_TYPES), \
        $(foreach thing,$(THINGS), \
         $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-         $(thing)-e$(epoch)-$(type)-test)))
+         $(OBJDIR)/$(thing)-e$(epoch)-$(type)-test)))
 
 
 all: $(TESTS)
@@ -63,7 +63,7 @@ else
   E = echo $(1)
 endif
 
-OBJ_FILES=$(patsubst %, $(OBJDIR)/%.o, $(TESTS)) \
+OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
 	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
 
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
@@ -82,7 +82,7 @@ $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-c -o $$@ $$<
-$(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
