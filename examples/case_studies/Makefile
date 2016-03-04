@@ -1,5 +1,6 @@
 THINGS=ms_queue seqlock
-MS_QUEUE_TYPES=sc relacq rmc lock 2lock
+MS_QUEUE_EPOCH_TYPES=sc relacq rmc
+MS_QUEUE_TYPES=lock 2lock
 SEQLOCK_TYPES=sc
 EPOCH_TYPES=sc c11 rmc leak
 
@@ -61,29 +62,39 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
 
 define TEST_template =
-$$(OBJDIR)/$(1)-e$(3)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
+ifneq (none,$(3))
+LIBPART:=-e$(3)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/epoch_$(3).o
+else
+LIBPART:=
+endif
+
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, COMPILE $$@)
 	$$(Q)$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
 		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-c -o $$@ $$<
-$$(OBJDIR)/$(1)-e$(3)-$(2)-test: $$(OBJDIR)/$(1)-e$(3)-$(2)-test.o $$(OBJDIR)/epoch_$(epoch).o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
 
-TESTS += $$(OBJDIR)/$(1)-e$(3)-$(2)-test
+TESTS += $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test
 endef
 
 ########
 
 TESTS :=
 
-$(foreach epoch,$(EPOCH_TYPES), \
- $(foreach thing,$(THINGS), \
-  $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+$(foreach thing,$(THINGS), \
+ $(foreach type,$(value $(call uppercase,$(thing))_EPOCH_TYPES), \
+  $(foreach epoch,$(EPOCH_TYPES), \
    $(eval $(call TEST_template,$(thing),$(type),$(epoch))))))
+$(foreach thing,$(THINGS), \
+ $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+  $(eval $(call TEST_template,$(thing),$(type),none))))
 
 ########
 
