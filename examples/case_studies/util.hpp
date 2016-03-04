@@ -22,6 +22,16 @@ namespace rmclib {
 
 const int kCacheLinePadding = 64; // I have NFI
 
+static void busywait(double us) {
+    auto start = std::chrono::high_resolution_clock::now();
+    for (;;) {
+        auto now = std::chrono::high_resolution_clock::now();
+        // asdf, double
+        std::chrono::duration<double, std::micro> elapsed = now-start;
+        if (elapsed.count() > us) break;
+    }
+}
+
 class BenchTimer {
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> start_, stop_;

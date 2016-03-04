@@ -9,15 +9,22 @@
 #include "util.hpp"
 #include "seqlock.hpp"
 
+using namespace rmclib;
 
 const ulong kCount = 1000000000;
 
+struct Foo {
+    std::atomic<int> a;
+    std::atomic<int> b;
+};
+
 struct Test {
-    rmclib::SeqLock lock;
+    SeqLock lock;
 
-    alignas(rmclib::kCacheLinePadding)
-    std::atomic<int> something[2];
+    alignas(kCacheLinePadding)
+    Foo foo;
 
+    alignas(kCacheLinePadding)
     std::atomic<bool> consumersDone{false};
     std::atomic<ulong> totalSum{0};
 
@@ -29,31 +36,13 @@ struct Test {
 
 const std::memory_order mo_rlx = std::memory_order_relaxed;
 
-void work() {
-    const int kWork = 50;
-    volatile int nus = 0;
-    for (int i = 0; i < kWork; i++) {
-        nus++;
-    }
-}
-
-void busywait(double us) {
-    auto start = std::chrono::high_resolution_clock::now();
-    for (;;) {
-        auto now = std::chrono::high_resolution_clock::now();
-        // asdf, double
-        std::chrono::duration<double, std::micro> elapsed = now-start;
-        if (elapsed.count() > us) break;
-    }
-}
-
 void producer(Test *t) {
-    using namespace std::literals;
+
     int i = 1;
     while (!t->consumersDone) {
         t->lock.write_lock();
-        t->something[0] = i;
-        t->something[1] = -i;
+        t->foo.a = i;
+        t->foo.b = -i;
         t->lock.write_unlock();
 
         i++;
@@ -66,16 +55,16 @@ void producer(Test *t) {
 void consumer(Test *t) {
     long max = 0;
     for (int i = 1; i < t->count; i++) {
-        int d0, d1;
+        int a, b;
         for (;;) {
             auto tag = t->lock.read_lock();
-            d0 = t->something[0].load(mo_rlx);
-            d1 = t->something[1].load(mo_rlx);
+            a = t->foo.a.load(mo_rlx);
+            b = t->foo.b.load(mo_rlx);
             if (t->lock.read_unlock(tag)) break;
         }
 
-        assert_eq(d0, -d1);
-        if (d0 > max) max = d0;
+        assert_eq(a, -b);
+        if (a > max) max = a;
     }
 
     t->totalSum += max;
@@ -95,7 +84,7 @@ void test(Test &t) {
 
     // XXX: we should probably synchronize thread starting work and
     // just time the actual work.
-    rmclib::BenchTimer timer;
+    BenchTimer timer;
 
     for (int i = 0; i < t.producers; i++) {
         producers.push_back(std::thread(producer, &t));
