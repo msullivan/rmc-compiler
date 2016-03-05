@@ -65,5 +65,12 @@ inline void trigger() {
 }
 #endif
 
+// Wrapper with more C++11y names
+namespace rmclib {
+namespace remote_thread_fence {
+inline void placeholder() { rmclib::remote_push::placeholder(); }
+inline void trigger() { rmclib::remote_push::trigger(); }
+}
+}
 
 #endif
