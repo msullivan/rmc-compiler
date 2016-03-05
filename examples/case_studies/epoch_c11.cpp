@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include "epoch_c11.hpp"
+#include "remote_fence.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -47,7 +48,7 @@ bool Participant::quickEnter() noexcept {
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
 
-    std::atomic_thread_fence(mo_sc);
+    remote_thread_fence::placeholder(mo_sc);
 
     // Copy the global epoch to the local one
     uintptr_t global_epoch = global_epoch_.load(mo_rlx);
@@ -80,6 +81,8 @@ void Participant::exit() noexcept {
 
 bool Participant::tryCollect() {
     uintptr_t cur_epoch = global_epoch_;
+
+    remote_thread_fence::trigger();
 
     // XXX: TODO: lazily remove stuff from this list
     for (Participant *p = Participants::head_; p; p = p->next_) {

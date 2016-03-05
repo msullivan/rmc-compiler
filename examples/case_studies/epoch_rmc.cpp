@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 #include "epoch_rmc.hpp"
+#include "remote_push.hpp"
+
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -44,7 +46,7 @@ bool Participant::quickEnter() noexcept {
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
 
-    rmc::push_here();
+    remote_push::placeholder();
 
     // Copy the global epoch to the local one;
     // if it has changed, garbage collect
@@ -85,6 +87,8 @@ bool Participant::tryCollect() {
     XEDGE(collect, update_local);
 
     uintptr_t cur_epoch = L(load_epoch, global_epoch_);
+
+    remote_push::trigger();
 
     // XXX: TODO: lazily remove stuff from this list
     for (Participant *p = L(load_head, Participants::head_);

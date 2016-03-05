@@ -68,7 +68,11 @@ inline void trigger() {
 // Wrapper with more C++11y names
 namespace rmclib {
 namespace remote_thread_fence {
-inline void placeholder() { rmclib::remote_push::placeholder(); }
+// This nominally takes a memory order, but we always just
+// force a full fence.
+inline void placeholder(std::memory_order order) {
+    rmclib::remote_push::placeholder();
+}
 inline void trigger() { rmclib::remote_push::trigger(); }
 }
 }
