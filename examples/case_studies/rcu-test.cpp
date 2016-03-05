@@ -45,7 +45,7 @@ T fake_consume(std::atomic<T> &val) {
 
 
 void work() {
-    const int kWork = 50;
+    const int kWork = 500;
     volatile int nus = 0;
     for (int i = 0; i < kWork; i++) {
         nus++;
@@ -61,6 +61,7 @@ void producer(Test *t) {
         Foo *foo = &foos[fooIdx];
 
         foo->a = i;
+        work(); // lol
         foo->b = -i;
 
         t->foo.store(foo, mo_rel);
