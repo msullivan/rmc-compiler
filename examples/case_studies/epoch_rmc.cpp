@@ -24,12 +24,14 @@ static ConcurrentBag global_garbage_[kNumEpochs];
 
 
 Participant *Participants::enroll() {
-    Participant *p = new Participant();
+    VEDGE(init_p, cas);
+
+    Participant *p = L(init_p, new Participant());
 
     Participant *head = head_;
     for (;;) {
-        p->next_ = head;
-        if (head_.compare_exchange_weak(head, p)) break;
+        L(init_p, p->next_ = head);
+        if (L(cas, head_.compare_exchange_weak(head, p))) break;
     }
 
     return p;
