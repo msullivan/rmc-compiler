@@ -11,7 +11,6 @@
 #include "util.hpp"
 
 #include "epoch.hpp"
-#include "rcu_synchronize.hpp"
 
 using namespace rmclib;
 
@@ -65,7 +64,7 @@ void producer(Test *t) {
         foo->b = -i;
 
         t->foo.store(foo, mo_rel);
-        rcuSynchronize();
+        Epoch::rcuSynchronize();
 
         fooIdx = !fooIdx;
         i++;
@@ -78,7 +77,7 @@ void producer(Test *t) {
 void consumer(Test *t) {
     long max = 0;
     for (int i = 1; i < t->count; i++) {
-        auto guard = Epoch::pinQuick();
+        auto guard = Epoch::rcuPin();
 
         Foo *foo = fake_consume(t->foo);
         if (!foo) continue;

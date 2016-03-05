@@ -222,12 +222,32 @@ class Epoch {
 private:
     static thread_local LocalEpoch local_epoch_;
 public:
+    // The standard entry point for using epochs to reclaim memory.
     static Guard pin() {
         return Guard(local_epoch_.get());
     }
-    static Guard pinQuick() {
+
+    // RCU style entry points
+    // rcuPin(): like pin() but does not ever collect
+    static Guard rcuPin() {
         return Guard(local_epoch_.get(), Guard::quick_enter);
     }
+
+    // rcuSynchronize(): wait until all in-progress critical sections
+    // terminate
+    static void rcuSynchronize() {
+        int successes = 0;
+        // Three succesful collections means any in-progress reader
+        // section must have completed.
+        // XXX: does 2 work?
+        while (successes < 3) {
+            auto guard = pin();
+            if (guard.tryCollect()) {
+                successes++;
+            }
+        }
+    }
+
 };
 
 //////

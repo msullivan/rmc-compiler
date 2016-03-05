@@ -1,6 +1,8 @@
 #ifndef RMC_EPOCH_LEAK
 #define RMC_EPOCH_LEAK
 
+#include <exception>
+
 // A dummy version of the epoch lib that is just a total no-op.
 
 namespace rmclib {
@@ -39,9 +41,10 @@ public:
     static Guard pin() {
         return Guard();
     }
-    static Guard pinQuick() {
+    static Guard rcuPin() {
         return Guard();
     }
+    static void rcuSynchronize() { std::terminate(); }
 };
 
 }
