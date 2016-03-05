@@ -136,6 +136,7 @@ private:
     LocalGarbage garbage_;
 
 public:
+    bool quickEnter() noexcept;
     void enter() noexcept;
     void exit() noexcept;
     bool tryCollect();
@@ -186,8 +187,15 @@ private:
     // initialization checks
     Participant *participant_;
 public:
-    Guard(Participant *participant) : participant_(participant) {
+    struct quick_enter_t {};
+    static constexpr quick_enter_t quick_enter {};
+
+    explicit Guard(Participant *participant) : participant_(participant) {
         participant_->enter();
+    }
+    Guard(Participant *participant, quick_enter_t)
+        : participant_(participant) {
+        participant_->quickEnter();
     }
     ~Guard() {
         participant_->exit();
@@ -218,7 +226,7 @@ public:
         return Guard(local_epoch_.get());
     }
     static Guard pinQuick() {
-        return Guard(local_epoch_.get());
+        return Guard(local_epoch_.get(), Guard::quick_enter);
     }
 };
 

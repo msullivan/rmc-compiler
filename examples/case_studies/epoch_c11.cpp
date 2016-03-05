@@ -41,19 +41,26 @@ Participant *Participants::enroll() {
 }
 
 /////// Participant is where most of the interesting stuff happens
-void Participant::enter() noexcept {
+bool Participant::quickEnter() noexcept {
     uintptr_t new_count = in_critical_.load(mo_rlx) + 1;
     in_critical_.store(new_count, mo_rlx);
     // Nothing to do if we were already in a critical section
-    if (new_count > 1) return;
+    if (new_count > 1) return false;
 
     std::atomic_thread_fence(mo_sc);
 
-    // Copy the global epoch to the local one;
-    // if it has changed, garbage collect
+    // Copy the global epoch to the local one
     uintptr_t global_epoch = global_epoch_.load(mo_rlx);
-    if (global_epoch != epoch_.load(mo_rlx)) {
-        epoch_.store(global_epoch, mo_rlx);
+    epoch_.store(global_epoch, mo_rlx);
+    return true;
+}
+
+void Participant::enter() noexcept {
+    uintptr_t epoch = epoch_.load(mo_rlx);
+    if (!quickEnter()) return;
+
+    // If the epoch has changed, garbage collect
+    if (epoch != epoch_.load(mo_rlx)) {
         garbage_.collect();
     }
 

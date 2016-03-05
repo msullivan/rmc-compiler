@@ -36,17 +36,28 @@ Participant *Participants::enroll() {
 }
 
 /////// Participant is where most of the interesting stuff happens
-void Participant::enter() noexcept {
+bool Participant::quickEnter() noexcept {
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
     // Nothing to do if we were already in a critical section
-    if (new_count > 1) return;
+    if (new_count > 1) return false;
+
+    // XXX: Consider whether we do need technically need a fence for
+    // when the contents of the critical section are not SC!
 
     // Copy the global epoch to the local one;
     // if it has changed, garbage collect
     uintptr_t global_epoch = global_epoch_;
-    if (global_epoch != epoch_) {
-        epoch_ = global_epoch;
+    epoch_ = global_epoch;
+    return true;
+}
+
+void Participant::enter() noexcept {
+    uintptr_t epoch = epoch_;
+    if (!quickEnter()) return;
+
+    // If the epoch has changed, garbage collect
+    if (epoch != epoch_) {
         garbage_.collect();
     }
 
