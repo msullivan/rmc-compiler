@@ -96,7 +96,6 @@ bool Participant::tryCollect() {
     // local epoch.
     epoch_ = new_epoch;
 
-
     return true;
 }
 

@@ -110,7 +110,6 @@ bool Participant::tryCollect() {
     // local epoch.
     LS(update_local, epoch_ = new_epoch);
 
-
     return true;
 }
 
