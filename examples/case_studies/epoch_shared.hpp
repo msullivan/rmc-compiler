@@ -5,6 +5,8 @@
 #include <functional>
 #include <vector>
 #include "util.hpp"
+#include "tagged_ptr.hpp"
+
 // Very very closely modeled after crossbeam by aturon.
 
 // All of the externally facing stuff is the same among most of our
@@ -116,6 +118,9 @@ public:
 };
 
 class Participant {
+public:
+    using Ptr = tagged_ptr<Participant *>;
+
     friend class Participants;
     friend class LocalEpoch;
 private:
@@ -129,7 +134,7 @@ private:
     alignas(kCacheLinePadding)
     epoch_atomic<bool> exited_{false};
     // Next pointer in the list of threads
-    epoch_atomic<Participant *> next_{nullptr};
+    epoch_atomic<Ptr> next_{nullptr};
 
     // Collection of garbage
     alignas(kCacheLinePadding)
@@ -152,7 +157,7 @@ public:
 class Participants {
 private:
     friend class Participant;
-    static epoch_atomic<Participant *> head_;
+    static epoch_atomic<Participant::Ptr> head_;
 
 public:
     static Participant *enroll();

@@ -14,7 +14,7 @@ namespace rmclib {
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
-std::atomic<Participant *> Participants::head_;
+std::atomic<Participant::Ptr> Participants::head_;
 
 
 // XXX: Should this be in a class??
@@ -26,7 +26,7 @@ static ConcurrentBag global_garbage_[kNumEpochs];
 Participant *Participants::enroll() {
     Participant *p = new Participant();
 
-    Participant *head = head_;
+    Participant::Ptr head = head_;
     for (;;) {
         p->next_ = head;
         if (head_.compare_exchange_weak(head, p)) break;
@@ -75,7 +75,7 @@ bool Participant::tryCollect() {
     uintptr_t cur_epoch = global_epoch_;
 
     // XXX: TODO: lazily remove stuff from this list
-    for (Participant *p = Participants::head_; p; p = p->next_) {
+    for (Participant::Ptr p = Participants::head_; p; p = p->next_.load()) {
         // We can only advance the epoch if every thread in a critical
         // section is in the current epoch.
         if (p->in_critical_ && p->epoch_ != cur_epoch) {

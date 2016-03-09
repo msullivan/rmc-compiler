@@ -16,7 +16,7 @@ namespace rmclib {
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
-rmc::atomic<Participant *> Participants::head_;
+rmc::atomic<Participant::Ptr> Participants::head_;
 
 
 // XXX: Should this be in a class??
@@ -30,7 +30,7 @@ Participant *Participants::enroll() {
 
     Participant *p = L(init_p, new Participant());
 
-    Participant *head = head_;
+    Participant::Ptr head = head_;
     for (;;) {
         L(init_p, p->next_ = head);
         if (L(cas, head_.compare_exchange_weak(head, p))) break;
@@ -91,7 +91,7 @@ bool Participant::tryCollect() {
     remote_push::trigger();
 
     // XXX: TODO: lazily remove stuff from this list
-    for (Participant *p = L(load_head, Participants::head_);
+    for (Participant::Ptr p = L(load_head, Participants::head_);
          p; p = L(a, p->next_)) {
         // We can only advance the epoch if every thread in a critical
         // section is in the current epoch.
