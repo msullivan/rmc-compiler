@@ -146,6 +146,8 @@ public:
     void exit() noexcept;
     bool tryCollect();
 
+    void shutdown() noexcept;
+
     void registerCleanup(GarbageCleanup f) {
         garbage_.registerCleanup(f);
     }
@@ -173,7 +175,7 @@ public:
         me_->enter();
         me_->garbage_.migrateGarbage();
         me_->exit();
-        me_->exited_ = true;
+        me_->shutdown();
     }
     lf_ptr<Participant> get() { return me_; }
 };

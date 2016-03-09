@@ -109,6 +109,10 @@ bool Participant::tryCollect() {
     return true;
 }
 
+void Participant::shutdown() noexcept {
+    exited_ = true;
+}
+
 /////////////
 void RealLocalGarbage::collectBag(Bag &bag) {
     for (auto f : bag) {
