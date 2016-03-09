@@ -2,9 +2,6 @@
 #define SEQLOCK_NOOP_H
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 class SeqLock {
 private:

@@ -6,9 +6,6 @@
 #include "util.hpp"
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 class SeqLock {
 public:

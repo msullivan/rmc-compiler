@@ -6,9 +6,6 @@
 #include "util.hpp"
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 // WAIT THIS IS ACTUALLY FUCKED
 // read_unlocked is sort of a mythical "release load"

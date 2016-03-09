@@ -6,9 +6,6 @@
 #include <type_traits>
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 
 template< class >

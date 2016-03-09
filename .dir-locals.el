@@ -2,8 +2,8 @@
 ;;; See Info node `(emacs) Directory Variables' for more information.
 
 ((c++-mode
-;  (c-offsets-alist . ((innamespace . [0])))
-  (c-file-style . "k&r")
+; setting this overrides my c-offsets-alist to disable namespace indenting
+;  (c-file-style . "k&r")
   (c-basic-offset . 2)
   (indent-tabs-mode))
  (c-mode

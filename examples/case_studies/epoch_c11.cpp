@@ -7,9 +7,6 @@
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 /////////////////////////////
 
 const std::memory_order mo_rlx = std::memory_order_relaxed;

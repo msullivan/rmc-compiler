@@ -8,9 +8,6 @@
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 /////////////////////////////
 
 const int kNumEpochs = 3;

@@ -15,9 +15,6 @@
 // between implementations.
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 /////////////////////////////
 
 template<class T> using lf_ptr = T*;

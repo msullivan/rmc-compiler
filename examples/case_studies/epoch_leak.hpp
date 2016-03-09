@@ -6,9 +6,6 @@
 // A dummy version of the epoch lib that is just a total no-op.
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 /////////////////////////////
 
 template<class T> using lf_ptr = T*;

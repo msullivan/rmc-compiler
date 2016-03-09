@@ -10,9 +10,6 @@
 #include "util.hpp"
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 using std::experimental::optional;
 

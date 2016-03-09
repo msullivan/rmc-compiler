@@ -6,9 +6,6 @@
 #include "util.hpp"
 
 namespace rmclib {
-#if 0
-} // f. this
-#endif
 
 // This is based on "Can Seqlocks Get Along With Programming Language
 // Memory Models" by Hans Boehm
