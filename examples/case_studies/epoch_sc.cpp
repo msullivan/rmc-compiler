@@ -74,13 +74,27 @@ void Participant::exit() noexcept {
 bool Participant::tryCollect() {
     uintptr_t cur_epoch = global_epoch_;
 
-    // XXX: TODO: lazily remove stuff from this list
-    for (Participant::Ptr p = Participants::head_; p; p = p->next_.load()) {
-        // We can only advance the epoch if every thread in a critical
-        // section is in the current epoch.
-        if (p->in_critical_ && p->epoch_ != cur_epoch) {
-            return false;
+    // XXX: Maybe the list traversal should be factored better
+    // XXX: also it is totally wrong so
+    std::atomic<Participant::Ptr> *prevp = &Participants::head_;
+    Participant::Ptr cur = *prevp;
+    while (cur) {
+        Participant::Ptr next = cur->next_;
+        if (cur->exited_) {
+            if (prevp->compare_exchange_strong(cur, next)) {
+                // lurr at this guard thing
+                Guard g(this);
+                g.unlinked(cur.ptr());
+            }
+        } else {
+            // We can only advance the epoch if every thread in a critical
+            // section is in the current epoch.
+            if (cur->in_critical_ && cur->epoch_ != cur_epoch) {
+                return false;
+            }
         }
+        prevp = &cur->next_;
+        cur = next;
     }
 
     // Try to advance the global epoch
