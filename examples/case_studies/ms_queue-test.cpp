@@ -45,7 +45,7 @@ void producer(Test *t) {
 void consumer(Test *t) {
     ulong max = 0;
     ulong sum = 0;
-    ulong count = 1; // lurr
+    ulong count = 0; // lurr
     bool producersDone = false;
     for (;;) {
         auto res = t->queue.dequeue();
@@ -114,7 +114,7 @@ void test(Test &t) {
     expected *= t.producers;
 
     //printf("Final sum: %ld\n", t.totalSum.load());
-    assert_eq(t.totalCount.load(), t.producers*t.count);
+    assert_eq(t.totalCount.load(), t.producers*(t.count-1));
     assert_eq(t.totalSum.load(), expected);
 }
 
