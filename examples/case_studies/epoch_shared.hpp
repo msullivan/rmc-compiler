@@ -130,7 +130,8 @@ private:
     // Has this thread exited?
     alignas(kCacheLinePadding)
     epoch_atomic<bool> exited_{false};
-    // Next pointer in the list of threads
+    // Next pointer in the list of threads.  The tag bit is set if the
+    // current thread has exited and can be freed.
     epoch_atomic<Ptr> next_{nullptr};
 
     // Collection of garbage
@@ -173,6 +174,7 @@ public:
         me_->garbage_.migrateGarbage();
         me_->exit();
         me_->shutdown();
+        me_ = nullptr;
     }
     lf_ptr<Participant> get() { return me_; }
 };

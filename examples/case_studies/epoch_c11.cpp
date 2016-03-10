@@ -40,6 +40,8 @@ Participant *Participants::enroll() {
 
 /////// Participant is where most of the interesting stuff happens
 bool Participant::quickEnter() noexcept {
+    assert(!next_.load().tag());
+
     uintptr_t new_count = in_critical_.load(mo_rlx) + 1;
     in_critical_.store(new_count, mo_rlx);
     // Nothing to do if we were already in a critical section
@@ -81,13 +83,37 @@ bool Participant::tryCollect() {
 
     remote_thread_fence::trigger();
 
-    // XXX: TODO: lazily remove stuff from this list
-    for (Participant::Ptr p = Participants::head_; p; p = p->next_) {
-        // We can only advance the epoch if every thread in a critical
-        // section is in the current epoch.
-        if (p->in_critical_ && p->epoch_ != cur_epoch) {
-            return false;
+    // Check whether all active threads are in the current epoch so we
+    // can advance it.
+    // As we do it, we lazily clean up exited threads.
+    //
+    // XXX: Do we want to factor out the list traversal?
+try_again:
+    std::atomic<Participant::Ptr> *prevp = &Participants::head_;
+    Participant::Ptr cur = *prevp;
+    while (cur) {
+        Participant::Ptr next = cur->next_;
+        if (next.tag()) {
+            // This node has exited. Try to unlink it from the
+            // list. This will fail if it's already been unlinked or
+            // the previous node has exited; in those cases, we start
+            // back over at the head of the list.
+            if (prevp->compare_exchange_strong(cur, Ptr(next, 0))) {
+                Guard g(this);
+                g.unlinked(cur.ptr());
+            } else {
+                goto try_again;
+            }
+        } else {
+            // We can only advance the epoch if every thread in a critical
+            // section is in the current epoch.
+            if (cur->in_critical_ && cur->epoch_ != cur_epoch) {
+                return false;
+            }
+            prevp = &cur->next_;
         }
+
+        cur = next;
     }
 
     // Try to advance the global epoch
@@ -107,7 +133,11 @@ bool Participant::tryCollect() {
 }
 
 void Participant::shutdown() noexcept {
-    exited_ = true;
+    Participant::Ptr next = next_;
+    Participant::Ptr exited_next;
+    do {
+        exited_next = Participant::Ptr(next, 1);
+    } while (!next_.compare_exchange_weak(next, exited_next));
 }
 
 /////////////

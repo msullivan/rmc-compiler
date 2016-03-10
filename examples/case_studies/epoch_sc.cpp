@@ -6,7 +6,6 @@
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
-/////////////////////////////
 
 const int kNumEpochs = 3;
 
@@ -34,6 +33,8 @@ Participant *Participants::enroll() {
 
 /////// Participant is where most of the interesting stuff happens
 bool Participant::quickEnter() noexcept {
+    assert(!next_.load().tag());
+
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
     // Nothing to do if we were already in a critical section
@@ -71,17 +72,26 @@ void Participant::exit() noexcept {
 bool Participant::tryCollect() {
     uintptr_t cur_epoch = global_epoch_;
 
-    // XXX: Maybe the list traversal should be factored better
-    // XXX: also it is totally wrong so
+    // Check whether all active threads are in the current epoch so we
+    // can advance it.
+    // As we do it, we lazily clean up exited threads.
+    //
+    // XXX: Do we want to factor out the list traversal?
+try_again:
     std::atomic<Participant::Ptr> *prevp = &Participants::head_;
     Participant::Ptr cur = *prevp;
     while (cur) {
         Participant::Ptr next = cur->next_;
-        if (cur->exited_) {
-            if (prevp->compare_exchange_strong(cur, next)) {
-                // lurr at this guard thing
+        if (next.tag()) {
+            // This node has exited. Try to unlink it from the
+            // list. This will fail if it's already been unlinked or
+            // the previous node has exited; in those cases, we start
+            // back over at the head of the list.
+            if (prevp->compare_exchange_strong(cur, Ptr(next, 0))) {
                 Guard g(this);
                 g.unlinked(cur.ptr());
+            } else {
+                goto try_again;
             }
         } else {
             // We can only advance the epoch if every thread in a critical
@@ -89,8 +99,9 @@ bool Participant::tryCollect() {
             if (cur->in_critical_ && cur->epoch_ != cur_epoch) {
                 return false;
             }
+            prevp = &cur->next_;
         }
-        prevp = &cur->next_;
+
         cur = next;
     }
 
@@ -111,7 +122,11 @@ bool Participant::tryCollect() {
 }
 
 void Participant::shutdown() noexcept {
-    exited_ = true;
+    Participant::Ptr next = next_;
+    Participant::Ptr exited_next;
+    do {
+        exited_next = Participant::Ptr(next, 1);
+    } while (!next_.compare_exchange_weak(next, exited_next));
 }
 
 /////////////
