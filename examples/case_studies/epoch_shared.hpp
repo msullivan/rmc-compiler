@@ -127,9 +127,7 @@ private:
     // Nested critical section count.
     epoch_atomic<uintptr_t> in_critical_{0};
 
-    // Has this thread exited?
     alignas(kCacheLinePadding)
-    epoch_atomic<bool> exited_{false};
     // Next pointer in the list of threads.  The tag bit is set if the
     // current thread has exited and can be freed.
     epoch_atomic<Ptr> next_{nullptr};

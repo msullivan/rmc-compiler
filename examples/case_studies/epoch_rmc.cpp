@@ -38,6 +38,8 @@ Participant *Participants::enroll() {
 
 /////// Participant is where most of the interesting stuff happens
 bool Participant::quickEnter() noexcept {
+    assert(!next_.load().tag());
+
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
     // Nothing to do if we were already in a critical section
@@ -87,14 +89,41 @@ bool Participant::tryCollect() {
 
     remote_push::trigger();
 
-    // XXX: TODO: lazily remove stuff from this list
-    for (Participant::Ptr p = L(load_head, Participants::head_);
-         p; p = L(a, p->next_)) {
-        // We can only advance the epoch if every thread in a critical
-        // section is in the current epoch.
-        if (L(a, p->in_critical_) && L(a, p->epoch_) != cur_epoch) {
-            return false;
+    // Check whether all active threads are in the current epoch so we
+    // can advance it.
+    // As we do it, we lazily clean up exited threads.
+    //
+    // XXX: Do we want to factor out the list traversal?
+try_again:
+    rmc::atomic<Participant::Ptr> *prevp = &Participants::head_;
+    Participant::Ptr cur = L(load_head, *prevp);
+    while (cur) {
+        Participant::Ptr next = L(a, cur->next_);
+        if (next.tag()) {
+            // This node has exited. Try to unlink it from the
+            // list. This will fail if it's already been unlinked or
+            // the previous node has exited; in those cases, we start
+            // back over at the head of the list.
+
+            // XXX: if the Ptr(next, 0) is subsituted for val, we trip
+            // an assertion in rmc-compiler.
+            auto val = Ptr(next, 0);
+            if (L(a, prevp->compare_exchange_strong(cur, val))) {
+                Guard g(this);
+                g.unlinked(cur.ptr());
+            } else {
+                goto try_again;
+            }
+        } else {
+            // We can only advance the epoch if every thread in a critical
+            // section is in the current epoch.
+            if (L(a, cur->in_critical_) && L(a, cur->epoch_) != cur_epoch) {
+                return false;
+            }
+            prevp = &cur->next_;
         }
+
+        cur = next;
     }
 
     // Try to advance the global epoch
@@ -117,8 +146,15 @@ bool Participant::tryCollect() {
 }
 
 void Participant::shutdown() noexcept {
-    VEDGE(pre, exit);
-    L(exit, exited_ = true);
+    VEDGE(before, exit);
+    LPRE(before);
+
+    Participant::Ptr next = next_;
+    Participant::Ptr exited_next;
+    do {
+        exited_next = Participant::Ptr(next, 1);
+    } while (!L(exit, next_.compare_exchange_weak(next, exited_next)));
+
 }
 
 /////////////
