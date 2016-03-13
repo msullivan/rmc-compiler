@@ -73,11 +73,10 @@ enum ActionType {
 struct Action {
   explicit
   Action(BasicBlock *p_bb,
-         BasicBlock *p_startBlock = nullptr, BasicBlock *p_endBlock = nullptr,
+         BasicBlock *p_outBlock,
          std::string p_name = "") :
     bb(p_bb),
-    startBlock(p_startBlock),
-    endBlock(p_endBlock),
+    outBlock(p_outBlock),
     name(p_name),
     type(ActionComplex)
     {}
@@ -86,8 +85,7 @@ struct Action {
   Action(Action &&) = default; // move constructor!
 
   BasicBlock *bb;
-  BasicBlock *startBlock;
-  BasicBlock *endBlock;
+  BasicBlock *outBlock;
 
   std::string name;
 

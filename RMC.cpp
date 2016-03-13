@@ -286,10 +286,16 @@ Instruction *getNextInsertionPt(Instruction *i) {
   return &*I;
 }
 
-
 Instruction *getPrevInstr(Instruction *i) {
   BasicBlock::iterator I = *i;
   return I == i->getParent()->begin() ? nullptr : &*--I;
+}
+
+// Sigh. LLVM 3.7 has a method inside BasicBlock for this, but
+// earlier ones don't.
+BasicBlock *getSingleSuccessor(BasicBlock *bb) {
+  auto i = succ_begin(bb), e = succ_end(bb);
+  return i == e || i+1 != e ? nullptr : *i;
 }
 
 // Code to detect our inline asm things
@@ -326,7 +332,7 @@ Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
     return bb2action_[bb];
   }
 
-  actions_.emplace_back(bb);
+  actions_.emplace_back(bb, bb);
   Action *a = &actions_.back();
   bb2action_[bb] = a;
   a->type = ActionPrePost;
@@ -391,13 +397,13 @@ void RealizeRMC::processEdge(CallInst *call) {
   // Handle pre and post edges now
   if (srcName == "pre") {
     for (auto dst : dsts) {
-      Action *src = makePrePostAction(dst->startBlock);
+      Action *src = makePrePostAction(dst->bb->getSinglePredecessor());
       registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
   if (dstName == "post") {
     for (auto src : srcs) {
-      Action *dst = makePrePostAction(src->endBlock);
+      Action *dst = makePrePostAction(getSingleSuccessor(src->outBlock));
       registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
@@ -493,7 +499,7 @@ void analyzeAction(Action &info) {
   // If the action has multiple basic blocks, call it Complex
   // XXX: an LTAKE of a function call might have multiple blocks and
   // we should handle it better
-  if (info.endBlock->getSinglePredecessor() != info.bb) {
+  if (info.outBlock != info.bb) {
     info.type = ActionComplex;
     return;
   }
@@ -591,10 +597,19 @@ void RealizeRMC::findActions() {
     main->setName("_rmc_" + name);
     // Now split the end to get our tail block
     BasicBlock *end = splitBlock(close->getParent(), close);
+
+    BasicBlock *out = main;
+    if (end->getSinglePredecessor() != main) {
+      // We need separate out and end blocks for multi-block actions
+      out = end;
+      end = splitBlock(close->getParent(), close);
+      out->setName("_rmc_out_" + name);
+    }
     end->setName("_rmc_end_" + name);
 
-    actions_.emplace_back(main, start, end, name);
+    actions_.emplace_back(main, out, name);
     bb2action_[main] = &actions_.back();
+
 
     deleteRegisterCall(reg);
     deleteRegisterCall(close);
@@ -932,7 +947,8 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
 
   PathCache::SkipSet skip;
   if (edge.bindSite) skip.insert(edge.bindSite);
-  PathList paths = pc_.findAllSimplePaths(&skip, edge.src->bb, edge.dst->bb);
+  PathList paths =
+    pc_.findAllSimplePaths(&skip, edge.src->outBlock, edge.dst->bb);
   //pc_.dumpPaths(paths);
   for (auto & path : paths) {
     CutStrength pathStrength = isPathCut(edge, path,
@@ -1153,7 +1169,7 @@ void RealizeRMC::cutPushes() {
     // back and because the sync is the only thing in the block and so
     // cuts at both the front and back, we insert a bogus BlockCut in
     // the next block.
-    cuts_[action->endBlock] = BlockCut(CutSync, true);
+    cuts_[getSingleSuccessor(action->outBlock)] = BlockCut(CutSync, true);
   }
 }
 

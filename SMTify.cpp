@@ -600,6 +600,8 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
 
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite);
+SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
+                 RMCEdgeType edgeType);
 
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
                      PathID path, Action &tail,
@@ -670,6 +672,14 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite) {
+  // For complex sources we fall back to doing a pure visibility cut.
+  // We couldn't generate anything nice starting from a complex action
+  // source anyways and the xcut code doesn't handle multi-block
+  // actions right.
+  if (src.type == ActionComplex) {
+    return makeVcut(s, m, src, dst, ExecutionEdge);
+  }
+
   bool alreadyMade;
   SmtExpr isCut = getFunc(m.xcut, makeBlockEdgeKey(bindSite, src.bb, dst.bb),
                           &alreadyMade);
@@ -688,13 +698,12 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  RMCEdgeType edgeType) {
-  // XXX: is this wrong for multiblock actions???
   bool isPush = edgeType == PushEdge;
   SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut,
-                              src.bb, dst.bb);
+                              src.outBlock, dst.bb);
 
   SmtExpr allPathsCut = forAllPaths(
-    s, m, src.bb, dst.bb,
+    s, m, src.outBlock, dst.bb,
     [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
   s.add(isCut == allPathsCut || relAcqCut);
@@ -848,7 +857,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     unpack(unpack(unpack(src, dst), path), v) = fix_pair(entry);
     // XXX: this is a hack that depends on us only using actions in
     // usesData things
-    BasicBlock *pred = bb2action_[dst]->startBlock;
+    BasicBlock *pred = bb2action_[dst]->bb->getSinglePredecessor();
     cost = cost +
       boolToInt(v, kUseDataCost*weight(pred, dst));
   }
