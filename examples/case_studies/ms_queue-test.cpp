@@ -5,6 +5,7 @@
 #include <cassert>
 #include <experimental/optional>
 #include <atomic>
+#include <thread>
 #include <getopt.h>
 
 #include "util.hpp"
@@ -75,12 +76,6 @@ void consumer(Test *t) {
     //printf("Done: %lu\n", sum);
     t->totalSum += sum;
     t->totalCount += count;
-}
-
-void joinAll(std::vector<std::thread> &threads) {
-    for (auto & thread : threads) {
-        thread.join();
-    }
 }
 
 static bool verboseOutput = true;

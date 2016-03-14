@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <thread>
 
 #define assert_op(e1, op, e2) do {               \
         __typeof__(e1) _____t1 = (e1);          \
@@ -70,6 +71,11 @@ public:
     }
 };
 
+static void joinAll(std::vector<std::thread> &threads) {
+    for (auto & thread : threads) {
+        thread.join();
+    }
+}
 
 }
 

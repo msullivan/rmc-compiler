@@ -92,12 +92,6 @@ void consumer(Test *t) {
     t->totalSum += max;
 }
 
-void joinAll(std::vector<std::thread> &threads) {
-    for (auto & thread : threads) {
-        thread.join();
-    }
-}
-
 static bool verboseOutput = true;
 
 void test(Test &t) {
