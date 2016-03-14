@@ -11,10 +11,6 @@ namespace rmclib {
 
 using std::experimental::optional;
 
-// TODO: memory management; this is written assuming that something
-// like GC or epochs will be used to handle freeing memory, but it
-// doesn't yet.
-
 // I'm doing this all C++ified, but maybe I shouldn't be.
 template<typename T>
 class MSQueue {
@@ -29,7 +25,6 @@ private:
     };
 
 
-    // XXX: alignment
     alignas(kCacheLinePadding)
     std::atomic<lf_ptr<MSQueueNode>> head_{nullptr};
     alignas(kCacheLinePadding)
