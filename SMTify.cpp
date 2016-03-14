@@ -52,6 +52,7 @@ const int kMakeAcquireCost = 49;
 
 // OK, isync actually sucks on ARM mostly, I think, Don't bother.
 const bool kUseIsync = false;
+const bool kAcqRelAbuse = false;
 
 bool debugSpew = false;
 
@@ -635,23 +636,23 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
-const bool kAcqRelAbuse = false;
-
 SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                       RMCEdgeType type) {
+  SmtExpr relAcq = s.ctx().bool_val(false);
+
   // W1 -v-> W/RW2  -- W/RW2 = rel
   if (type == VisibilityEdge &&
       src.type == ActionSimpleWrites &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
-    return getBlockFunc(m.release, dst.bb);
+    relAcq = relAcq || getBlockFunc(m.release, dst.bb);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
   if (type == ExecutionEdge &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
-    return getBlockFunc(m.acquire, src.bb);
+    relAcq = relAcq || getBlockFunc(m.acquire, src.bb);
   }
   // R/RW1 -v-> W/RW2 -- complicated
-  if (type == VisibilityEdge &&
+  if ((type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
 
@@ -660,14 +661,14 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     // XXX: double check the ARMv8 thing against the model paper, not
     // just the ARM documentation
     if (kAcqRelAbuse) {
-      return getBlockFunc(m.release, dst.bb);
+      relAcq = relAcq || getBlockFunc(m.release, dst.bb);
     } else {
-      return getBlockFunc(m.release, dst.bb) &&
-        getBlockFunc(m.acquire, src.bb);
+      relAcq = relAcq || (getBlockFunc(m.release, dst.bb) &&
+                          getBlockFunc(m.acquire, src.bb));
     }
   }
 
-  return s.ctx().bool_val(false);
+  return relAcq.simplify();
 }
 
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
@@ -690,7 +691,7 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     [&] (PathID path) { return makePathXcut(s, m, path, dst, bindSite); },
     bindSite);
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, ExecutionEdge);
-  s.add(isCut == allPathsCut || relAcqCut);
+  s.add(isCut == (allPathsCut || relAcqCut));
 
   return isCut;
 }
@@ -706,7 +707,7 @@ SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     s, m, src.outBlock, dst.bb,
     [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
-  s.add(isCut == allPathsCut || relAcqCut);
+  s.add(isCut == (allPathsCut || relAcqCut));
 
   return isCut;
 }
@@ -834,7 +835,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   for (auto & entry : m.acquire.map) {
     unpack(src, v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kMakeReleaseCost*block_weight(src)+1);
+      boolToInt(v, kMakeAcquireCost*block_weight(src)+1);
   }
   // Isync cost
   for (auto & entry : m.isync.map) {

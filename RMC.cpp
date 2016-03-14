@@ -651,8 +651,8 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
     //a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
     //a.pushTransEdges.insert(a.pushEdges.begin(), a.pushEdges.end());
     // Visibility implies execution.
-    a.transEdges[VisibilityEdge].insert(
-        a.edges[ExecutionEdge].begin(), a.edges[ExecutionEdge].end());
+    a.transEdges[ExecutionEdge].insert(
+        a.edges[VisibilityEdge].begin(), a.edges[VisibilityEdge].end());
     //a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
     // Push implies visibility and execution, but not in a way that we
     // need to track explicitly. Because push edges can't be useless,
@@ -1108,7 +1108,8 @@ void strengthenBlockOrders(BasicBlock *block, AtomicOrdering strength) {
 
 void RealizeRMC::insertCut(const EdgeCut &cut) {
   //errs() << cut.type << ": "
-  //       << cut.src->getName() << " -> " << cut.dst->getName() << "\n";
+  //       << cut.src->getName() << " -> "
+  //       << (cut.dst ? cut.dst->getName() : "n/a") << "\n";
 
   switch (cut.type) {
   case CutSync:
