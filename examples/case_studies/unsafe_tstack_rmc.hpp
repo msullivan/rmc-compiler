@@ -11,7 +11,7 @@
 #error UnsafeTStack must be defined to some other name
 #endif
 
-#include <atomic>
+#include <rmc++.h>
 #include <utility>
 #include "util.hpp"
 
@@ -21,7 +21,7 @@ template<typename T>
 class UnsafeTStack {
 public:
     struct TStackNode {
-        std::atomic<TStackNode *> next_{nullptr};
+        rmc::atomic<TStackNode *> next_{nullptr};
         T data_;
 
         TStackNode(T &&t) : data_(std::move(t)) {} // is this right
@@ -31,15 +31,17 @@ public:
 
 private:
     alignas(kCacheLinePadding)
-    std::atomic<TStackNode *> head_{nullptr};
+    rmc::atomic<TStackNode *> head_{nullptr};
 
 public:
     void pushStack(TStackNode *head, TStackNode *tail);
     void pushNode(TStackNode *node);
     TStackNode *popNode();
     TStackNode *popAll() {
+        VEDGE(popall, post);
+
         if (!head_) return nullptr;
-        return head_.exchange(nullptr);
+        return L(popall, head_.exchange(nullptr));
     }
 
     UnsafeTStack() { }
@@ -52,28 +54,44 @@ void UnsafeTStack<T>::pushNode(TStackNode *node) {
 
 template<typename T>
 void UnsafeTStack<T>::pushStack(TStackNode *head, TStackNode *tail) {
+    // Don't need edge from head_ load because 'push' will also
+    // read from the write to head.
+
+    VEDGE(node_setup, push);
+
+    LPRE(node_setup);
+
     for (;;) {
         TStackNode *oldHead = head_;
-        tail->next_ = oldHead;
-        if (head_.compare_exchange_weak(oldHead, head)) break;
+        L(node_setup, tail->next_ = oldHead);
+        if (L(push, head_.compare_exchange_weak(oldHead, head))) break;
     }
 }
 
 template<typename T>
 typename UnsafeTStack<T>::TStackNode *UnsafeTStack<T>::popNode() {
+    // We don't need any constraints going /into/ 'pop'; all the data
+    // in nodes is published by writes into head_, and the CAS reads-from
+    // and writes to head_, perserving visibility.
+    XEDGE(read_head, read_next);
+    XEDGE(pop, out);
+
     TStackNode *head;
 
     for (;;) {
-        head = this->head_;
+        head = L(read_head, this->head_);
         if (head == nullptr) {
             return nullptr;
         }
-        TStackNode *next = head->next_;
+        // XXX: edge think about now
+        TStackNode *next = L(read_next, head->next_);
 
-        if (this->head_.compare_exchange_weak(head, next)) {
+        if (L(pop, this->head_.compare_exchange_weak(head, next))) {
             break;
         }
     }
+
+    LPOST(out);
 
     return head;
 }

@@ -105,14 +105,8 @@ private:
     using Cleanup = std::function<void()>;
     using Node = typename EpochGarbageStack<Cleanup>::TStackNode;
 
-    struct OldNode {
-        epoch_atomic<OldNode *> next_{nullptr};
-        Cleanup cleanup_;
-        OldNode(Cleanup cleanup) : cleanup_(std::move(cleanup)) {}
-    };
-
-    epoch_atomic<OldNode *> head_{nullptr};
     EpochGarbageStack<Cleanup> stack_;
+
 public:
     void collect();
     void registerCleanup(std::function<void()> f);
