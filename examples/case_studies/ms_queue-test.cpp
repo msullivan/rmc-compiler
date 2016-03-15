@@ -11,12 +11,14 @@
 #include "util.hpp"
 #include "ms_queue.hpp"
 
+using namespace rmclib;
+
 typedef unsigned long ulong;
 
 const ulong kCount = 10000000;
 
 struct Test {
-    rmclib::MSQueue<ulong> queue;
+    MSQueue<ulong> queue;
 
     std::atomic<bool> producersDone{false};
     std::atomic<ulong> totalSum{0};
