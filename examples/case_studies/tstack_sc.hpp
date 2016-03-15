@@ -28,7 +28,12 @@ private:
     alignas(kCacheLinePadding)
     std::atomic<lf_ptr<TStackNode>> head_{nullptr};
 
-    void push_node(lf_ptr<TStackNode> node);
+
+    void pushStack(lf_ptr<TStackNode> head, lf_ptr<TStackNode> tail);
+    void pushNode(lf_ptr<TStackNode> node);
+    // XXX: need to be in an epoch when you call it
+    lf_ptr<TStackNode> popNode();
+
 
 public:
     TStack() { }
@@ -36,35 +41,38 @@ public:
     optional<T> pop();
 
     void push(T &&t) {
-        push_node(new TStackNode(std::move(t)));
+        pushNode(new TStackNode(std::move(t)));
     }
     void push(const T &t) {
-        push_node(new TStackNode(t));
+        pushNode(new TStackNode(t));
     }
 };
 
 template<typename T>
-void TStack<T>::push_node(lf_ptr<TStackNode> node) {
+void TStack<T>::pushNode(lf_ptr<TStackNode> node) {
+    pushStack(node, node);
+}
+
+template<typename T>
+void TStack<T>::pushStack(lf_ptr<TStackNode> head, lf_ptr<TStackNode> tail) {
     auto guard = Epoch::pin();
 
     // Push the node onto a Treiber stack
     for (;;) {
-        lf_ptr<TStackNode> head = head_;
-        node->next_ = head;
-        if (head_.compare_exchange_weak(head, node)) break;
+        lf_ptr<TStackNode> oldHead = head_;
+        tail->next_ = oldHead;
+        if (head_.compare_exchange_weak(oldHead, head)) break;
     }
 }
 
 template<typename T>
-optional<T> TStack<T>::pop() {
-    auto guard = Epoch::pin();
-
+lf_ptr<typename TStack<T>::TStackNode> TStack<T>::popNode() {
     lf_ptr<TStackNode> head;
 
     for (;;) {
         head = this->head_;
         if (head == nullptr) {
-            return optional<T>{};
+            return nullptr;
         }
         lf_ptr<TStackNode> next = head->next_;
 
@@ -73,12 +81,19 @@ optional<T> TStack<T>::pop() {
         }
     }
 
-    // OK, everything set up.
-    // next contains the value we are reading
-    // head can be freed
-    optional<T> ret(std::move(head->data_));
-    head->data_ = optional<T>{}; // destroy the object
-    guard.unlinked(head);
+    return head;
+}
+
+template<typename T>
+optional<T> TStack<T>::pop() {
+    auto guard = Epoch::pin();
+    lf_ptr<TStackNode> node = popNode();
+
+    if (!node) return optional<T>{};
+
+    optional<T> ret(std::move(node->data_));
+    node->data_ = optional<T>{}; // destroy the object
+    guard.unlinked(node);
 
     return ret;
 }

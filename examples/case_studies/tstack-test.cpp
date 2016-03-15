@@ -53,10 +53,10 @@ void consumer(Test *t) {
         auto res = t->stack.pop();
         work();
         if (!res) {
-            // Bail once we fail to do a dequeue /after/ having
+            // Bail once we fail to do a pop /after/ having
             // observered that the producers are done.  Otherwise we
-            // could fail, the producer enqueues a bunch more,
-            // finishes, and then we exit without dequeueing it.
+            // could fail, the producer pushes a bunch more,
+            // finishes, and then we exit without popping it.
             if (producersDone) break;
             producersDone = t->producersDone;
         } else {
