@@ -3,13 +3,10 @@
 
 #include <atomic>
 #include <utility>
-#include <experimental/optional>
 #include "util.hpp"
 #include "epoch.hpp"
 
 namespace rmclib {
-
-using std::experimental::optional;
 
 // I'm doing this all C++ified, but maybe I shouldn't be.
 template<typename T>

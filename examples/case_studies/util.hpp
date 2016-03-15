@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
+#include <experimental/optional>
 
 #define assert_op(e1, op, e2) do {               \
         __typeof__(e1) _____t1 = (e1);          \
@@ -20,6 +21,11 @@
 
 
 namespace rmclib {
+
+// Since optional might get moved out of experimental at some point,
+// we put the include and using of it here so we can change it in one
+// place if we need to.
+using std::experimental::optional;
 
 const int kCacheLinePadding = 64; // I have NFI
 

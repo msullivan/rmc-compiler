@@ -6,12 +6,9 @@
 
 #include <mutex>
 #include <utility>
-#include <experimental/optional>
 #include "util.hpp"
 
 namespace rmclib {
-
-using std::experimental::optional;
 
 template<typename T>
 class MSQueue {

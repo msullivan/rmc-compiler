@@ -3,7 +3,6 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
-#include <experimental/optional>
 #include <atomic>
 #include <thread>
 #include <getopt.h>
