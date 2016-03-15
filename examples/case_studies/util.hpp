@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
+#include <vector>
 #include <experimental/optional>
 
 #define assert_op(e1, op, e2) do {               \

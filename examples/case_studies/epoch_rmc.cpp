@@ -195,16 +195,16 @@ void DummyLocalGarbage::registerCleanup(GarbageCleanup f) {
 
 // XXX: I think we could drop the edges here entirely and just rely on
 
-void ConcurrentBag::registerCleanup(std::function<void()> f) {
+void ConcurrentBag::registerCleanup(ConcurrentBag::Cleanup f) {
     // Don't need edge from head_ load because 'push' will also
     // read from the write to head.
     VEDGE(node_setup, push);
 
-    auto *node = L(node_setup, new ConcurrentBag::Node(std::move(f)));
+    auto *node = L(node_setup, new ConcurrentBag::OldNode(std::move(f)));
 
     // Push the node onto a Treiber stack
     for (;;) {
-        ConcurrentBag::Node *head = head_;
+        ConcurrentBag::OldNode *head = head_;
         L(node_setup, node->next_ = head);
         if (L(push, head_.compare_exchange_weak(head, node))) break;
     }
@@ -221,7 +221,7 @@ void ConcurrentBag::collect() {
     // we don't need to worry about ABA really.
     // (Which for stacks comes up if pop() believes that the address
     // of a node being the same means the next pointer is also...)
-    std::unique_ptr<ConcurrentBag::Node> head(
+    std::unique_ptr<ConcurrentBag::OldNode> head(
         L(popall, head_.exchange(nullptr)));
 
     while (head) {

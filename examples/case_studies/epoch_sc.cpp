@@ -164,30 +164,20 @@ void DummyLocalGarbage::registerCleanup(GarbageCleanup f) {
 }
 
 /////////////
-void ConcurrentBag::registerCleanup(std::function<void()> f) {
-    auto *node = new ConcurrentBag::Node(std::move(f));
-
-    // Push the node onto a Treiber stack
-    for (;;) {
-        ConcurrentBag::Node *head = head_;
-        node->next_ = head;
-        if (head_.compare_exchange_weak(head, node)) break;
-    }
+void ConcurrentBag::registerCleanup(ConcurrentBag::Cleanup f) {
+    stack_.pushNode(new Node(std::move(f)));
 }
 
 void ConcurrentBag::collect() {
-    // Avoid xchg if empty
-    if (!head_) return;
-
     // Pop the whole stack off
     // Since we only ever unconditionally destroy the whole stack,
     // we don't need to worry about ABA really.
     // (Which for stacks comes up if pop() believes that the address
     // of a node being the same means the next pointer is also...)
-    std::unique_ptr<ConcurrentBag::Node> head(head_.exchange(nullptr));
+    std::unique_ptr<ConcurrentBag::Node> head(stack_.popAll());
 
     while (head) {
-        head->cleanup_();
+        head->data_();
         head.reset(head->next_);
     }
 }
