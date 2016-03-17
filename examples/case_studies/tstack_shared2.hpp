@@ -9,8 +9,7 @@
 #include <utility>
 #include "util.hpp"
 
-#include "freelist_sc.hpp"
-#include "tstack_gen_sc.hpp"
+#include "freelist.hpp"
 
 namespace rmclib {
 

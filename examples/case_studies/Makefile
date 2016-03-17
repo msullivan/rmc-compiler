@@ -4,15 +4,17 @@ MS_QUEUE_EPOCH_TYPES=sc relacq rmc
 MS_QUEUE_TYPES=lock 2lock
 
 TSTACK_EPOCH_TYPES=sc rmc
-TSTACK_TYPES=sc2
+TSTACK_FREELIST_TYPES=sc2
 
 TSTACK_GEN_TYPES=sc
 
 SEQLOCK_TYPES=sc noop c11 rmc
 
-EPOCH_TYPES=sc c11 rmc leak
-
 RCU_EPOCH_TYPES=uh
+
+EPOCH_TYPES=sc c11 rmc leak
+FREELIST_TYPES=sc
+
 
 ########
 
@@ -81,6 +83,8 @@ define TEST_template =
 ifneq (none,$(3))
 LIBPART:=-e$(3)
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/epoch_$(3).o
+else ifneq (none,$(4))
+LIBPART:=-f$(4)
 else
 LIBPART:=
 endif
@@ -91,6 +95,7 @@ $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	$$(Q)$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
 		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
+		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
 		-c -o $$@ $$<
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
@@ -107,10 +112,14 @@ TESTS :=
 $(foreach thing,$(THINGS), \
  $(foreach type,$(value $(call uppercase,$(thing))_EPOCH_TYPES), \
   $(foreach epoch,$(EPOCH_TYPES), \
-   $(eval $(call TEST_template,$(thing),$(type),$(epoch))))))
+   $(eval $(call TEST_template,$(thing),$(type),$(epoch),none)))))
+$(foreach thing,$(THINGS), \
+ $(foreach type,$(value $(call uppercase,$(thing))_FREELIST_TYPES), \
+  $(foreach flist,$(FREELIST_TYPES), \
+   $(eval $(call TEST_template,$(thing),$(type),none,$(flist))))))
 $(foreach thing,$(THINGS), \
  $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-  $(eval $(call TEST_template,$(thing),$(type),none))))
+  $(eval $(call TEST_template,$(thing),$(type),none,none))))
 
 ########
 
