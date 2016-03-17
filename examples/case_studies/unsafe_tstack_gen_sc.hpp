@@ -28,6 +28,7 @@ public:
         std::atomic<TStackNode *> next_;
         T data_;
 
+        TStackNode() : data_() {}
         TStackNode(T &&t) : data_(std::move(t)) {}
         TStackNode(const T &t) : data_(t) {}
 

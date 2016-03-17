@@ -17,8 +17,6 @@
 namespace rmclib {
 /////////////////////////////
 
-template<class T> using lf_ptr = T*;
-
 ////////////////////////////
 
 //// On my arm test machine, std::function fails to do a small object

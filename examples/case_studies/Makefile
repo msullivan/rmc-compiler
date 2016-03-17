@@ -1,10 +1,17 @@
 THINGS=ms_queue seqlock rcu tstack tstack_gen
+
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
 MS_QUEUE_TYPES=lock 2lock
+
 TSTACK_EPOCH_TYPES=sc rmc
+TSTACK_TYPES=sc2
+
 TSTACK_GEN_TYPES=sc
+
 SEQLOCK_TYPES=sc noop c11 rmc
+
 EPOCH_TYPES=sc c11 rmc leak
+
 RCU_EPOCH_TYPES=uh
 
 ########

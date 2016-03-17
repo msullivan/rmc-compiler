@@ -1,0 +1,54 @@
+#ifndef RMC_FREELIST_SHARED
+#define RMC_FREELIST_SHARED
+
+#include <utility>
+#include <vector>
+#include <cstddef>
+#include "util.hpp"
+
+// Generic Treiber stack based typed freelist. Memory can be reclaimed
+// but only as the same sort of object it was originally. This
+// property is important for many lock-free algorithms.
+
+namespace rmclib {
+/////////////////////////////
+
+// Is making this look like an Allocator or something worth our time?
+
+// wooo
+#define freelist_container_of(ptr, type, member) ({                     \
+            const __typeof__( ((type *)0)->member ) *__mptr = (ptr);    \
+            (type *)( (char *)__mptr - offsetof(type,member) );})
+
+
+template<typename T>
+class Freelist {
+private:
+    FreelistTStackGen<T> freestack_;
+    using Node = typename FreelistTStackGen<T>::TStackNode;
+
+public:
+    // Allocate a new node. If we need to actually create a new one,
+    // it will be constructed with the default constructor. If we
+    // reuse an existing node, it will be in whatever state it was in
+    // when it was freed (unless racing threads modified it after that
+    // point, which is probably bad.)
+    T *alloc() {
+        Node *node = freestack_.popNode();
+        if (!node) node = new Node();
+        return &node->data_;
+    }
+
+    void unlinked(T *ptr) {
+        // Woo this is kinda dubious
+        Node *node = freelist_container_of(ptr, Node, data_);
+        freestack_.pushNode(node);
+    }
+};
+
+
+//////
+
+}
+
+#endif

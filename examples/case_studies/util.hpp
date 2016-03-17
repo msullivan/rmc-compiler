@@ -30,6 +30,8 @@ using std::experimental::optional;
 
 const int kCacheLinePadding = 64; // I have NFI
 
+template<class T> using lf_ptr = T*;
+
 static void busywait(double us) {
     auto start = std::chrono::high_resolution_clock::now();
     for (;;) {
