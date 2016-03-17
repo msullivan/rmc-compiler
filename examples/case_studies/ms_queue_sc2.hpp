@@ -18,15 +18,15 @@ private:
     struct MSQueueNode;
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
     struct MSQueueNode {
-        std::atomic<NodePtr> next_;
+        std::gen_atomic<lf_ptr<MSQueueNode>> next_;
         optional<T> data_;
     };
 
 
     alignas(kCacheLinePadding)
-    std::atomic<NodePtr> head_;
+    std::gen_atomic<lf_ptr<MSQueueNode>> head_;
     alignas(kCacheLinePadding)
-    std::atomic<NodePtr> tail_;
+    std::gen_atomic<lf_ptr<MSQueueNode>> tail_;
 
     Freelist<MSQueueNode> freelist_; // XXX: should be global :( :( :(
 
@@ -73,18 +73,18 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak(next, next.update(node))) {
+            if (tail->next_.compare_exchange_weak_gen(next, node)) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong(tail, tail.update(next));
+            this->tail_.compare_exchange_strong_gen(tail, next);
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong(tail, tail.update(node));
+    this->tail_.compare_exchange_strong_gen(tail, node);
 }
 
 template<typename T>
@@ -114,7 +114,7 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong(tail, tail.update(next));
+                this->tail_.compare_exchange_strong_gen(tail, next);
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -131,7 +131,7 @@ optional<T> MSQueue<T>::dequeue() {
             // is no way around it but to store the payload in a
             // std::atomic. That's gonna suck.
             ret = next->data_;
-            if (this->head_.compare_exchange_weak(head, head.update(next))) {
+            if (this->head_.compare_exchange_weak_gen(head, next)) {
                 break;
             }
         }
