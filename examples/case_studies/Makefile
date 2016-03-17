@@ -13,7 +13,7 @@ SEQLOCK_TYPES=sc noop c11 rmc
 RCU_EPOCH_TYPES=uh
 
 EPOCH_TYPES=sc c11 rmc leak
-FREELIST_TYPES=sc rmc
+FREELIST_TYPES=sc rmc leak
 
 
 ########
