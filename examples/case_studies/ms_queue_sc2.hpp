@@ -4,6 +4,7 @@
 #include <atomic>
 #include <utility>
 #include "util.hpp"
+#include "gen_ptr.hpp"
 #include "freelist.hpp"
 
 // A version of Michael-Scott queues that closely corresponds to the
@@ -14,20 +15,20 @@ namespace rmclib {
 template<typename T>
 class MSQueue {
 private:
+    struct MSQueueNode;
+    using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
     struct MSQueueNode {
-        std::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
+        std::atomic<NodePtr> next_;
         optional<T> data_;
-
-        MSQueueNode() {}
     };
 
 
     alignas(kCacheLinePadding)
-    std::atomic<lf_ptr<MSQueueNode>> head_{nullptr};
+    std::atomic<NodePtr> head_;
     alignas(kCacheLinePadding)
-    std::atomic<lf_ptr<MSQueueNode>> tail_{nullptr};
+    std::atomic<NodePtr> tail_;
 
-    Freelist<MSQueueNode> freelist_;
+    Freelist<MSQueueNode> freelist_; // XXX: should be global :( :( :(
 
     void enqueueNode(lf_ptr<MSQueueNode> node);
 
@@ -35,8 +36,8 @@ public:
     MSQueue() {
         // Need to create a dummy node!
         auto node = freelist_.alloc();
-        node->next_ = nullptr;
-        head_ = tail_ = node;
+        node->next_ = node->next_.load().update(nullptr); // XXX: ok?
+        head_ = tail_ = NodePtr(node, 0);
     }
 
     optional<T> dequeue();
@@ -55,9 +56,9 @@ public:
 
 template<typename T>
 void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
-    node->next_ = nullptr;
+    node->next_ = node->next_.load().update(nullptr); // XXX: ok?
 
-    lf_ptr<MSQueueNode> tail, next;
+    NodePtr tail, next;
 
     for (;;) {
         tail = this->tail_;
@@ -72,23 +73,23 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak(next, node)) {
+            if (tail->next_.compare_exchange_weak(next, next.update(node))) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong(tail, next);
+            this->tail_.compare_exchange_strong(tail, tail.update(next));
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong(tail, node);
+    this->tail_.compare_exchange_strong(tail, tail.update(node));
 }
 
 template<typename T>
 optional<T> MSQueue<T>::dequeue() {
-    lf_ptr<MSQueueNode> head, tail, next;
+    NodePtr head, tail, next;
 
     optional<T> ret;
 
@@ -113,7 +114,7 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong(tail, next);
+                this->tail_.compare_exchange_strong(tail, tail.update(next));
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -130,7 +131,7 @@ optional<T> MSQueue<T>::dequeue() {
             // is no way around it but to store the payload in a
             // std::atomic. That's gonna suck.
             ret = next->data_;
-            if (this->head_.compare_exchange_weak(head, next)) {
+            if (this->head_.compare_exchange_weak(head, head.update(next))) {
                 break;
             }
         }

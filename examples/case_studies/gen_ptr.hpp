@@ -24,6 +24,11 @@ public:
     T operator->() const { return ptr(); }
     auto operator*() -> decltype(*ptr()) { return *ptr(); }
 
+    bool operator==(const gen_ptr<T> &rhs) const {
+        return this->ptr_ == rhs.ptr_ && this->gen_ == rhs.gen_;
+    }
+    bool operator!=(const gen_ptr<T> &rhs) const { return !(*this == rhs); }
+
     gen_ptr<T> update(T n) { return gen_ptr<T>(n, gen()+1); }
 };
 
