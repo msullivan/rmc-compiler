@@ -1,7 +1,7 @@
 THINGS=ms_queue seqlock rcu tstack
 
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
-MS_QUEUE_FREELIST_TYPES=sc2
+MS_QUEUE_FREELIST_TYPES=sc2 rmc2
 MS_QUEUE_TYPES=lock 2lock
 
 TSTACK_EPOCH_TYPES=sc rmc
