@@ -16,7 +16,7 @@ namespace rmclib {
 template<typename T>
 class TStack {
 private:
-    using Stack = TStackGen<optional<T>>;
+    using Stack = UnderlyingTStackGen<optional<T>>;
     using TStackNode = typename Stack::TStackNode;
 
     Stack stack_;
