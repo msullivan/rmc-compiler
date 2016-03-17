@@ -18,16 +18,16 @@ LLVM_ARM_FLAGS="--target=armv7a -mfloat-abi=hard -I /usr/arm-linux-gnueabihf/inc
 LLVM_ARM8_FLAGS="--target=armv8a -mfloat-abi=hard -I /usr/arm-linux-gnueabihf/include/ -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/ -I /usr/arm-linux-gnueabihf/include/c++/4.9.1/arm-linux-gnueabihf"
 LLVM_AARCH64_FLAGS="--target=aarch64 -I /usr/aarch64-linux-gnu/include/ -I /usr/aarch64-linux-gnu/include/c++/4.9.1/ -I /usr/aarch64-linux-gnu/include/c++/4.9.1/aarch64-linux-gnu"
 
-../../build-opt/Release+Asserts/bin/clang -m32 $FLAGS fragments.cpp -o fragments-llvm-x86_32.s
-../../build-opt/Release+Asserts/bin/clang -mcx16 $FLAGS fragments.cpp -o fragments-llvm-x86_64.s
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_POWER_FLAGS -o fragments-llvm-power.s
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.s
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM8_FLAGS -o fragments-llvm-arm8.s
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_AARCH64_FLAGS -o fragments-llvm-aarch64.s
+../../build-opt/bin/clang -m32 $FLAGS fragments.cpp -o fragments-llvm-x86_32.s
+../../build-opt/bin/clang -mcx16 $FLAGS fragments.cpp -o fragments-llvm-x86_64.s
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_POWER_FLAGS -o fragments-llvm-power.s
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.s
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_ARM8_FLAGS -o fragments-llvm-arm8.s
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_AARCH64_FLAGS -o fragments-llvm-aarch64.s
 
-../../build-opt/Release+Asserts/bin/clang -m32 $FLAGS fragments.cpp -o fragments-llvm-x86.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp -o fragments-llvm-x86_64.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_POWER_FLAGS -o fragments-llvm-power.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_ARM8_FLAGS -o fragments-llvm-arm8.ll -emit-llvm
-../../build-opt/Release+Asserts/bin/clang $FLAGS fragments.cpp $LLVM_AARCH64_FLAGS -o fragments-llvm-aarch64.ll -emit-llvm
+../../build-opt/bin/clang -m32 $FLAGS fragments.cpp -o fragments-llvm-x86.ll -emit-llvm
+../../build-opt/bin/clang $FLAGS fragments.cpp -o fragments-llvm-x86_64.ll -emit-llvm
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_POWER_FLAGS -o fragments-llvm-power.ll -emit-llvm
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_ARM_FLAGS -o fragments-llvm-arm.ll -emit-llvm
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_ARM8_FLAGS -o fragments-llvm-arm8.ll -emit-llvm
+../../build-opt/bin/clang $FLAGS fragments.cpp $LLVM_AARCH64_FLAGS -o fragments-llvm-aarch64.ll -emit-llvm
