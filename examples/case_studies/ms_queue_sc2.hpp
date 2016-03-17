@@ -1,5 +1,5 @@
-#ifndef RMC_MS_QUEUE_SC
-#define RMC_MS_QUEUE_SC
+#ifndef RMC_MS_QUEUE_SC2
+#define RMC_MS_QUEUE_SC2
 
 #include <atomic>
 #include <utility>
@@ -15,13 +15,11 @@ namespace rmclib {
 template<typename T>
 class MSQueue {
 private:
-    struct MSQueueNode;
-    using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
     struct MSQueueNode {
         std::gen_atomic<lf_ptr<MSQueueNode>> next_;
         optional<T> data_;
     };
-
+    using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
     alignas(kCacheLinePadding)
     std::gen_atomic<lf_ptr<MSQueueNode>> head_;
@@ -63,10 +61,11 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
     for (;;) {
         tail = this->tail_;
         next = tail->next_;
-        // Check that tail and next are consistent:
-        // If we are using an epoch/gc based approach
-        // (which we had better be, since we don't have gen counters),
-        // this is purely an optimization.
+        // Check that tail and next are consistent: In this gen
+        // counter version, this is important for correctness: if,
+        // after we read the tail, it gets removed from this queue,
+        // freed, and added to some other queue, we need to make sure
+        // that we don't try to append to that queue instead.
         if (tail != this->tail_) continue;
 
         // was tail /actually/ the last node?
