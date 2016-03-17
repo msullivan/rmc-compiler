@@ -1,5 +1,5 @@
-#ifndef RMC_MS_QUEUE_SC
-#define RMC_MS_QUEUE_SC
+#ifndef RMC_MS_QUEUE_LOCK
+#define RMC_MS_QUEUE_LOCK
 
 // This is not *actually* a Michael-Scott queue.
 // We just use a single mutex.

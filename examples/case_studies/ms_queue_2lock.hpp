@@ -1,5 +1,5 @@
-#ifndef RMC_MS_QUEUE_SC
-#define RMC_MS_QUEUE_SC
+#ifndef RMC_MS_QUEUE_2LOCK
+#define RMC_MS_QUEUE_2LOCK
 
 // This is not *actually* a Michael-Scott queue,
 // although it is from the Michael-Scott paper:
