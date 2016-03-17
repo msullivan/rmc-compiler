@@ -1,12 +1,10 @@
-THINGS=ms_queue seqlock rcu tstack tstack_gen
+THINGS=ms_queue seqlock rcu tstack
 
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
 MS_QUEUE_TYPES=lock 2lock
 
 TSTACK_EPOCH_TYPES=sc rmc
 TSTACK_FREELIST_TYPES=sc2 rmc2
-
-TSTACK_GEN_TYPES=sc rmc
 
 SEQLOCK_TYPES=sc noop c11 rmc
 
