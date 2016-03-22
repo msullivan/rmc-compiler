@@ -6,6 +6,7 @@
 #include "util.hpp"
 #include "gen_ptr.hpp"
 #include "freelist.hpp"
+#include "universal.hpp"
 
 // A version of Michael-Scott queues that closely corresponds to the
 // original version using generation pointers.
@@ -17,7 +18,11 @@ class MSQueue {
 private:
     struct MSQueueNode {
         std::gen_atomic<lf_ptr<MSQueueNode>> next_;
-        optional<T> data_;
+        // Traditional MS Queues need to read out the data from nodes
+        // that may already be getting reused.
+        // To avoid data races copying the elements around,
+        // we instead store a pointer to an allocated object.
+        universal data_;
     };
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
@@ -42,12 +47,12 @@ public:
 
     void enqueue(T &&t) {
         auto node = freelist_.alloc();
-        node->data_ = std::move(t);
+        node->data_ = universal(std::move(t));
         enqueueNode(node);
     }
     void enqueue(const T &t) {
         auto node = freelist_.alloc();
-        node->data_ = t;
+        node->data_ = universal(t);
         enqueueNode(node);
     }
 };
@@ -90,7 +95,7 @@ template<typename T>
 optional<T> MSQueue<T>::dequeue() {
     NodePtr head, tail, next;
 
-    optional<T> ret;
+    universal data;
 
     for (;;) {
         head = this->head_;
@@ -118,18 +123,10 @@ optional<T> MSQueue<T>::dequeue() {
         } else {
             // OK, now we try to actually read the thing out.
 
-            // Unfortunately we need to read the data out of the node
+            // We need to read the data out of the node
             // *before* we try to dequeue it or else it could get
             // reused before we read it out.
-            // This unfortunately means we can't move the data out,
-            // which we could in the epoch versions.
-
-            // XXX: oh hey, it's actually *way* worse than that.  It
-            // could get dequeued and reused while we are copying it
-            // out. This is a straight-up data race and I think there
-            // is no way around it but to store the payload in a
-            // std::atomic. That's gonna suck.
-            ret = next->data_;
+            data = next->data_;
             if (this->head_.compare_exchange_weak_gen(head, next)) {
                 break;
             }
@@ -138,8 +135,8 @@ optional<T> MSQueue<T>::dequeue() {
 
     // OK, everything set up.
     // head can be freed
-    // head->data_ = optional<T>{}; // destroy object in node we free
     freelist_.unlinked(head);
+    optional<T> ret(data.extract<T>());
 
     return ret;
 }

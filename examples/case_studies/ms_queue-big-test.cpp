@@ -19,14 +19,22 @@ const ulong kCount = 10000000;
 // This version of the test uses elements with nontrivial copy
 // constructors so that a queue implementation that races on the
 // elements will have a really bad day.
-//
-// This currently fails for the node freelist based queues.
+
 class QElm {
     std::vector<ulong> vec_;
 public:
     QElm(ulong l) { vec_.push_back(l); }
     ulong val() { return vec_[0]; }
 };
+
+/*
+class QElm {
+    std::unique_ptr<ulong> ptr_;
+public:
+    QElm(ulong l) : ptr_(new ulong(l)) {  }
+    ulong val() { return *ptr_; }
+};
+*/
 
 struct Test {
     MSQueue<QElm> queue;
@@ -72,7 +80,7 @@ void consumer(Test *t) {
             if (producersDone) break;
             producersDone = t->producersDone;
         } else {
-            auto elm = *res;
+            auto elm = std::move(*res);
             ulong val = elm.val();
             assert_op(val, <, t->count);
             if (t->producers == 1) {
