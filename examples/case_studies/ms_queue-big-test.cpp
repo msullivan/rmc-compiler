@@ -20,21 +20,21 @@ const ulong kCount = 10000000;
 // constructors so that a queue implementation that races on the
 // elements will have a really bad day.
 
+#if 0
 class QElm {
     std::vector<ulong> vec_;
 public:
     QElm(ulong l) { vec_.push_back(l); }
     ulong val() { return vec_[0]; }
 };
-
-/*
+#else
 class QElm {
     std::unique_ptr<ulong> ptr_;
 public:
     QElm(ulong l) : ptr_(new ulong(l)) {  }
     ulong val() { return *ptr_; }
 };
-*/
+#endif
 
 struct Test {
     MSQueue<QElm> queue;

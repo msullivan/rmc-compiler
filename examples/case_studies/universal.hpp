@@ -2,6 +2,7 @@
 #define RMC_UNIVERSAL
 
 #include <cstdint>
+#include <cstring>
 #include <utility>
 
 namespace rmclib {
@@ -14,7 +15,18 @@ namespace rmclib {
 namespace detail {
 
 template<typename T>
-struct to_uint {
+struct trivially_to_uint {
+    static const bool value =
+        std::is_trivially_copyable<T>::value &&
+        sizeof(T) <= sizeof(uintptr_t);
+};
+
+template<typename T, bool val>
+struct to_uint;
+
+
+template<typename T>
+struct to_uint<T, false> {
     static uintptr_t into_uint(const T &t) {
         T *p = new T(t);
         return reinterpret_cast<uintptr_t>(p);
@@ -31,13 +43,29 @@ struct to_uint {
     }
 };
 
+template<typename T>
+struct to_uint<T, true> {
+    // Are there better ways to do this??
+    static uintptr_t into_uint(T t) {
+        uintptr_t val;
+        std::memcpy(&val, &t, sizeof(T));
+        return val;
+    }
+    static T from_uint(uintptr_t val) {
+        T t;
+        std::memcpy(&t, &val, sizeof(T));
+        return t;
+    }
+};
+
+
 }
 
 class universal {
 private:
     uintptr_t val_{0};
     template<typename T>
-    using to_uint = detail::to_uint<T>;
+    using to_uint = detail::to_uint<T, detail::trivially_to_uint<T>::value>;
 
 public:
     universal() noexcept {}
