@@ -11,32 +11,47 @@ namespace rmclib {
 // we skip the intelligence, though, and we always just allocate an
 // object for it.)
 
+namespace detail {
+
+template<typename T>
+struct to_uint {
+    static uintptr_t into_uint(const T &t) {
+        T *p = new T(t);
+        return reinterpret_cast<uintptr_t>(p);
+    }
+    static uintptr_t into_uint(T &&t) {
+        T *p = new T(std::move(t));
+        return reinterpret_cast<uintptr_t>(p);
+    }
+    static T from_uint(uintptr_t val) {
+        T *p = reinterpret_cast<T *>(val);
+        T ret(std::move(*p));
+        delete p;
+        return ret;
+    }
+};
+
+}
+
 class universal {
 private:
     uintptr_t val_{0};
+    template<typename T>
+    using to_uint = detail::to_uint<T>;
 
 public:
     universal() noexcept {}
 
     template <typename T>
-    explicit
-    universal(const T &t) {
-        T *p = new T(t);
-        val_ = reinterpret_cast<uintptr_t>(p);
-    }
+    explicit universal(const T &t) : val_(to_uint<T>::into_uint(t)) { }
+
     template <typename T>
-    explicit
-    universal(T &&t) {
-        T *p = new T(std::move(t));
-        val_ = reinterpret_cast<uintptr_t>(p);
-    }
+    explicit universal(T &&t) :
+        val_(to_uint<T>::into_uint(std::move(t))) { }
 
     template <typename T>
     T extract() {
-        T *p = reinterpret_cast<T *>(val_);
-        T ret(std::move(*p));
-        delete p;
-        return ret;
+        return to_uint<T>::from_uint(val_);
     }
 };
 
