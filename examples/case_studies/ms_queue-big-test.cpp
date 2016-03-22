@@ -20,20 +20,29 @@ const ulong kCount = 10000000;
 // constructors so that a queue implementation that races on the
 // elements will have a really bad day.
 
-#if 0
+#define VEC_ELM 1
+
+#if VEC_ELM
 class QElm {
     std::vector<ulong> vec_;
 public:
-    QElm(ulong l) { vec_.push_back(l); }
-    ulong val() { return vec_[0]; }
+    explicit QElm(ulong l) { vec_.push_back(l); }
+    ulong operator *() { return vec_[0]; }
 };
-#else
+QElm mkElm(ulong l) { return QElm(l); }
+#elif UNIQ_ELM
 class QElm {
     std::unique_ptr<ulong> ptr_;
 public:
-    QElm(ulong l) : ptr_(new ulong(l)) {  }
-    ulong val() { return *ptr_; }
+    explicit QElm(ulong l) : ptr_(new ulong(l)) {  }
+    ulong operator *() { return *ptr_; }
 };
+QElm mkElm(ulong l) { return QElm(l); }
+#elif BARE_UNIQ_ELM
+using QElm = std::unique_ptr<ulong>;
+QElm mkElm(ulong l) { return QElm(new ulong(l)); }
+#else
+#error asdf
 #endif
 
 struct Test {
@@ -60,7 +69,7 @@ void work() {
 void producer(Test *t) {
     for (int i = 1; i < t->count; i++) {
         work();
-        t->queue.enqueue(i);
+        t->queue.enqueue(mkElm(i));
     }
 }
 
@@ -80,8 +89,8 @@ void consumer(Test *t) {
             if (producersDone) break;
             producersDone = t->producersDone;
         } else {
-            auto elm = std::move(*res);
-            ulong val = elm.val();
+            QElm elm = std::move(*res);
+            ulong val = *elm;
             assert_op(val, <, t->count);
             if (t->producers == 1) {
                 assert_op(val, >, max);

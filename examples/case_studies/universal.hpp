@@ -4,13 +4,15 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
+#include <memory>
 
 namespace rmclib {
 
 // Utility class to allow packing arbitrary stuff into a word that can
-// be placed inside an atomic in a mildly intelligent way.  (Currently
-// we skip the intelligence, though, and we always just allocate an
-// object for it.)
+// be placed inside an atomic in a mildly intelligent way:
+//  * Trivially copyable objects that fit in a word are just copied
+//  * std::unique_ptr<T> is released, copied, and recreated
+//  * Everything else is moved into a heap allocation
 
 namespace detail {
 
@@ -21,9 +23,18 @@ struct trivially_to_uint {
         sizeof(T) <= sizeof(uintptr_t);
 };
 
-template<typename T, bool val>
+template<typename T, bool val = trivially_to_uint<T>::value>
 struct to_uint;
 
+template<typename T>
+struct to_uint<std::unique_ptr<T>, false> {
+    static uintptr_t into_uint(std::unique_ptr<T> &&t) {
+        return reinterpret_cast<uintptr_t>(t.release());
+    }
+    static std::unique_ptr<T> from_uint(uintptr_t val) {
+        return std::unique_ptr<T>(reinterpret_cast<T *>(val));
+    }
+};
 
 template<typename T>
 struct to_uint<T, false> {
@@ -65,7 +76,7 @@ class universal {
 private:
     uintptr_t val_{0};
     template<typename T>
-    using to_uint = detail::to_uint<T, detail::trivially_to_uint<T>::value>;
+    using to_uint = detail::to_uint<T>;
 
 public:
     universal() noexcept {}
