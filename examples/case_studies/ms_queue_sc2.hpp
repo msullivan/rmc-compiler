@@ -13,17 +13,21 @@
 
 namespace rmclib {
 
+struct MSQueueNode {
+    std::gen_atomic<lf_ptr<MSQueueNode>> next_;
+    // Traditional MS Queues need to read out the data from nodes
+    // that may already be getting reused.
+    // To avoid data races copying the elements around,
+    // we instead store a pointer to an allocated object.
+    universal data_;
+
+    static Freelist<MSQueueNode> freelist;
+};
+Freelist<MSQueueNode> MSQueueNode::freelist;
+
 template<typename T>
 class MSQueue {
 private:
-    struct MSQueueNode {
-        std::gen_atomic<lf_ptr<MSQueueNode>> next_;
-        // Traditional MS Queues need to read out the data from nodes
-        // that may already be getting reused.
-        // To avoid data races copying the elements around,
-        // we instead store a pointer to an allocated object.
-        universal data_;
-    };
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
     alignas(kCacheLinePadding)
@@ -31,14 +35,12 @@ private:
     alignas(kCacheLinePadding)
     std::gen_atomic<lf_ptr<MSQueueNode>> tail_;
 
-    Freelist<MSQueueNode> freelist_; // XXX: should be global :( :( :(
-
     void enqueueNode(lf_ptr<MSQueueNode> node);
 
 public:
     MSQueue() {
         // Need to create a dummy node!
-        auto node = freelist_.alloc();
+        auto node = MSQueueNode::freelist.alloc();
         node->next_ = node->next_.load().update(nullptr); // XXX: ok?
         head_ = tail_ = NodePtr(node, 0);
     }
@@ -46,12 +48,12 @@ public:
     optional<T> dequeue();
 
     void enqueue(T &&t) {
-        auto node = freelist_.alloc();
+        auto node = MSQueueNode::freelist.alloc();
         node->data_ = universal(std::move(t));
         enqueueNode(node);
     }
     void enqueue(const T &t) {
-        auto node = freelist_.alloc();
+        auto node = MSQueueNode::freelist.alloc();
         node->data_ = universal(t);
         enqueueNode(node);
     }
@@ -135,7 +137,7 @@ optional<T> MSQueue<T>::dequeue() {
 
     // OK, everything set up.
     // head can be freed
-    freelist_.unlinked(head);
+    MSQueueNode::freelist.unlinked(head);
     optional<T> ret(data.extract<T>());
 
     return ret;
