@@ -15,12 +15,6 @@ namespace rmclib {
 
 // Is making this look like an Allocator or something worth our time?
 
-// wooo
-#define freelist_container_of(ptr, type, member) ({                     \
-            const __typeof__( ((type *)0)->member ) *__mptr = (ptr);    \
-            (type *)( (char *)__mptr - offsetof(type,member) );})
-
-
 template<typename T>
 class Freelist {
 private:
@@ -40,8 +34,7 @@ public:
     }
 
     void unlinked(T *ptr) {
-        // Woo this is kinda dubious
-        Node *node = freelist_container_of(ptr, Node, data_);
+        Node *node = container_of(ptr, &Node::data_);
         freestack_.pushNode(node);
     }
 };

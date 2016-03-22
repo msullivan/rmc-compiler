@@ -32,6 +32,15 @@ const int kCacheLinePadding = 64; // I have NFI
 
 template<class T> using lf_ptr = T*;
 
+// A proper C++-style implementation of container_of: given a
+// pointer-to-member for some class and also an actual pointer to that
+// member, recover a pointer to the whole object.
+template<class C, typename T>
+static inline C *container_of(T *ptr, T C::* member) {
+    uintptr_t offset = reinterpret_cast<uintptr_t>(&((C *)(nullptr)->*member));
+    return reinterpret_cast<C *>(reinterpret_cast<uintptr_t>(ptr) - offset);
+}
+
 static void busywait(double us) {
     auto start = std::chrono::high_resolution_clock::now();
     for (;;) {
