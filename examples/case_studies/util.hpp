@@ -7,12 +7,21 @@
 #include <thread>
 #include <vector>
 #include <experimental/optional>
+#include <assert.h>
+
+#ifndef __ASSERT_FUNCTION
+#define __ASSERT_FUNCTION NULL
+#endif
 
 #define assert_op(e1, op, e2) do {               \
         __typeof__(e1) _____t1 = (e1);          \
         __typeof__(e1) _____t2 = (e2);          \
         if (!(_____t1 op _____t2)) {            \
-            fprintf(stderr, "Assertion failed: %s (%ld) %s %s (%ld)\n", \
+            fprintf(stderr,                                             \
+                    "%s:%d: %s%sAssertion failed: %s (%ld) %s %s (%ld)\n", \
+                    __FILE__, __LINE__,                                 \
+                    __ASSERT_FUNCTION ? __ASSERT_FUNCTION : "",         \
+                    __ASSERT_FUNCTION ? ": " : "",                      \
                     #e1, (long)_____t1, #op, #e2, (long)_____t2);       \
             abort();                                                    \
         }                                                               \
