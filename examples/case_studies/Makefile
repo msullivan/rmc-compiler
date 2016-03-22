@@ -79,6 +79,7 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
 
+
 define TEST_template =
 ifneq (none,$(3))
 LIBPART:=-e$(3)
@@ -93,7 +94,7 @@ $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, COMPILE $$@)
 	$$(Q)$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
-		-D$(call uppercase,$(1))_HEADER='"$(1)_$(2).hpp"' \
+		-D$(call uppercase,$(5))_HEADER='"$(5)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
 		-c -o $$@ $$<
@@ -109,17 +110,23 @@ endef
 
 TESTS :=
 
+getdefault = $(if $(1),$(1),$(2))
+gettests = $(call getdefault,$(value $(call uppercase,$(1))_TESTS),$(1))
+
 $(foreach thing,$(THINGS), \
- $(foreach type,$(value $(call uppercase,$(thing))_EPOCH_TYPES), \
-  $(foreach epoch,$(EPOCH_TYPES), \
-   $(eval $(call TEST_template,$(thing),$(type),$(epoch),none)))))
+ $(foreach test,$(call gettests,$(thing)), \
+  $(foreach type,$(value $(call uppercase,$(thing))_EPOCH_TYPES), \
+   $(foreach epoch,$(EPOCH_TYPES), \
+    $(eval $(call TEST_template,$(test),$(type),$(epoch),none,$(thing)))))))
 $(foreach thing,$(THINGS), \
- $(foreach type,$(value $(call uppercase,$(thing))_FREELIST_TYPES), \
-  $(foreach flist,$(FREELIST_TYPES), \
-   $(eval $(call TEST_template,$(thing),$(type),none,$(flist))))))
+ $(foreach test,$(call gettests,$(thing)), \
+  $(foreach type,$(value $(call uppercase,$(thing))_FREELIST_TYPES), \
+   $(foreach flist,$(FREELIST_TYPES), \
+    $(eval $(call TEST_template,$(test),$(type),none,$(flist),$(thing)))))))
 $(foreach thing,$(THINGS), \
- $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-  $(eval $(call TEST_template,$(thing),$(type),none,none))))
+ $(foreach test,$(call gettests,$(thing)), \
+  $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
+   $(eval $(call TEST_template,$(test),$(type),none,none,$(thing))))))
 
 ########
 
