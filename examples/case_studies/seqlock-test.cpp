@@ -12,6 +12,7 @@
 using namespace rmclib;
 
 const ulong kCount = 1000000000;
+const ulong kInterval = 10000;
 
 struct Foo {
     std::atomic<int> a;
@@ -31,29 +32,36 @@ struct Test {
     const long count;
     const int producers;
     const int consumers;
-    Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
+    const int interval;
+    Test(int c, int pr, int co, int iv)
+        : count(c), producers(pr), consumers(co), interval(iv) {}
 };
 
 const std::memory_order mo_rlx = std::memory_order_relaxed;
 
-void producer(Test *t) {
-
-    int i = 1;
-    while (!t->consumersDone) {
-        t->lock.write_lock();
-        t->foo.a = i;
-        t->foo.b = -i;
-        t->lock.write_unlock();
-
-        i++;
-
-        busywait(0.1);
-    }
-
+void produce(Test *t) {
+    t->lock.write_lock();
+    int i = t->foo.a + 1;
+    t->foo.a = i;
+    t->foo.b = -i;
+    t->lock.write_unlock();
 }
 
-void consumer(Test *t) {
+// Producers just produce but are off by default.
+void producer(Test *t) {
+    while (!t->consumersDone) {
+        produce(t);
+        busywait(0.1);
+    }
+}
+
+// Consumers mostly read the value but update it every t->interval
+// iterations.
+void consumer(Test *t, int threadnum) {
     long max = 0;
+    // Try to stagger where in the cycle threads do their updates.
+    int offset = (t->interval / t->consumers) * threadnum;
+
     for (int i = 1; i < t->count; i++) {
         int a, b;
         for (;;) {
@@ -65,6 +73,8 @@ void consumer(Test *t) {
 
         assert_eq(a, -b);
         if (a > max) max = a;
+
+        if (t->interval && i % t->interval == offset) produce(t);
     }
 
     t->totalSum += max;
@@ -84,7 +94,7 @@ void test(Test &t) {
         producers.push_back(std::thread(producer, &t));
     }
     for (int i = 0; i < t.consumers; i++) {
-        consumers.push_back(std::thread(consumer, &t));
+        consumers.push_back(std::thread(consumer, &t, i));
     }
 
     joinAll(consumers);
@@ -98,15 +108,16 @@ void test(Test &t) {
 }
 
 int main(int argc, char** argv) {
-    int producers = 1, consumers = 1;
+    int producers = 0, consumers = 2;
     long count = kCount;
     int reps = 1;
     int dups = 1;
+    int interval = kInterval;
 
     // getopt kind of ugly. I kind of want to use llvm's arg parsing,
     // which I <3, but it is such a big hammer
     int opt;
-    while ((opt = getopt(argc, argv, "p:c:n:r:d:b")) != -1) {
+    while ((opt = getopt(argc, argv, "p:c:n:r:d:i:b")) != -1) {
         switch (opt) {
         case 'p':
             producers = atoi(optarg);
@@ -123,6 +134,9 @@ int main(int argc, char** argv) {
         case 'd':
             dups = atoi(optarg);
             break;
+        case 'i':
+            interval = atoi(optarg);
+            break;
         case 'b':
             verboseOutput = false;
             break;
@@ -136,7 +150,7 @@ int main(int argc, char** argv) {
         std::vector<std::thread> tests;
         for (int j = 0; j < dups; j++) {
             tests.push_back(std::thread([=] {
-                Test t(count, producers, consumers);
+                Test t(count, producers, consumers, interval);
                 test(t);
             }));
         }
