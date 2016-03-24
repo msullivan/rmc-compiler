@@ -5,7 +5,7 @@
 #include <cassert>
 #include <atomic>
 #include <thread>
-#include <getopt.h>
+#include "llvm-cl/CommandLine.h"
 
 #include "util.hpp"
 #include "ms_queue.hpp"
@@ -109,7 +109,7 @@ void consumer(Test *t) {
     t->totalCount += count;
 }
 
-static bool verboseOutput = true;
+cl::opt<int> VerboseOutput("b", cl::desc("Increase output verbosity"));
 
 void test(Test &t) {
     std::vector<std::thread> producers;
@@ -130,7 +130,7 @@ void test(Test &t) {
     t.producersDone = true;
     joinAll(consumers);
 
-    timer.report(t.count * (t.producers+t.consumers), verboseOutput);
+    timer.report(t.count * (t.producers+t.consumers), VerboseOutput);
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
@@ -144,46 +144,23 @@ void test(Test &t) {
     assert_eq(t.totalSum.load(), expected);
 }
 
+cl::opt<int> Producers("p", cl::desc("Number of producer threads"),
+                       cl::init(1));
+cl::opt<int> Consumers("c", cl::desc("Number of consumer threads"),
+                       cl::init(1));
+cl::opt<int> Count("n", cl::desc("Number of per-thread operations"),
+                   cl::init(kCount));
+cl::opt<int> Reps("r", cl::desc("Number of times to repeat"), cl::init(1));
+cl::opt<int> Dups("d", cl::desc("Number of times to duplicate"), cl::init(1));
+
 int main(int argc, char** argv) {
-    int producers = 1, consumers = 1;
-    long count = kCount;
-    int reps = 1;
-    int dups = 1;
+    cl::ParseCommandLineOptions(argc, argv);
 
-    // getopt kind of ugly. I kind of want to use llvm's arg parsing,
-    // which I <3, but it is such a big hammer
-    int opt;
-    while ((opt = getopt(argc, argv, "p:c:n:r:d:b")) != -1) {
-        switch (opt) {
-        case 'p':
-            producers = atoi(optarg);
-            break;
-        case 'c':
-            consumers = atoi(optarg);
-            break;
-        case 'n':
-            count = strtol(optarg, NULL, 0);
-            break;
-        case 'r':
-            reps = atoi(optarg);
-            break;
-        case 'd':
-            dups = atoi(optarg);
-            break;
-        case 'b':
-            verboseOutput = false;
-            break;
-        default:
-            fprintf(stderr, "Argument parsing error\n");
-            return 1;
-        }
-    }
-
-    for (int i = 0; i < reps; i++) {
+    for (int i = 0; i < Reps; i++) {
         std::vector<std::thread> tests;
-        for (int j = 0; j < dups; j++) {
+        for (int j = 0; j < Dups; j++) {
             tests.push_back(std::thread([=] {
-                Test t(count, producers, consumers);
+                Test t(Count, Producers, Consumers);
                 test(t);
             }));
         }
