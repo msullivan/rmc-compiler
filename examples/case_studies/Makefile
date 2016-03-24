@@ -1,4 +1,4 @@
-THINGS=ms_queue seqlock rcu tstack
+THINGS=ms_queue seqlock rcu tstack rwlocks
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
@@ -9,7 +9,10 @@ TSTACK_EPOCH_TYPES=sc rmc
 TSTACK_FREELIST_TYPES=sc2 rmc2
 TSTACK_TYPES=lock
 
-SEQLOCK_TYPES=sc noop c11 rmc lock rwlock
+SEQLOCK_TYPES=sc noop c11 rmc lock
+
+RWLOCKS_TESTS=seqlock-rwlock
+RWLOCKS_TYPES=sc
 
 RCU_EPOCH_TYPES=uh
 
