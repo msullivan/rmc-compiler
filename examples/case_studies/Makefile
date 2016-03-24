@@ -9,7 +9,7 @@ TSTACK_EPOCH_TYPES=sc rmc
 TSTACK_FREELIST_TYPES=sc2 rmc2
 TSTACK_TYPES=lock
 
-SEQLOCK_TYPES=sc noop c11 rmc
+SEQLOCK_TYPES=sc noop c11 rmc lock rwlock
 
 RCU_EPOCH_TYPES=uh
 
