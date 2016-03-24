@@ -1,5 +1,5 @@
-#ifndef SOME_RWLOCK_H
-#define SOME_RWLOCK_H
+#ifndef RWLOCKS_SC_H
+#define RWLOCKS_SC_H
 
 #include <atomic>
 #include <utility>

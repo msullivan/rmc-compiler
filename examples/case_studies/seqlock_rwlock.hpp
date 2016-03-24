@@ -3,20 +3,18 @@
 
 #include <shared_mutex>
 #include <utility>
-#include "some_rwlocks.hpp"
+#include "rwlocks.hpp"
 #include "util.hpp"
 
 namespace rmclib {
 
-// This seems to really suck hard. On my system it does worse than the
-// lock version with 7 readers!
 class SeqLock {
 public:
     using Tag = uintptr_t;
 
 private:
     //std::shared_timed_mutex lock_;
-    busy_rwlock_writestarve lock_;
+    busy_rwlock_readstarve lock_;
 
 public:
     Tag read_lock() {
