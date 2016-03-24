@@ -17,6 +17,9 @@ EPOCH_TYPES=sc c11 rmc leak
 FREELIST_TYPES=sc rmc leak
 
 
+#
+EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp
+
 ########
 
 include ../../config.mk uppercase.mk
@@ -99,7 +102,7 @@ $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
 		-c -o $$@ $$<
-$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(OBJDIR)/llvm-cl/CommandLine.o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
@@ -132,7 +135,8 @@ $(foreach thing,$(THINGS), \
 ########
 
 # Compute what tests and stuff we are building
-LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES))
+LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES)) \
+         $(EXTRA_LIB_SRCS)
 
 OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
 	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
