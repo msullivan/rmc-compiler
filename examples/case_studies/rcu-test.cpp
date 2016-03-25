@@ -92,7 +92,7 @@ void consumer(Test *t) {
     t->totalSum += max;
 }
 
-cl::opt<int> VerboseOutput("b", cl::desc("Increase output verbosity"));
+cl::opt<int> BenchMode("b", cl::desc("Use benchmark output"));
 
 void test(Test &t) {
     std::vector<std::thread> producers;
@@ -116,7 +116,7 @@ void test(Test &t) {
 
     printf("Max thing: %ld\n", t.totalSum.load());
 
-    timer.report(t.count * t.consumers, VerboseOutput);
+    timer.report(t.count * t.consumers, !BenchMode);
 }
 
 cl::opt<int> Producers("p", cl::desc("Number of producer threads"),

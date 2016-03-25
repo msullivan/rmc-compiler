@@ -79,7 +79,7 @@ void consumer(Test *t) {
     t->totalCount += count;
 }
 
-cl::opt<int> VerboseOutput("b", cl::desc("Increase output verbosity"));
+cl::opt<int> BenchMode("b", cl::desc("Use benchmark output"));
 
 void test(Test &t) {
     std::vector<std::thread> producers;
@@ -100,7 +100,7 @@ void test(Test &t) {
     t.producersDone = true;
     joinAll(consumers);
 
-    timer.report(t.count * (t.producers+t.consumers), VerboseOutput);
+    timer.report(t.count * (t.producers+t.consumers), !BenchMode);
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
