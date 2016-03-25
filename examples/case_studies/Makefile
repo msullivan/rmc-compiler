@@ -12,7 +12,7 @@ TSTACK_TYPES=lock
 SEQLOCK_TYPES=sc noop c11 rmc lock
 
 RWLOCKS_TESTS=seqlock-rwlock
-RWLOCKS_TYPES=sc c11
+RWLOCKS_TYPES=sc c11 rmc
 
 RCU_EPOCH_TYPES=uh
 
