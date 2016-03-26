@@ -13,7 +13,8 @@ namespace rmclib {
 // different locations, reducing cache contention.
 
 class QSpinLock {
-    struct Node {
+    // Aligned to 256 so the
+    struct alignas(256) Node {
         using Ptr = tagged_ptr<Node *>;
         std::atomic<Node *> next{nullptr};
         std::atomic<bool> ready{false};
@@ -25,8 +26,6 @@ class QSpinLock {
     void delay() { }
 
     void clearTag(std::atomic<Node::Ptr> &loc) {
-        // XXX: there is an interesting question here.
-        //
         // We want to just xadd(-1) the thing, but C++ doesn't let us
         // because of the level of obstruction^Wabstruction that
         // tagged_ptr adds.
@@ -35,11 +34,20 @@ class QSpinLock {
         // so that we can do a one byte write to clear the locked flag.
         // That is *especially* not a thing in the C++ memory model.
         //
-        //loc.next.fetch_sub(1);
+#if CLEAR_XADD
+        // This is probably undefined
+        auto &intloc = reinterpret_cast<std::atomic<uintptr_t> &>(loc);
+        intloc.fetch_sub(1);
+#elif CLEAR_BYTE_WRITE
+        // This is certainly undefined, and only works on little endian
+        auto &byteloc = reinterpret_cast<std::atomic<uint8_t> &>(loc);
+        byteloc = 0;
+#else
         Node::Ptr state(nullptr, 1);
         while (!loc.compare_exchange_strong(state, Node::Ptr(state, 0))) {
             delay();
         }
+#endif
     }
 
     void slowpathLock(Node::Ptr oldTail) {
