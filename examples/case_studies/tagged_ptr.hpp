@@ -50,6 +50,10 @@ public:
     }
     T operator->() const { return ptr(); }
 
+    bool operator==(tagged_ptr<T, bits> rhs) { return val_ == rhs.val_; }
+    bool operator!=(tagged_ptr<T, bits> rhs) { return !(*this == rhs); }
+
+
     auto operator*() -> decltype(*ptr()) { return *ptr(); }
 
 };

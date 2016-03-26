@@ -4,6 +4,7 @@
 #include <mutex>
 #include <utility>
 #include "util.hpp"
+#include "qspinlock.hpp"
 
 namespace rmclib {
 
@@ -12,7 +13,8 @@ public:
     using Tag = uintptr_t;
 
 private:
-    std::mutex lock_;
+    //std::mutex lock_;
+    QSpinLock lock_;
 
 public:
     Tag read_lock() {
