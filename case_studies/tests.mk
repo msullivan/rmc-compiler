@@ -1,4 +1,4 @@
-THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock
+THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
@@ -22,5 +22,7 @@ RCU_EPOCH_TYPES=uh
 EPOCH_TYPES=sc c11 rmc leak
 FREELIST_TYPES=sc rmc leak
 
+PARKING_TYPES=lol
+
 #
-EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp
+EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp parking.cpp
