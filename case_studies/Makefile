@@ -58,6 +58,8 @@ else
   E = echo $(1)
 endif
 
+EXTRA_LIB_OBJS=$(patsubst %.cpp, $(OBJDIR)/%.o, $(EXTRA_LIB_SRCS))
+
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
@@ -98,7 +100,7 @@ $$(POSSIBLE_LIB_OBJ): $(5)_$(2).cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
 endif
 
-$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(OBJDIR)/llvm-cl/CommandLine.o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(EXTRA_LIB_OBJS) $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
