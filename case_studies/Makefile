@@ -89,6 +89,16 @@ $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
 
+# XXX: Arg 1 is unused for no good reason. Args 2-5 define the headers.
+define compile_with_headers
+	@mkdir -p $$(dir $$@)
+	@$$(call E, COMPILE $$@)
+	$$(Q)$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS)  \
+		-D$(call uppercase,$(5))_HEADER='"$(5)_$(2).hpp"' \
+		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
+		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
+		-c -o $$@ $$<
+endef
 
 define TEST_template =
 ifneq (none,$(3))
@@ -99,25 +109,33 @@ LIBPART:=-f$(4)
 else
 LIBPART:=
 endif
+POSSIBLE_LIB_OBJ:=$$(OBJDIR)/$(5)_$(2)$$(LIBPART).o
+
+ifneq ($(wildcard $(5)_$(2).cpp),)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(POSSIBLE_LIB_OBJ)
+endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
-	@mkdir -p $$(dir $$@)
-	@$$(call E, COMPILE $$@)
-	$$(Q)$$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS) \
-		-D$(call uppercase,$(5))_HEADER='"$(5)_$(2).hpp"' \
-		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
-		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
-		-c -o $$@ $$<
+	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
+
+ifeq (,$$(findstring $$(POSSIBLE_LIB_OBJ),$$(BUILTLIBS)))
+BUILTLIBS+=$$(POSSIBLE_LIB_OBJ)
+$$(POSSIBLE_LIB_OBJ): $(5)_$(2).cpp $$(CONFIG_FILES)
+	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
+endif
+
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(OBJDIR)/llvm-cl/CommandLine.o $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
 
 TESTS += $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test
+
 endef
 
 ########
 
+BUILTLIBS :=
 TESTS :=
 
 getdefault = $(if $(1),$(1),$(2))

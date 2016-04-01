@@ -23,7 +23,6 @@ struct MSQueueNode {
 
     static Freelist<MSQueueNode> freelist;
 };
-Freelist<MSQueueNode> MSQueueNode::freelist;
 
 template<typename T>
 class MSQueue {
