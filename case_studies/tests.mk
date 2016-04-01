@@ -1,0 +1,26 @@
+THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock
+
+MS_QUEUE_TESTS=ms_queue ms_queue-big
+MS_QUEUE_EPOCH_TYPES=sc relacq rmc
+MS_QUEUE_FREELIST_TYPES=sc2 rmc2
+MS_QUEUE_TYPES=lock 2lock
+
+TSTACK_EPOCH_TYPES=sc rmc
+TSTACK_FREELIST_TYPES=sc2 rmc2
+TSTACK_TYPES=lock
+
+SEQLOCK_TYPES=sc noop c11 rmc
+
+RWLOCKS_TESTS=seqlock-rwlock
+RWLOCKS_TYPES=sc c11 rmc
+
+QSPINLOCK_TESTS=seqlock-lock
+QSPINLOCK_TYPES=sc
+
+RCU_EPOCH_TYPES=uh
+
+EPOCH_TYPES=sc c11 rmc leak
+FREELIST_TYPES=sc rmc leak
+
+#
+EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp
