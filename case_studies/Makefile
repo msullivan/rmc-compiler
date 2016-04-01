@@ -28,10 +28,10 @@ EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp
 
 ########
 
-include ../../config.mk uppercase.mk
+include ../config.mk uppercase.mk
 
 # Files that force rebuilding everything
-CONFIG_FILES=Makefile ../../config.mk ../../RMC.so uppercase.mk
+CONFIG_FILES=Makefile ../config.mk ../RMC.so uppercase.mk
 
 OBJDIR=build
 
@@ -70,7 +70,7 @@ endif
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-CXXFLAGS:=--std=c++14 $(shell ../../rmc-config --cxxflags --smt --cleanup) \
+CXXFLAGS:=--std=c++14 $(shell ../rmc-config --cxxflags --smt --cleanup) \
 	$(MARCH) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads
