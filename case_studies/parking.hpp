@@ -1,9 +1,68 @@
 // General mechanism for blocking threads. Based on the interface that
 // Java and Rust use.
 
+#if defined(__linux__)
+#define USE_FUTEX_PARKING 1
+#elif defined(__unix__)
 #define USE_PTHREAD_PARKING 1
+#endif
 
-#if USE_PTHREAD_PARKING
+#if USE_FUTEX_PARKING
+
+#include <atomic>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
+
+class Parking {
+private:
+    struct ThreadNode {
+        std::atomic<int> flag;
+    };
+    static thread_local ThreadNode me_;
+
+
+    static int
+    futex(std::atomic<int> *uaddr, int futex_op, int val,
+          const struct timespec *timeout = nullptr,
+          int *uaddr2 = nullptr, int val3 = 0) {
+        return syscall(SYS_futex,
+                       reinterpret_cast<int*>(uaddr), futex_op, val,
+                       timeout, uaddr2, val3);
+    }
+
+public:
+    using ThreadID = ThreadNode*;
+    static const constexpr ThreadID kEmptyId = nullptr;
+
+    static ThreadID getCurrent() { return &me_; }
+
+    // XXX: think about more; we should maybe have a better spec...
+    // Is the behavior we want this?:
+    // There is a consistent total order of park()/unpark() actions.
+    // Any unpark() that is before a park() in that order should
+    // happen-before it
+    // park() happens as it is leaving, I guess...
+    static void park() {
+        ThreadID me = getCurrent();
+        // Could do an if and have spurious wakeups but why?
+        while (!me->flag) {
+            futex(&me->flag, FUTEX_WAIT_PRIVATE, 0);
+        }
+        // Do the exchange so that we see all the writes we are overwriting
+        // XXX: is there a better way??
+        me->flag.exchange(0);
+    }
+    static void unpark(ThreadID thread) {
+        // exchange keeps it all together in a release sequence
+        // and lets us avoid signalling if it is already up
+        if (thread->flag.exchange(1) != 1) {
+            futex(&thread->flag, FUTEX_WAKE_PRIVATE, 1);
+        }
+    }
+};
+
+#elif USE_PTHREAD_PARKING
 
 // This is a really basic implementation of the parking scheme
 // But using pthread stuff directly
