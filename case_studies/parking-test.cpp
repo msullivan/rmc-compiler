@@ -51,4 +51,10 @@ int main(int argc, char** argv) {
   while (!tid || !ready2) {}
   go = true;
   joinAll(threads);
+
+  // OK, now we timeout for 3s
+  Parking::park_for(std::chrono::seconds(3));
+  printf("slept some\n");
+  Parking::park_until(
+    std::chrono::system_clock::now() + std::chrono::seconds(3));
 }
