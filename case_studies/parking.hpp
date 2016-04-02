@@ -14,6 +14,8 @@
 #include <sys/syscall.h>
 #include <linux/futex.h>
 
+namespace rmclib {
+
 class Parking {
 private:
     struct ThreadNode {
@@ -62,6 +64,8 @@ public:
     }
 };
 
+}
+
 #elif USE_PTHREAD_PARKING
 
 // This is a really basic implementation of the parking scheme
@@ -69,6 +73,8 @@ public:
 // The advantage here is that no constructor needs to run for the
 // thread local nodes.
 #include <pthread.h>
+
+namespace rmclib {
 
 class Parking {
 private:
@@ -108,12 +114,16 @@ public:
     }
 };
 
+}
+
 #else
 
 // This is a really basic implementation of the parking scheme
 // using C++ locks and cvars
 #include <mutex>
 #include <condition_variable>
+
+namespace rmclib {
 
 class Parking {
 private:
@@ -147,4 +157,6 @@ public:
         }
     }
 };
+}
+
 #endif

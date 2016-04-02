@@ -1,5 +1,7 @@
 #include "parking.hpp"
 
+namespace rmclib {
+
 #if USE_FUTEX_PARKING
 thread_local Parking::ThreadNode Parking::me_;
 #elif USE_PTHREAD_PARKING
@@ -11,3 +13,5 @@ thread_local Parking::ThreadNode Parking::me_ = {
 #else
 thread_local Parking::ThreadNode Parking::me_;
 #endif
+
+}
