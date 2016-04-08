@@ -1,3 +1,6 @@
+#ifndef RMC_PARKING_HPP
+#define RMC_PARKING_HPP
+
 // General mechanism for blocking threads. Based on the interface that
 // Java and Rust use.
 
@@ -9,55 +12,22 @@
 #define USE_PTHREAD_PARKING 1
 #endif
 
-
-#if USE_FUTEX_PARKING || USE_PTHREAD_PARKING
-template<class Rep, class Period>
-static inline struct timespec durationToTimespec(
-    const std::chrono::duration<Rep, Period>& rel_time) {
-
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        rel_time).count();
-    timespec ts = { .tv_sec = static_cast<time_t>(ns / 1000000000),
-                    .tv_nsec = static_cast<time_t>(ns % 1000000000) };
-    return ts;
-}
-
-// We only support one clock right now because wtf
-template<class Duration>
-static inline struct timespec pointToTimeSpec(
-    const std::chrono::time_point<
-        std::chrono::system_clock, Duration>& timeout) {
-        return durationToTimespec(timeout.time_since_epoch());
-}
-
-#endif
-
-
 #if USE_FUTEX_PARKING
 
 #include <atomic>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
+#include "futex.hpp"
 
 namespace rmclib {
 
 class Parking {
 private:
     struct ThreadNode {
-        std::atomic<int> flag;
+        Futex flag;
     };
     static thread_local ThreadNode me_;
-
-
-    static int
-    futex(std::atomic<int> *uaddr, int futex_op, int val,
-          const struct timespec *timeout = nullptr,
-          int *uaddr2 = nullptr, int val3 = 0) {
-        return syscall(SYS_futex,
-                       reinterpret_cast<int*>(uaddr), futex_op, val,
-                       timeout, uaddr2, val3);
-    }
 
 public:
     using ThreadID = ThreadNode*;
@@ -72,46 +42,41 @@ private:
     // Any unpark() that is before a park() in that order should
     // happen-before it
     // park() happens as it is leaving, I guess...
-    static inline void park_inner(struct timespec *timeout, bool absTime) {
-        // Are we waiting for an absolute or relative amount of time?
-        auto op = absTime ?
-            FUTEX_WAIT_BITSET_PRIVATE|FUTEX_CLOCK_REALTIME :
-            FUTEX_WAIT;
-
+    template<typename Timeout>
+    static inline void park_inner(Timeout timeout) {
         ThreadID me = getCurrent();
         // Doing an if allows spurious wakeups but means we don't need
         // any extra logic to handle timeouts.
-        if (!me->flag) {
-            futex(&me->flag, op, 0, timeout, nullptr, ~0);
+        if (!me->flag.val) {
+            me->flag.wait(0, timeout);
         }
         // Do the exchange so that we see all the writes we are overwriting
         // XXX: is there a better way??
-        me->flag.exchange(0);
+        me->flag.val.exchange(0);
     }
 public:
 
     static void unpark(ThreadID thread) {
         // exchange keeps it all together in a release sequence
         // and lets us avoid signalling if it is already up
-        if (thread->flag.exchange(1) != 1) {
-            futex(&thread->flag, FUTEX_WAKE_PRIVATE, 1);
+        Futex::Handle handle = thread->flag.getHandle();
+        if (thread->flag.val.exchange(1) != 1) {
+            Futex::wake(handle, 1);
         }
     }
 
     // Park wrappers
-    static void park() { park_inner(nullptr, false); }
+    static void park() { park_inner(Futex::no_timeout); }
 
     template<class Rep, class Period>
     static void park_for(const std::chrono::duration<Rep, Period>& relTime) {
-        struct timespec ts = durationToTimespec(relTime);
-        park_inner(&ts, false);
+        park_inner(relTime);
     }
 
     template<class Clock, class Duration>
     static void park_until(
         const std::chrono::time_point<Clock, Duration>& timeout) {
-        struct timespec ts = pointToTimeSpec(timeout);
-        park_inner(&ts, true);
+        park_inner(timeout);
     }
 };
 
@@ -124,6 +89,7 @@ public:
 // The advantage here is that no constructor needs to run for the
 // thread local nodes.
 #include <pthread.h>
+#include "chrono_to_timespec.hpp"
 
 namespace rmclib {
 
@@ -262,5 +228,7 @@ public:
     }
 };
 }
+
+#endif
 
 #endif

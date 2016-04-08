@@ -25,4 +25,4 @@ FREELIST_TYPES=sc rmc leak
 PARKING_TYPES=lol
 
 #
-EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp parking.cpp
+EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp parking.cpp futex.cpp
