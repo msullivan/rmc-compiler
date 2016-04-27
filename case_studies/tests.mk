@@ -1,4 +1,4 @@
-THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking
+THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking condvar
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
@@ -16,6 +16,8 @@ RWLOCKS_TYPES=sc c11 rmc
 
 QSPINLOCK_TESTS=seqlock-lock
 QSPINLOCK_TYPES=sc rmc
+
+CONDVAR_TYPES=sc
 
 RCU_EPOCH_TYPES=uh
 

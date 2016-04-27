@@ -76,7 +76,7 @@ private:
     }
 
 public:
-    std::atomic<int32_t> val;
+    std::atomic<int32_t> val{0};
 
     struct no_timeout_t {};
     static constexpr no_timeout_t no_timeout {};
@@ -123,7 +123,7 @@ namespace rmclib {
 class Futex {
 public:
     using Handle = uintptr_t;
-    std::atomic<int32_t> val;
+    std::atomic<int32_t> val{0};
 
 private:
     // The list structures
