@@ -18,16 +18,19 @@ OPT_LEVEL=-O2
 endif
 
 # Need to specify -march for arm or clang gets mad about barriers??
-ifeq (arm,$(findstring arm,$(shell uname -m)))
-ifneq (armv8,$(findstring armv8,$(shell uname -m)))
-MARCH:=-march=$(shell uname -m)
-endif
-endif
+# ifeq (arm,$(findstring arm,$(shell uname -m)))
+# ifneq (armv8,$(findstring armv8,$(shell uname -m)))
+# MARCH:=-march=$(shell uname -m)
+# endif
+# endif
 
-# -mcx16 is needed to generate cmpxchg16b
-ifeq (x86_64,$(findstring x86_64,$(shell uname -m)))
-MARCH:=-mcx16
-endif
+# # -mcx16 is needed to generate cmpxchg16b
+# ifeq (x86_64,$(findstring x86_64,$(shell uname -m)))
+# MARCH:=-mcx16
+# endif
+
+# Actually just -march=native instead of that nonsense.
+MARCH:=-march=native
 
 
 # Clang and gcc disagree for -march=armv6 on whether to define
