@@ -17,7 +17,8 @@ static inline struct timespec durationToTimespec(
 
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         rel_time).count();
-    timespec ts = { .tv_sec = ns / 1000000000, .tv_nsec = ns % 1000000000 };
+    timespec ts = { .tv_sec = static_cast<time_t>(ns / 1000000000),
+                    .tv_nsec = static_cast<time_t>(ns % 1000000000) };
     return ts;
 }
 
