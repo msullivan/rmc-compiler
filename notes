@@ -296,22 +296,23 @@ Or maybe we *don't* do the label passing thing but instead, when we
 want that sort of thing, we make a global label part of the API and
 other functions declare edges to it.
 
-- We say it only works inside a compilation unit, but that's probably
-  fine.
+- We say it only works inside a compilation unit
 - We ditch the noinline hack and do the bind outside with globals
 - When we look at global labels, we need to find all the functions
   they are used in
 - XXX: /might/ be fucked
 
-- These things might be useful but I think we do actually should
-  support something that works across files:
+- I think the above things are bad ideas
+- We settled on allowing scoped *edge* binding, not label binding
+  (which matches the theory better)
+- And this thing can work across files
 *** support edges to/from "argument pass"/"function return"
- - how to model?
-   - could allow passing labels...
-   - model argument passing as writing to a location, then passing
-     that location and reading it - then we put constraints on that
-
-
+ - Can model by passing labels to functions
+ - RMC doesn't directly support passing labels but it is easy to do by
+   passing "unit susp"s instead:
+     - reify-label l = susp (l # Nop)
+	 - relabel rl l' = l' # force rl
+* DONE
 
 -----
 Wait again. What is the relationship between /recursion/ and cross
@@ -329,6 +330,7 @@ I guess we could add edges from all function calls that could possibly
 invoke us recursively... but that sounds annoying.
 
 * I think for now we will not support this???
+* XXX: I HAVE NOTES FOR A PLAN ABOUT THIS SOMERWHERE
 
 -----
 
@@ -356,13 +358,13 @@ C++ seq cst fences:
    the SC order
  * change in language intended to *strengthen* SC fences, it seems?
    well, it also weakens them
- * The reason that SC fences can't be to recover SC behavior is that
-   they don't push out everything they have seen.
-   In acq/rel IRIW, it is exactly because they don't synchronize-with
-   each other that we don't get SC
- * Even if we added the synchronizes-with thing, though, I think
-   relaxed IRIW would not be SC, since even if we observed the write
-   we aren't synchronizing with it.
+ * The reason that SC fences can't be used to recover SC behavior is
+   that they don't push out everything they have seen. In acq/rel
+   IRIW, it is exactly because they don't synchronize-with each other
+   that we don't get SC
+* Even if we added the synchronizes-with thing, though, I think
+  relaxed IRIW would not be SC, since even if we observed the write
+  we aren't synchronizing with it.
 
 IN GENERAL, WE HAVE STRONGER TRANSITIVE VISIBILITY PROPERTIES.
 
@@ -388,7 +390,7 @@ Originally I had thought that I could manage something like this by
 adding a notion of "push edges" which could be optimized based on the
 source/sink (so on x86, only a R->W push edge would require an
 MFENCE). This is complicated by transitivity issues, but might still
-be workable.
+be workable. (NO: probably not workable)
 
 New idea: can we *model* them as either:
  * lock; memory access; unlock
@@ -399,6 +401,7 @@ New idea: can we *model* them as either:
 -
 Actual plan is mostly to just add a new sort of "sc" operation with
 appropriate coherence rules.
+- XXX: find the notes for these, write them down
 
 
 --------
@@ -415,10 +418,14 @@ one sort of priority, which is (po|conflicting u vt|conflicting)+,
 where |conflicting means "restricted to conflicting accesses". If we
 change it to be (po|sameloc u vt|sameloc)+, then we support CoRR.
 
+I think we should just add the CoRR rule.
+
 -------
 
 I think the reason isb might be slow is because it is really
 more for changing the instruction stream?
+
+---
 
 How to intuitively model execution order on POWER/ARM? Maybe:
  * A write has "executed" when it is committed
