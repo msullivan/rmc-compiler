@@ -106,7 +106,15 @@ extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // Push is a no-op
 #define __rmc_push() 0
 
-#else /* !(using SC) */
+#elif RMC_YOLO_FALLBACK /* !(using SC) */
+// relaxed memory order, for convincing myself that any of this
+// matters
+#define __rmc_load_order memory_order_relaxed
+#define __rmc_store_order memory_order_relaxed
+#define __rmc_rmw_order memory_order_relaxed
+#define __rmc_push() 0
+
+#else /* !(using SC) && !(yolo fallback) */
 // What orders to use for the atomic ops. Always release/acquire
 #define __rmc_load_order memory_order_acquire
 #define __rmc_store_order memory_order_release
@@ -119,7 +127,7 @@ extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // and C11 atomics are totally unspecified, so...
 #define __rmc_push() ({ __sync_synchronize(); 0; })
 
-#endif /* RMC_FALLBACK_USE_SC */
+#endif /* fallbacks */
 
 #endif /* HAS_RMC */
 
