@@ -99,7 +99,7 @@ extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // but if RMC_DISABLE_PEDGE is set, then push edges are turned off,
 // which means we can get away with using release/acquire for the
 // memory orders.
-#if !RMC_DISABLE_PEDGE && !RMC_FALLBACK_USE_SC
+#if !RMC_DISABLE_PEDGE || RMC_FALLBACK_USE_SC
 #define __rmc_load_order memory_order_seq_cst
 #define __rmc_store_order memory_order_seq_cst
 #define __rmc_rmw_order memory_order_seq_cst
