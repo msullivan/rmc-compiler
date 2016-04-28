@@ -30,6 +30,16 @@ ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
+# On the default raspberry pi rasbian install, -march=native doesn't
+# think that memory barriers exist. This is baffling, and also I have
+# another machine on which -march=$(shell uname -m) causes clang to
+# generate illegal instructions. -march=native seems like the right
+# default, so detect the one currently known characteristic of
+# machines where this fails and override it. This is dumb. asdf.
+ifneq ($(wildcard /etc/rpi-issue),)
+MARCH:=-march=$(shell uname -m)
+endif
+
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
