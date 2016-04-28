@@ -37,8 +37,8 @@ public:
   T operator=(T desired) noexcept { store(desired); return desired; }
   operator T() const noexcept { return load(); }
 
-  void store(T desired) noexcept { val.store(desired, std::__rmc_load_order); }
-  T load() const noexcept { return val.load(std::__rmc_store_order); }
+  void store(T desired) noexcept {val.store(desired, std::__rmc_store_order); }
+  T load() const noexcept { return val.load(std::__rmc_load_order); }
 
   bool compare_exchange_weak(T& expected, T desired) noexcept {
     return val.compare_exchange_weak(
