@@ -13,6 +13,27 @@
 
 namespace rmc {
 
+// RMC_YOLO_FALLBACK exists to test how badly things fail if we
+// /don't/ insert any hardware barriers. For those tests are are only
+// interested in what the hardware does, and not the compiler, so we
+// need some way to suppress any trouble from the compiler. To that
+// end, we have barrier_dummy, which sticks a compiler barrier in its
+// ctor and dtor. Toss in a method and it keeps the contents from
+// getting reordered with anything external.
+// This is kind of frumious.
+#if RMC_YOLO_FALLBACK
+struct barrier_dummy {
+  static inline void barrier() { __asm__ __volatile__("":::"memory"); }
+  inline barrier_dummy() { barrier(); }
+  inline ~barrier_dummy() { barrier(); }
+};
+#else
+struct barrier_dummy {
+  inline ~barrier_dummy() { } // dtor prevents unused var warnings
+};
+#endif
+
+
 // A value that can be concurrently accessed by multiple threads
 // safely, in the RMC atomics framework.
 // Implemented as a wrapper around std::atomic that uses different
@@ -37,38 +58,53 @@ public:
   T operator=(T desired) noexcept { store(desired); return desired; }
   operator T() const noexcept { return load(); }
 
-  void store(T desired) noexcept {val.store(desired, std::__rmc_store_order); }
-  T load() const noexcept { return val.load(std::__rmc_load_order); }
+  void store(T desired) noexcept {
+    barrier_dummy dummy;
+    val.store(desired, std::__rmc_store_order);
+  }
+  T load() const noexcept {
+    barrier_dummy dummy;
+    return val.load(std::__rmc_load_order);
+  }
 
   bool compare_exchange_weak(T& expected, T desired) noexcept {
+    barrier_dummy dummy;
     return val.compare_exchange_weak(
       expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
   }
   bool compare_exchange_strong(T& expected, T desired) noexcept {
+    barrier_dummy dummy;
     return val.compare_exchange_strong(
       expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
   }
   bool compare_exchange(T& expected, T desired) noexcept {
+    barrier_dummy dummy;
     return this->compare_exchange_strong(expected, desired);
   }
   T exchange(T desired) noexcept {
+    barrier_dummy dummy;
     return val.exchange(desired, std::__rmc_rmw_order);
   }
 
-  // Arithmetic RMWs. Will fail if the underlying type isn't integral or pointer
+  // Arithmetic RMWs. Fails if the underlying type isn't integral or pointer
   T fetch_add(arith_arg_type arg) noexcept {
+    barrier_dummy dummy;
     return val.fetch_add(arg, std::__rmc_rmw_order);
   }
   T fetch_sub(arith_arg_type arg) noexcept {
+    barrier_dummy dummy;
     return val.fetch_sub(arg, std::__rmc_rmw_order);
   }
   T fetch_and(T arg) noexcept {
+    barrier_dummy dummy;
     return val.fetch_and(arg, std::__rmc_rmw_order);
   }
   T fetch_or(T arg) noexcept {
+    barrier_dummy dummy;
     return val.fetch_or(arg, std::__rmc_rmw_order);
   }
   T fetch_xor(T arg) noexcept {
+    barrier_dummy dummy;
     return val.fetch_xor(arg, std::__rmc_rmw_order);
   }
 
