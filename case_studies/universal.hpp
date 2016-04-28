@@ -5,6 +5,7 @@
 #include <cstring>
 #include <utility>
 #include <memory>
+#include <type_traits>
 
 namespace rmclib {
 
@@ -19,7 +20,11 @@ namespace detail {
 template<typename T>
 struct trivially_to_uint {
     static const bool value =
-        std::is_trivially_copyable<T>::value &&
+        // is_trivially_copyable got implemented a little late and so is
+        // missing on some of my test machines, so we use the slightly
+        // stricter is_trivial.
+//        std::is_trivially_copyable<T>::value &&
+        std::is_trivial<T>::value &&
         sizeof(T) <= sizeof(uintptr_t);
 };
 
