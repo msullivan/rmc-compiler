@@ -17,7 +17,27 @@ else
 OPT_LEVEL=-O2
 endif
 
-MARCH:=-march=native
+# Need to specify -march for arm or clang gets mad about barriers??
+ifneq (,$(findstring arm,$(shell uname -m)))
+ifeq (,$(findstring armv8,$(shell uname -m)))
+MARCH:=-march=$(shell uname -m)
+
+# The ARM processors on the Scaleways hosting service are a strange
+# beast.  They are ARMv7l but don't support neon and seem to have a
+# custom CPU part number that clang doesn't know about. If we see one,
+# pass an -mfpu argument to prevent the use of neon.
+ifneq (,$(findstring 0x584,$(shell grep "CPU part" /proc/cpuinfo)))
+MARCH += -mfpu=vfp3
+endif
+
+endif
+endif
+
+# -mcx16 is needed to generate cmpxchg16b
+ifeq (x86_64,$(findstring x86_64,$(shell uname -m)))
+MARCH:=-mcx16
+endif
+
 
 # Clang and gcc disagree for -march=armv6 on whether to define
 # __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2. The libstdc++ ABI for shared_ptr
@@ -28,16 +48,6 @@ MISSING_CAS2:=$(shell cc -dM -E - < /dev/null | \
                 grep -q __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 || echo 1)
 ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
-endif
-
-# On the default raspberry pi rasbian install, -march=native doesn't
-# think that memory barriers exist. This is baffling, and also I have
-# another machine on which -march=$(shell uname -m) causes clang to
-# generate illegal instructions. -march=native seems like the right
-# default, so detect the one currently known characteristic of
-# machines where this fails and override it. This is dumb. asdf.
-ifneq ($(wildcard /etc/rpi-issue),)
-MARCH:=-march=$(shell uname -m)
 endif
 
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
