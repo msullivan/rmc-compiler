@@ -17,21 +17,7 @@ else
 OPT_LEVEL=-O2
 endif
 
-# Need to specify -march for arm or clang gets mad about barriers??
-# ifeq (arm,$(findstring arm,$(shell uname -m)))
-# ifneq (armv8,$(findstring armv8,$(shell uname -m)))
-# MARCH:=-march=$(shell uname -m)
-# endif
-# endif
-
-# # -mcx16 is needed to generate cmpxchg16b
-# ifeq (x86_64,$(findstring x86_64,$(shell uname -m)))
-# MARCH:=-mcx16
-# endif
-
-# Actually just -march=native instead of that nonsense.
 MARCH:=-march=native
-
 
 # Clang and gcc disagree for -march=armv6 on whether to define
 # __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2. The libstdc++ ABI for shared_ptr
@@ -47,10 +33,16 @@ endif
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-CXXFLAGS:=--std=c++14 $(shell ../rmc-config --cxxflags --smt --cleanup) \
+RMC_FLAGS:=$(shell ../rmc-config --cxxflags --smt --cleanup)
+CXXFLAGS=--std=c++14 $(RMC_FLAGS) \
 	$(MARCH) \
 	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
 LDFLAGS=-pthreads
+
+# Optional local overrides of any of the above variables
+# Especially likely to be useful on ARM where portability is a
+# dumpster fire.
+-include override.mk
 
 # Generic rules and build stuff
 ifdef VERBOSE
