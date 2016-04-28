@@ -46,6 +46,7 @@ public:
 };
 
 template<typename T>
+__attribute__((noinline))
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     auto guard = Epoch::pin();
 
@@ -65,7 +66,10 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     // Make sure the contents of the next node stay visible
     // to anything that finds it through tail_, when we swing
     VEDGE(get_next, catchup_swing);
-    // XXX: how about VEDGE(enqueue, enqueue_swing)??
+    // enqueue needs to be visible before enqueue_swing so that if
+    // head != tail in dequeue, it always manages to have seen
+    // head->next
+    VEDGE(enqueue, enqueue_swing);
 
 
     // Marker for node initialization. Everything before the
@@ -104,6 +108,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
 }
 
 template<typename T>
+__attribute__((noinline))
 optional<T> MSQueue<T>::dequeue() {
     auto guard = Epoch::pin();
 
@@ -112,6 +117,14 @@ optional<T> MSQueue<T>::dequeue() {
     XEDGE(get_next, node_use);
     // Make sure we see at least head's init
     XEDGE(get_head, get_next);
+    // XXX: another part of maintaining the awful head != tail ->
+    // next != null invariant that causes like a billion constraints.
+    // Think about it a bit more to make sure this is right.
+    // This is awful, so many barriers.
+    XEDGE(get_head, get_tail);
+    // If we see an updated tail (so that head != tail), make sure that
+    // we see update to head->next.
+    XEDGE(get_tail, get_next);
     // Need to make sure anything visible through the next pointer
     // stays visible when it gets republished at the head or tail
     VEDGE(get_next, catchup_swing);
@@ -121,7 +134,7 @@ optional<T> MSQueue<T>::dequeue() {
 
     for (;;) {
         head = L(get_head, this->head_);
-        tail = this->tail_; // XXX: really?
+        tail = L(get_tail, this->tail_); // XXX: really?
         next = L(get_next, head->next_);
 
         // Consistency check; see note above
@@ -146,6 +159,7 @@ optional<T> MSQueue<T>::dequeue() {
         } else {
             // OK, now we try to actually read the thing out.
 
+            assert_ne(next, nullptr);
             // If we weren't planning to rely on epochs or something,
             // note that we would need to read out the data *before* we
             // do the CAS, or else things are gonna get bad.

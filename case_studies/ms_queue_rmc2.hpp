@@ -59,6 +59,7 @@ public:
 };
 
 template<typename T>
+__attribute__((noinline))
 void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
     node->next_ = node->next_.load().update(nullptr); // XXX: ok?
 
@@ -78,7 +79,10 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
     // Make sure the contents of the next node stay visible
     // to anything that finds it through tail_, when we swing
     VEDGE(get_next, catchup_swing);
-    // XXX: how about VEDGE(enqueue, enqueue_swing)??
+    // enqueue needs to be visible before enqueue_swing so that if
+    // head != tail in dequeue, it always manages to have seen
+    // head->next
+    VEDGE(enqueue, enqueue_swing);
 
     // Make sure the read out of next executes before the verification
     // that it read from a sensible place:
@@ -105,7 +109,7 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (L(enqueue, tail->next_.compare_exchange_weak_gen(next, node))) {
+            if (L(enqueue, tail->next_.compare_exchange_weak_gen(next, node))){
                 // we did it! return
                 break;
             }
@@ -122,12 +126,22 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
 }
 
 template<typename T>
+__attribute__((noinline))
 optional<T> MSQueue<T>::dequeue() {
     // Core message passing: reading the data out of the node comes
     // after getting the pointer to it.
     XEDGE(get_next, node_use);
     // Make sure we see at least head's init
     XEDGE(get_head, get_next);
+    // XXX: another part of maintaining the awful head != tail ->
+    // next != null invariant that causes like a billion constraints.
+    // Think about it a bit more to make sure this is right.
+    // This is awful, so many barriers.
+    XEDGE(get_head, get_tail);
+    // If we see an updated tail (so that head != tail), make sure that
+    // we see update to head->next.
+    XEDGE(get_tail, get_next);
+
     // Need to make sure anything visible through the next pointer
     // stays visible when it gets republished at the head or tail
     VEDGE(get_next, catchup_swing);
@@ -136,7 +150,6 @@ optional<T> MSQueue<T>::dequeue() {
     // Make sure the read out of next executes before the verification
     // that it read from a sensible place:
     XEDGE(get_next, verify_head);
-    XEDGE(get_tail, verify_head); // XXX: think about more
 
 
     NodePtr head, tail, next;
@@ -169,12 +182,13 @@ optional<T> MSQueue<T>::dequeue() {
             }
         } else {
             // OK, now we try to actually read the thing out.
+            assert_ne(next.ptr(), nullptr);
 
             // We need to read the data out of the node
             // *before* we try to dequeue it or else it could get
             // reused before we read it out.
             data = L(node_use, next->data_);
-            if (L(dequeue, this->head_.compare_exchange_weak_gen(head, next))) {
+            if (L(dequeue, this->head_.compare_exchange_weak_gen(head, next))){
                 break;
             }
         }
