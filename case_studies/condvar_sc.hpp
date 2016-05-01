@@ -33,6 +33,8 @@ private:
     Futex seq_;
     std::atomic<int> waiters_{0};
 
+    std::atomic<int32_t> &rseq() { return seq_.val; }
+
 public:
     condition_variable_futex() {}
     condition_variable_futex(const condition_variable_futex&) = delete;
@@ -43,14 +45,14 @@ public:
     // wakeups but is very simple.
     template<class Lock>
     void wait(Lock &lock) {
-        int seq = seq_.val;
+        int seq = rseq();
         waiters_.fetch_add(1);
 
         lock.unlock();
 
         do {
             seq_.wait(seq);
-        } while (seq_.val == seq);
+        } while (rseq() == seq);
 
         waiters_.fetch_add(-1);
 
@@ -60,10 +62,9 @@ public:
     void notify_one() {
         if (waiters_ == 0) return;
         auto handle = seq_.getHandle();
-        seq_.val.fetch_add(1);
+        rseq().fetch_add(1);
         Futex::wake(handle, 1);
     }
-
 };
 
 }
