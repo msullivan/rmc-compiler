@@ -104,11 +104,8 @@ try_again:
             // list. This will fail if it's already been unlinked or
             // the previous node has exited; in those cases, we start
             // back over at the head of the list.
-
-            // XXX: if the Ptr(next, 0) is subsituted for val, we trip
-            // an assertion in rmc-compiler.
-            auto val = Ptr(next, 0);
-            if (L(a, prevp->compare_exchange_strong(cur, val))) {
+            next = Ptr(next, 0); // clear next's tag
+            if (L(a, prevp->compare_exchange_strong(cur, next))) {
                 Guard g(this);
                 g.unlinked(cur.ptr());
             } else {

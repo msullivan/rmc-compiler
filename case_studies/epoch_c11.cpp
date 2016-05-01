@@ -98,7 +98,8 @@ try_again:
             // list. This will fail if it's already been unlinked or
             // the previous node has exited; in those cases, we start
             // back over at the head of the list.
-            if (prevp->compare_exchange_strong(cur, Ptr(next, 0))) {
+            next = Ptr(next, 0); // clear next's tag
+            if (prevp->compare_exchange_strong(cur, next)) {
                 Guard g(this);
                 g.unlinked(cur.ptr());
             } else {
