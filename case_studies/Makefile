@@ -91,7 +91,7 @@ define compile_with_headers
 		-c -o $$@ $$<
 endef
 
-define TEST_template =
+define TEST_template
 ifneq (none,$(3))
 LIBPART:=-e$(3)
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/epoch_$(3).o
