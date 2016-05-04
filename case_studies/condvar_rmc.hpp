@@ -61,7 +61,7 @@ public:
         XEDGE(read_seq, inc_waiters);
         // the inc_waiters must be visible-to the chk_waiters in a
         // notifier that // acquires this lock.
-        XEDGE(inc_waiters, unlock); // REDUNDANT
+        //XEDGE(inc_waiters, unlock); // REDUNDANT
 
         // XXX: do we need an edge going into block???
         // It would be redundant, but...
@@ -70,8 +70,8 @@ public:
 
         // blocking needs to be done before dec_waiters and lock,
         // which could stop it from working
-        XEDGE(block, dec_waiters); // REDUNDANT
-        XEDGE(block, lock); // REDUNDANT
+        //XEDGE(block, dec_waiters); // REDUNDANT
+        //XEDGE(block, lock); // REDUNDANT
 
         int seq = L(read_seq, rseq());
         L(inc_waiters, waiters_.fetch_add(1));
@@ -97,11 +97,11 @@ public:
         // can't see the increment (and thus potentially miss the
         // signal)
         XEDGE(chk_waiters, signal);
-        XEDGE(chk_waiters, wake); // REDUNDANT
+        //XEDGE(chk_waiters, wake); // REDUNDANT
         // The updated seq value needs to be visible to anything we wake.
         // This is actually doubly redundant though if we are modeling
         // futexes as being RMWs to the futex location...
-        VEDGE(signal, wake); // REDUNDANT
+        //VEDGE(signal, wake); // REDUNDANT
 
         if (L(chk_waiters, waiters_) == 0) return;
         auto handle = seq_.getHandle();
