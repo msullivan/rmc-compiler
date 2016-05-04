@@ -30,9 +30,9 @@ namespace rmclib {
 // XXX: *not* self-synchronizing on destruction with notify_all!
 class condition_variable_futex {
 private:
-    const std::memory_order mo_rlx = std::memory_order_relaxed;
-    const std::memory_order mo_rel = std::memory_order_release;
-    const std::memory_order mo_acq = std::memory_order_acquire;
+    static const std::memory_order mo_rlx = std::memory_order_relaxed;
+    static const std::memory_order mo_rel = std::memory_order_release;
+    static const std::memory_order mo_acq = std::memory_order_acquire;
 
     Futex seq_;
     std::atomic<int> waiters_{0};
