@@ -1241,10 +1241,12 @@ public:
     std::string triple = M.getTargetTriple();
     if (triple.find("x86") == 0) {
       target = TargetX86;
-    } else if (triple.find("arm") == 0) {
-      target = TargetARM;
     } else if (triple.find("aarch64") == 0) {
       target = TargetARMv8;
+    } else if (triple.find("armv8") == 0) {
+      target = TargetARMv8;
+    } else if (triple.find("arm") == 0) {
+      target = TargetARM;
     } else if (triple.find("powerpc") == 0) {
       target = TargetPOWER;
     } else {
