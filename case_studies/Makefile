@@ -56,7 +56,8 @@ CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
 RMC_FLAGS:=$(shell ../rmc-config --cxxflags --smt --cleanup)
 CXXFLAGS=--std=c++14 $(RMC_FLAGS) \
 	$(MARCH) \
-	-Wall -Wno-unused-function -g $(DEFINES) $(OPT_LEVEL)
+	-Wall -Wno-unused-function $(DEFINES) $(OPT_LEVEL)
+DBG_FLAG=-g # Separate flag so we can disable it when we emit .ll
 LDFLAGS=-pthreads
 
 # Optional local overrides of any of the above variables
@@ -78,18 +79,31 @@ EXTRA_LIB_OBJS=$(patsubst %.cpp, $(OBJDIR)/%.o, $(EXTRA_LIB_SRCS))
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
-	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -c -o $@ $<
+	$(Q)$(CXX) $(CXXFLAGS) $(DBG_FLAG) $(DEP_FLAGS) -c -o $@ $<
+$(OBJDIR)/%.ll: %.cpp $(CONFIG_FILES)
+	@mkdir -p $(dir $@)
+	@$(call E, COMPILE $@)
+	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -emit-llvm -S -o $@ $<
 
-# XXX: Arg 1 is unused for no good reason. Args 2-5 define the headers.
-define compile_with_headers
+# Args 2-5 define the headers. Abuse the unused arg 1 in
+# compile_with_headers to pass the compilation flags.
+define compile_with_headers_inner
 	@mkdir -p $$(dir $$@)
 	@$$(call E, COMPILE $$@)
 	$$(Q)$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS)  \
 		-D$(call uppercase,$(5))_HEADER='"$(5)_$(2).hpp"' \
 		-DEPOCH_HEADER='"epoch_$(3).hpp"' \
 		-DFREELIST_HEADER='"freelist_$(4).hpp"' \
-		-c -o $$@ $$<
+		$(1) -o $$@ $$<
 endef
+# XXX: Arg 1 is unused for no good reason. Args 2-5 define the headers.
+define compile_with_headers
+	$(call compile_with_headers_inner,$(DBG_FLAGS) -c,$(2),$(3),$(4),$(5))
+endef
+define compile_ll_with_headers
+	$(call compile_with_headers_inner,-S -emit-llvm,$(2),$(3),$(4),$(5))
+endef
+
 
 define TEST_template
 ifneq (none,$(3))
@@ -108,11 +122,15 @@ endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.ll: $(1)-test.cpp $$(CONFIG_FILES)
+	$(call compile_ll_with_headers,$(1),$(2),$(3),$(4),$(5))
 
 ifeq (,$$(findstring $$(POSSIBLE_LIB_OBJ),$$(BUILTLIBS)))
 BUILTLIBS+=$$(POSSIBLE_LIB_OBJ)
 $$(POSSIBLE_LIB_OBJ): $(5)_$(2).cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
+$$(POSSIBLE_LIB_OBJ:.o=.ll): $(5)_$(2).cpp $$(CONFIG_FILES)
+	$(call compile_ll_with_headers,$(1),$(2),$(3),$(4),$(5))
 endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(EXTRA_LIB_OBJS) $$(CONFIG_FILES)
