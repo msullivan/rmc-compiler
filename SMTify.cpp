@@ -41,18 +41,33 @@ const bool kInvertBools = false;
 // XXX: These numbers are just made up.
 // And will vary based on platform.
 // (sync == lwsync on ARM but not on POWER and *definitely* not on x86)
-const int kSyncCost = 80;
-const int kLwsyncCost = 50;
-const int kIsyncCost = 20;
-const int kUseCtrlCost = 1;
-const int kAddCtrlCost = 7;
-const int kUseDataCost = 1;
-const int kMakeReleaseCost = 49;
-const int kMakeAcquireCost = 49;
-
-// OK, isync actually sucks on ARM mostly, I think, Don't bother.
-const bool kUseIsync = false;
-const bool kAcqRelAbuse = false;
+struct TuningParams {
+  int syncCost;
+  int lwsyncCost;
+  int isyncCost;
+  int useCtrlCost;
+  int addCtrlCost;
+  int useDataCost;
+  int makeReleaseCost;
+  int makeAcquireCost;
+  bool useIsync;
+  bool acqRelAbuse;
+};
+// Screw you, C++, for not having designated initializers
+TuningParams genericParams() {
+  TuningParams p;
+  p.syncCost = 80;
+  p.lwsyncCost = 50;
+  p.isyncCost = 20;
+  p.useCtrlCost = 1;
+  p.addCtrlCost = 7;
+  p.useDataCost = 1;
+  p.makeReleaseCost = 49;
+  p.makeAcquireCost = 49;
+  p.useIsync = false;
+  p.acqRelAbuse = false;
+  return p;
+}
 
 bool debugSpew = false;
 
@@ -348,6 +363,7 @@ struct VarMaps {
   PathCache &pc;
   DenseMap<BasicBlock *, Action *> &bb2action;
   DominatorTree &domTree;
+  TuningParams params;
 
   DeclMap<EdgeKey> sync;
   DeclMap<EdgeKey> lwsync;
@@ -462,7 +478,8 @@ SmtExpr makePathCtrlIsync(SmtSolver &s, VarMaps &m,
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
+  if (!m.bb2action[dep] || !m.bb2action[dep]->outgoingDep)
+    return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -480,7 +497,8 @@ SmtExpr makePathCtrl(SmtSolver &s, VarMaps &m, PathID path) {
   BasicBlock *dep = m.pc.getHead(path);
   // Can't have a control dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
+  if (!m.bb2action[dep] || !m.bb2action[dep]->outgoingDep)
+    return c.bool_val(false);
 
   return forAllPathEdges(
     s, m, path,
@@ -509,7 +527,7 @@ SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
   } else {
     // I think isb actually sucks on ARM, so make whether we try it
     // configurable.
-    if (kUseIsync) {
+    if (m.params.useIsync) {
       return makePathCtrlIsync(s, m, path);
     } else {
       return s.ctx().bool_val(false);
@@ -537,7 +555,8 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
   BasicBlock *dep = m.pc.getHead(fullPath);
   // Can't have a addr dependency when it's not a load.
   // XXX: we can maybe be more granular about things.
-  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep) return c.bool_val(false);
+  if (!m.bb2action[dep]||!m.bb2action[dep]->outgoingDep)
+    return c.bool_val(false);
 
    return forAllPathEdges(
     s, m, fullPath,
@@ -660,7 +679,7 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     // On x86 we could probably also use an acquire but why bother.
     // XXX: double check the ARMv8 thing against the model paper, not
     // just the ARM documentation
-    if (kAcqRelAbuse) {
+    if (m.params.acqRelAbuse) {
       relAcq = relAcq || getBlockFunc(m.release, dst.bb);
     } else {
       relAcq = relAcq || (getBlockFunc(m.release, dst.bb) &&
@@ -730,6 +749,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   // I should try to minimize this and file a bug.
   z3::set_param("opt.enable_sat", false);
 
+  TuningParams params = genericParams();
   SmtContext c;
   SmtSolver s(c);
 
@@ -741,6 +761,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     pc_,
     bb2action_,
     domTree_,
+    params,
     DeclMap<EdgeKey>(c.bool_sort(), "sync"),
     DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
     DeclMap<BlockKey>(c.bool_sort(), "release"),
@@ -817,38 +838,39 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   for (auto & entry : m.sync.map) {
     unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kSyncCost*weight(src, dst)+1);
+      boolToInt(v, params.syncCost*weight(src, dst)+1);
   }
   // Lwsync cost
   for (auto & entry : m.lwsync.map) {
     unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kLwsyncCost*weight(src, dst)+1);
+      boolToInt(v, params.lwsyncCost*weight(src, dst)+1);
   }
   // Release cost
   for (auto & entry : m.release.map) {
     unpack(src, v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kMakeReleaseCost*block_weight(src)+1);
+      boolToInt(v, params.makeReleaseCost*block_weight(src)+1);
   }
   // Acquire cost
   for (auto & entry : m.acquire.map) {
     unpack(src, v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kMakeAcquireCost*block_weight(src)+1);
+      boolToInt(v, params.makeAcquireCost*block_weight(src)+1);
   }
   // Isync cost
   for (auto & entry : m.isync.map) {
     unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, kIsyncCost*weight(src, dst)+1);
+      boolToInt(v, params.isyncCost*weight(src, dst)+1);
   }
   // Ctrl cost
   for (auto & entry : m.usesCtrl.map) {
     BasicBlock *dep;
     unpack(unpack(dep, unpack(src, dst)), v) = fix_pair(entry);
     auto ctrlWeight =
-      branchesOn(src, bb2action_[dep]->outgoingDep) ? kUseCtrlCost : kAddCtrlCost;
+      branchesOn(src, bb2action_[dep]->outgoingDep) ?
+        params.useCtrlCost : params.addCtrlCost;
     cost = cost +
       boolToInt(v, ctrlWeight*weight(src, dst));
   }
@@ -860,7 +882,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     // usesData things
     BasicBlock *pred = bb2action_[dst]->bb->getSinglePredecessor();
     cost = cost +
-      boolToInt(v, kUseDataCost*weight(pred, dst));
+      boolToInt(v, params.useDataCost*weight(pred, dst));
   }
 
   s.add(costVar == cost.simplify());
