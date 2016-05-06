@@ -45,6 +45,13 @@ constexpr std::pair<T1, T2> fix_pair(std::pair<T1, T2> x) {
 
 namespace llvm {
 
+enum RMCTarget {
+  TargetX86,
+  TargetARM,
+  TargetARMv8,
+  TargetPOWER
+};
+
 //// Indicator for edge types
 enum RMCEdgeType {
   // This order needs to correspond with the values in rmc-core.h
@@ -203,6 +210,7 @@ private:
   DominatorTree &domTree_;
   LoopInfo &loopInfo_;
   const bool useSMT_;
+  const RMCTarget target_;
 
   int numNormalActions_{0};
   std::vector<Action> actions_;
@@ -243,10 +251,11 @@ private:
 public:
   RealizeRMC(Function &F, Pass *underlyingPass,
              DominatorTree &domTree,
-             LoopInfo &loopInfo, bool useSMT)
+             LoopInfo &loopInfo, bool useSMT,
+             RMCTarget target)
     : func_(F), underlyingPass_(underlyingPass),
       domTree_(domTree), loopInfo_(loopInfo),
-      useSMT_(useSMT) {}
+      useSMT_(useSMT), target_(target) {}
   ~RealizeRMC() { }
   bool run();
 };

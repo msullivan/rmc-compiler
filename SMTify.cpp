@@ -41,20 +41,41 @@ const bool kInvertBools = false;
 // XXX: These numbers are just made up.
 // And will vary based on platform.
 // (sync == lwsync on ARM but not on POWER and *definitely* not on x86)
+
+// Having -1 as a cost indicates not supporting the use of that
+// feature on the architecture. Everything but sync defaults to not
+// supported, since sync is unavoidable.
+//
+// Whether features are enabled gets fed into the DeclMaps/getFunc
+// infrastructure so that operations that are always disabled are
+// hardcoded as false in the SMT system. We also do some direct checks
+// of these flags in various places as an optimization to avoid
+// generating big SMT formulas we know will be false.
+// We could do a lot more pruning.
 struct TuningParams {
-  int syncCost;
-  int lwsyncCost;
-  int isyncCost;
-  int useCtrlCost;
-  int addCtrlCost;
-  int useDataCost;
-  int makeReleaseCost;
-  int makeAcquireCost;
-  bool useIsync;
-  bool acqRelAbuse;
+  int syncCost{100}; // mandatory.
+  int lwsyncCost{-1};
+  int isyncCost{-1};
+  int useCtrlCost{-1};
+  int addCtrlCost{-1};
+  int useDataCost{-1};
+  int makeReleaseCost{-1};
+  int makeAcquireCost{-1};
+  bool acqRelAbuse{false};
 };
+bool paramEnabled(int param) { return param >= 0; }
+
 // Screw you, C++, for not having designated initializers
-TuningParams genericParams() {
+TuningParams x86Params() {
+  TuningParams p;
+  p.syncCost = 80;
+  // this "lwsync" is really just a compiler barrier on x86
+  p.lwsyncCost = 10;
+  // ponder: maybe using release/acquire would be better for compiler
+  // reasons.
+  return p;
+}
+TuningParams powerParams() {
   TuningParams p;
   p.syncCost = 80;
   p.lwsyncCost = 50;
@@ -62,11 +83,39 @@ TuningParams genericParams() {
   p.useCtrlCost = 1;
   p.addCtrlCost = 7;
   p.useDataCost = 1;
+  return p;
+}
+TuningParams armParams() {
+  TuningParams p;
+  p.syncCost = 50;
+  p.useCtrlCost = 1;
+  p.addCtrlCost = 7;
+  p.useDataCost = 1;
+  return p;
+}
+TuningParams armv8Params() {
+  TuningParams p;
+  p.syncCost = 50;
+  p.useCtrlCost = 1;
+  p.addCtrlCost = 7;
+  p.useDataCost = 1;
   p.makeReleaseCost = 49;
   p.makeAcquireCost = 49;
-  p.useIsync = false;
-  p.acqRelAbuse = false;
   return p;
+}
+
+TuningParams archParams(RMCTarget target) {
+  if (target == TargetX86) {
+    return x86Params();
+  } else if (target == TargetPOWER) {
+    return powerParams();
+  } else if (target == TargetARM) {
+    return armParams();
+  } else if (target == TargetARMv8) {
+    return armv8Params();
+  }
+  assert(false && "invalid architecture!");
+  std::terminate();
 }
 
 bool debugSpew = false;
@@ -218,14 +267,24 @@ std::string makeVarString(std::pair<T, U> &key) {
 }
 
 template<typename Key> struct DeclMap {
-  DeclMap(SmtSort isort, const char *iname) : sort(isort), name(iname) {}
+  DeclMap(SmtSort isort, const char *iname, bool ienabled = true)
+    : sort(isort), name(iname), enabled(ienabled) {}
   DenseMap<Key, SmtExpr> map;
-  SmtSort sort;
-  std::string name;
+  const SmtSort sort;
+  const std::string name;
+  const bool enabled;
 };
 
 template<typename Key>
 SmtExpr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
+  SmtContext &c = map.sort.ctx();
+
+  if (!map.enabled) {
+    if (alreadyThere) *alreadyThere = true;
+    // only works for booleans!!
+    return c.bool_val(false);
+  }
+
   auto entry = map.map.find(key);
   if (entry != map.map.end()) {
     if (alreadyThere) *alreadyThere = true;
@@ -234,7 +293,6 @@ SmtExpr getFunc(DeclMap<Key> &map, Key key, bool *alreadyThere = nullptr) {
     if (alreadyThere) *alreadyThere = false;
   }
 
-  SmtContext &c = map.sort.ctx();
   std::string name = map.name + "(" + makeVarString(key) + ")";
   SmtExpr e = c.constant(name.c_str(), map.sort);
   // Can use inverted boolean variables to help test optimization.
@@ -521,13 +579,15 @@ SmtExpr makeAllPathsCtrl(SmtSolver &s, VarMaps &m,
 
 SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
                         PathID path, Action &tail) {
+  if (!m.usesCtrl.enabled) return s.ctx().bool_val(false);
+
   // XXX: do we care about actually using the variable pathCtrlCut?
   if (tail.type == ActionSimpleWrites) {
     return makePathCtrl(s, m, path);
   } else {
     // I think isb actually sucks on ARM, so make whether we try it
     // configurable.
-    if (m.params.useIsync) {
+    if (m.isync.enabled) {
       return makePathCtrlIsync(s, m, path);
     } else {
       return s.ctx().bool_val(false);
@@ -551,6 +611,7 @@ SmtExpr makeData(SmtSolver &s, VarMaps &m,
 SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
                         PathID fullPath, Action &tail) {
   SmtContext &c = s.ctx();
+  if (!m.usesData.enabled) return c.bool_val(false);
   if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
   BasicBlock *dep = m.pc.getHead(fullPath);
   // Can't have a addr dependency when it's not a load.
@@ -658,6 +719,8 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
 SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                       RMCEdgeType type) {
   SmtExpr relAcq = s.ctx().bool_val(false);
+  // Do we even support doing rel/acq?
+  if (!m.release.enabled && !m.acquire.enabled) return relAcq;
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   if (type == VisibilityEdge &&
@@ -749,7 +812,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   // I should try to minimize this and file a bug.
   z3::set_param("opt.enable_sat", false);
 
-  TuningParams params = genericParams();
+  TuningParams params = archParams(target_);
   SmtContext c;
   SmtSolver s(c);
 
@@ -763,9 +826,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     domTree_,
     params,
     DeclMap<EdgeKey>(c.bool_sort(), "sync"),
-    DeclMap<EdgeKey>(c.bool_sort(), "lwsync"),
-    DeclMap<BlockKey>(c.bool_sort(), "release"),
-    DeclMap<BlockKey>(c.bool_sort(), "acquire"),
+    DeclMap<EdgeKey>(c.bool_sort(), "lwsync",
+                     paramEnabled(params.lwsyncCost)),
+    DeclMap<BlockKey>(c.bool_sort(), "release",
+                      paramEnabled(params.makeReleaseCost)),
+    DeclMap<BlockKey>(c.bool_sort(), "acquire",
+                      paramEnabled(params.makeAcquireCost)),
     DeclMap<EdgeKey>(c.bool_sort(), "pcut"),
     DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<BlockEdgeKey>(c.bool_sort(), "xcut"),
@@ -773,16 +839,18 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_xcut"),
 
-    DeclMap<EdgeKey>(c.bool_sort(), "isync"),
+    DeclMap<EdgeKey>(c.bool_sort(), "isync",
+                     paramEnabled(params.isyncCost)),
     DeclMap<PathKey>(c.bool_sort(), "path_isync"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl_isync"),
 
-
-    DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl"),
+    DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_ctrl",
+                          paramEnabled(params.addCtrlCost)),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
 
-    DeclMap<EdgePathKey>(c.bool_sort(), "uses_data"),
+    DeclMap<EdgePathKey>(c.bool_sort(), "uses_data",
+                         paramEnabled(params.useDataCost)),
     DeclMap<std::pair<PathID, BlockPathKey>>(c.bool_sort(), "path_data"),
   };
 
@@ -796,7 +864,7 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     // twice the capacity).
     // XXX: Turning that all off in favor of trying to be smarter about
     // probabilities for loop exits.
-    //return edgeCap[makeEdgeKey(src, dst)] * pow(4, loopInfo_.getLoopDepth(src));
+    //return edgeCap[makeEdgeKey(src, dst)]*pow(4, loopInfo_.getLoopDepth(src));
     return edgeCap[makeEdgeKey(src, dst)];
   };
   auto block_weight =

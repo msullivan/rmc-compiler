@@ -123,12 +123,6 @@ void transitiveClosure(Range &actions,
 
 ///////////////////////////////////////////////////////////////////////////
 
-enum RMCTarget {
-  TargetX86,
-  TargetARM,
-  TargetARMv8,
-  TargetPOWER
-};
 // It is sort of bogus to make this global.
 RMCTarget target;
 
@@ -1257,7 +1251,7 @@ public:
   virtual bool runOnFunction(Function &F) override {
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo &li = getLoopInfo(*this);
-    RealizeRMC rmc(F, this, dom, li, UseSMT);
+    RealizeRMC rmc(F, this, dom, li, UseSMT, target);
     return rmc.run();
   }
 
