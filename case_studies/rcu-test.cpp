@@ -14,7 +14,7 @@
 
 using namespace rmclib;
 
-const ulong kCount = 1000000000;
+const ulong kCount = 500000000;
 
 struct Foo {
     int a;
