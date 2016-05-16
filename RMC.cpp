@@ -239,7 +239,9 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
   return llvm::SplitBlock(Old, SplitPt, underlyingPass_);
 }
 
-#elif LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR == 7
+#elif LLVM_VERSION_MAJOR == 3 &&                        \
+  (LLVM_VERSION_MINOR == 7 || LLVM_VERSION_MINOR == 8)
+
 
 #define LOOPINFO_PASS_NAME LoopInfoWrapperPass
 LoopInfo &getLoopInfo(const Pass &pass) {
@@ -269,19 +271,19 @@ StringRef getStringArg(Value *v) {
 }
 
 Instruction *getNextInstr(Instruction *i) {
-  BasicBlock::iterator I = *i;
+  BasicBlock::iterator I(*i);
   return ++I == i->getParent()->end() ? nullptr : &*I;
 }
 
 Instruction *getNextInsertionPt(Instruction *i) {
-  BasicBlock::iterator I = *i;
+  BasicBlock::iterator I(*i);
   ++I;
   while (isa<LandingPadInst>(I) || isa<PHINode>(I)) ++I;
   return &*I;
 }
 
 Instruction *getPrevInstr(Instruction *i) {
-  BasicBlock::iterator I = *i;
+  BasicBlock::iterator I(*i);
   return I == i->getParent()->begin() ? nullptr : &*--I;
 }
 
@@ -1325,7 +1327,7 @@ public:
   virtual bool runOnBasicBlock(BasicBlock &BB) override {
     bool changed = false;
     for (auto is = BB.begin(), ie = BB.end(); is != ie; ) {
-      Instruction *i = is++;
+      Instruction *i = &*is++;
       if (Value *v = getBSCopyValue(i)) {
         i->replaceAllUsesWith(v);
         i->eraseFromParent();

@@ -668,11 +668,11 @@ then
     LLVM_VERSION=$($CFG_LLVM_CONFIG --version)
 
     case $LLVM_VERSION in
-        (3.[5-7]*)
+        (3.[5-8]*)
             msg "found ok version of LLVM: $LLVM_VERSION"
             ;;
         (*)
-            err "bad LLVM version: $LLVM_VERSION, need >=3.5, <=3.7"
+            err "bad LLVM version: $LLVM_VERSION, need >=3.5, <=3.8"
             ;;
     esac
 fi

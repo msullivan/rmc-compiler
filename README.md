@@ -34,11 +34,13 @@ You might need to pass some args to `./configure` to tell it where to
 find dependencies, as discussed below in the dependencies list.
 
 The dependencies are:
- * LLVM and clang 3.5 - 3.7. A path to a clang build/install
+ * LLVM and clang 3.5 - 3.8. A path to a clang build/install
    directory can be provided to `./configure` with
    `--llvm-location=[path]`. If there is an llvm dev environment visible
-   on the system (for example, Ubuntu's llvm-3.5-dev package),
-   configure will find it automatically.
+   on the system (for example, Ubuntu's llvm-3.8-dev package),
+   configure will hopefully find it automatically.
+   LLVM installs usually live in /usr/lib/llvm-3.X/ or
+   /usr/local/lib/llvm-3.X/.
 
    The binary clang+llvm OS X packages available from the LLVM website
    don't work for this, unfortunately, because of linking/loading
