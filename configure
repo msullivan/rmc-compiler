@@ -156,11 +156,12 @@ probe() {
 
 probe_need() {
     local V=$1
+    shift
     probe $*
     eval VV=\$$V
     if [ -z "$VV" ]
     then
-        err "needed, but unable to find any of: $*"
+        err "couldn't find $*"
     fi
 }
 
@@ -659,7 +660,7 @@ fi
 if [ ! -z "$CFG_LLVM_LOCATION" ]; then
 	CFG_LLVM_CONFIG="$CFG_LLVM_LOCATION/bin/llvm-config"
 else
-	probe CFG_LLVM_CONFIG llvm-config
+	probe_need CFG_LLVM_CONFIG llvm-config
 fi
 
 
