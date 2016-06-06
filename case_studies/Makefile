@@ -98,7 +98,7 @@ define compile_with_headers_inner
 endef
 # XXX: Arg 1 is unused for no good reason. Args 2-5 define the headers.
 define compile_with_headers
-	$(call compile_with_headers_inner,$(DBG_FLAGS) -c,$(2),$(3),$(4),$(5))
+	$(call compile_with_headers_inner,$(DBG_FLAG) -c,$(2),$(3),$(4),$(5))
 endef
 define compile_ll_with_headers
 	$(call compile_with_headers_inner,-S -emit-llvm,$(2),$(3),$(4),$(5))
