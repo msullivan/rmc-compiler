@@ -1,4 +1,5 @@
-THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking condvar
+THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking condvar \
+	rculist_user
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc
@@ -20,6 +21,8 @@ QSPINLOCK_TYPES=sc rmc relacq
 CONDVAR_TYPES=sc rmc c11
 
 RCU_EPOCH_TYPES=uh
+
+RCULIST_USER_EPOCH_TYPES=c11
 
 EPOCH_TYPES=sc c11 rmc leak
 FREELIST_TYPES=sc rmc leak
