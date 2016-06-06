@@ -156,11 +156,11 @@ probe() {
 
 probe_need() {
     local V=$1
-    shift
     probe $*
     eval VV=\$$V
     if [ -z "$VV" ]
     then
+        shift
         err "couldn't find $*"
     fi
 }
