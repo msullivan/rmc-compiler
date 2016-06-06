@@ -510,7 +510,11 @@ void analyzeAction(Action &info) {
     } else if (CallInst *call = dyn_cast<CallInst>(&i)) {
       // If this is a transfer, mark it as such
       if (Function *target = call->getCalledFunction()) {
-        if (target->getName().startswith("__rmc_transfer_")) {
+        // This is *really* silly. We declare appropriate __rmc_transfer
+        // functions as needed at use sites, but if this happens
+        // inside of namespaces, the name gets mangled. So we look
+        // through the whole string, not just the prefix. Sigh.
+        if (target->getName().find("__rmc_transfer_") != StringRef::npos) {
           handleTransfer(info, call);
           return;
         }
