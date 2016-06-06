@@ -4,6 +4,7 @@
 // This is written in a very C style because I didn't want to bother
 // with intrusive list stuff in C++.
 
+#include <stddef.h>
 #include <atomic>
 
 ///////////////
