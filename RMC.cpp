@@ -277,7 +277,19 @@ Instruction *getNextInstr(Instruction *i) {
 
 Instruction *getNextInsertionPt(Instruction *i) {
   BasicBlock::iterator I(*i);
-  ++I;
+
+
+  // Sometimes we need to insert something immediately after an invoke
+  // instruction. In that case we insert it into the normal
+  // destination block. Since we split critical edges, that can't have
+  // any predecessors.
+  if (InvokeInst *invoke = dyn_cast<InvokeInst>(i)) {
+    I = invoke->getNormalDest()->getFirstInsertionPt();
+  } else {
+    assert(!i->isTerminator() && "Can't insert after non-invoke terminators!");
+    ++I;
+  }
+
   while (isa<LandingPadInst>(I) || isa<PHINode>(I)) ++I;
   return &*I;
 }
@@ -492,16 +504,14 @@ void handleTransfer(Action &info, CallInst *call) {
 void analyzeAction(Action &info) {
   // Don't analyze the dummy pre/post actions!
   if (info.type == ActionPrePost) return;
-  // If the action has multiple basic blocks, call it Complex
-  // XXX: an LTAKE of a function call might have multiple blocks and
-  // we should handle it better
-  if (info.outBlock != info.bb) {
-    info.type = ActionComplex;
-    return;
-  }
+
+  // We search through info.outBlock instead of info.bb because if the
+  // action is a multiblock LTAKE, the __rmc_transfer_ call will be in
+  // the final block. If it doesn't end up being a transfer, then we
+  // call any action where the parts don't match "complex".
 
   Instruction *soleLoad = nullptr;
-  for (auto & i : *info.bb) {
+  for (auto & i : *info.outBlock) {
     if (isa<LoadInst>(i)) {
       ++info.loads;
       soleLoad = &i;
@@ -533,6 +543,14 @@ void analyzeAction(Action &info) {
       soleLoad = &i;
     }
   }
+
+  // Now that we know it isn't a transfer,
+  // if the action has multiple basic blocks, call it Complex
+  if (info.outBlock != info.bb) {
+    info.type = ActionComplex;
+    return;
+  }
+
   // Try to characterize what this action does.
   // These categories might not be the best.
   if (info.isPush) {
@@ -1206,6 +1224,7 @@ bool RealizeRMC::run() {
   for (auto & action : actions_) {
     analyzeAction(action);
   }
+  //errs() << "Func body after setup:\n" << func_ << "\n";
 
   buildActionGraph(actions_, numNormalActions_, domTree_);
 
@@ -1221,6 +1240,8 @@ bool RealizeRMC::run() {
       insertCut(cut);
     }
   }
+  //errs() << "========================================\n";
+  //errs() << "Func body at end:\n" << func_ << "\n";
 
   return true;
 }
