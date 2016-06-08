@@ -598,9 +598,14 @@ void RealizeRMC::findActions() {
     // Now split the end to get our tail block
     BasicBlock *end = splitBlock(close->getParent(), close);
 
-    BasicBlock *out = main;
-    if (end->getSinglePredecessor() != main) {
-      // We need separate out and end blocks for multi-block actions
+    // Every action needs to have a well-defined single "out block"
+    // that is the last block of the action that doesn't contain any
+    // code from after the action (like the end block does). If there
+    // isn't such a block, we shave off an empty one from the end
+    // block. Note that we can use an existing out block even in
+    // multi-block actions as long as there is a unique one.
+    BasicBlock *out = end->getSinglePredecessor();
+    if (!out) {
       out = end;
       end = splitBlock(close->getParent(), close);
       out->setName("_rmc_out_" + name);
