@@ -74,6 +74,17 @@ void producer(Test *t, int threadnum) {
     }
 }
 
+#ifdef RCULIST_USER_RMC
+void consume(Test *t, unsigned key) {
+    XEDGE(find, a);
+    auto guard = Epoch::rcuPin();
+
+    noob *nobe = LTAKE(find, noob_find_give(&t->noobs, key));
+    assert(nobe);
+    assert_eq(key, L(a, nobe->val1) - L(a, nobe->val2));
+}
+
+#else
 void consume(Test *t, unsigned key) {
     auto guard = Epoch::rcuPin();
 
@@ -81,6 +92,7 @@ void consume(Test *t, unsigned key) {
     assert(nobe);
     assert_eq(key, nobe->val1 - nobe->val2);
 }
+#endif
 
 // Consumers mostly read the value but update it every t->interval
 // iterations.
