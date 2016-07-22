@@ -716,22 +716,31 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
+SmtExpr getRelease(SmtSolver &s, VarMaps &m, Action &a) {
+  if (a.allSC) return s.ctx().bool_val(true);
+  if (!m.release.enabled) return s.ctx().bool_val(false);
+  return getBlockFunc(m.release, a.bb);
+}
+SmtExpr getAcquire(SmtSolver &s, VarMaps &m, Action &a) {
+  if (a.allSC) return s.ctx().bool_val(true);
+  if (!m.acquire.enabled) return s.ctx().bool_val(false);
+  return getBlockFunc(m.acquire, a.bb);
+}
+
 SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                       RMCEdgeType type) {
   SmtExpr relAcq = s.ctx().bool_val(false);
-  // Do we even support doing rel/acq?
-  if (!m.release.enabled && !m.acquire.enabled) return relAcq;
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   if (type == VisibilityEdge &&
       src.type == ActionSimpleWrites &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
-    relAcq = relAcq || getBlockFunc(m.release, dst.bb);
+    relAcq = relAcq || getRelease(s, m, dst);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
   if (type == ExecutionEdge &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
-    relAcq = relAcq || getBlockFunc(m.acquire, src.bb);
+    relAcq = relAcq || getAcquire(s, m, src);
   }
   // R/RW1 -v-> W/RW2 -- complicated
   if ((type == VisibilityEdge || type == ExecutionEdge) &&
@@ -743,10 +752,10 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     // XXX: double check the ARMv8 thing against the model paper, not
     // just the ARM documentation
     if (m.params.acqRelAbuse) {
-      relAcq = relAcq || getBlockFunc(m.release, dst.bb);
+      relAcq = relAcq || getRelease(s, m, dst);
     } else {
-      relAcq = relAcq || (getBlockFunc(m.release, dst.bb) &&
-                          getBlockFunc(m.acquire, src.bb));
+      relAcq = relAcq || (getRelease(s, m, dst) &&
+                          getAcquire(s, m, src));
     }
   }
 

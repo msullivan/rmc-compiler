@@ -501,6 +501,17 @@ void handleTransfer(Action &info, CallInst *call) {
                        ii, value);
 }
 
+template <typename T>
+bool actionIsSC(T *i) {
+  return i->getOrdering() == SequentiallyConsistent &&
+    i->getSynchScope() == CrossThread;
+}
+bool actionIsSC(AtomicCmpXchgInst *i) {
+  return i->getSuccessOrdering() == SequentiallyConsistent &&
+    i->getFailureOrdering() == SequentiallyConsistent &&
+    i->getSynchScope() == CrossThread;
+}
+
 void analyzeAction(Action &info) {
   // Don't analyze the dummy pre/post actions!
   if (info.type == ActionPrePost) return;
@@ -510,14 +521,18 @@ void analyzeAction(Action &info) {
   // the final block. If it doesn't end up being a transfer, then we
   // call any action where the parts don't match "complex".
 
+  bool allSC = true;
+
   Instruction *soleLoad = nullptr;
   for (auto & i : *info.outBlock) {
-    if (isa<LoadInst>(i)) {
+    if (auto *load = dyn_cast<LoadInst>(&i)) {
       ++info.loads;
       soleLoad = &i;
-    } else if (isa<StoreInst>(i)) {
+      allSC &= actionIsSC(load);
+    } else if (auto *store = dyn_cast<StoreInst>(&i)) {
       ++info.stores;
-    } else if (CallInst *call = dyn_cast<CallInst>(&i)) {
+      allSC &= actionIsSC(store);
+    } else if (auto *call = dyn_cast<CallInst>(&i)) {
       // If this is a transfer, mark it as such
       if (Function *target = call->getCalledFunction()) {
         // This is *really* silly. We declare appropriate __rmc_transfer
@@ -535,12 +550,19 @@ void analyzeAction(Action &info) {
             call->getCalledFunction()->doesNotAccessMemory())) {
         ++info.calls;
       }
+      allSC = false;
     // What else counts as a call? I'm counting fences I guess.
     } else if (isa<FenceInst>(i)) {
       ++info.calls;
-    } else if (isa<AtomicCmpXchgInst>(i) || isa<AtomicRMWInst>(i)) {
+      allSC = false;
+    } else if (auto *rmw = dyn_cast<AtomicRMWInst>(&i)) {
       ++info.RMWs;
       soleLoad = &i;
+      allSC &= actionIsSC(rmw);
+    } else if (auto *cas = dyn_cast<AtomicCmpXchgInst>(&i)) {
+      ++info.RMWs;
+      soleLoad = &i;
+      allSC &= actionIsSC(cas);
     }
   }
 
@@ -550,6 +572,10 @@ void analyzeAction(Action &info) {
     info.type = ActionComplex;
     return;
   }
+
+  // Now that we're past all the return cases, we can safely call it
+  // allSC if it is.
+  info.allSC = allSC;
 
   // Try to characterize what this action does.
   // These categories might not be the best.

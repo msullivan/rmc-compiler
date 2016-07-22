@@ -103,6 +103,7 @@ struct Action {
   int loads{0};
   int RMWs{0};
   int calls{0};
+  bool allSC{false};
 
   Value *outgoingDep{nullptr};
   Use *incomingDep{nullptr};
