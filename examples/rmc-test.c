@@ -129,6 +129,12 @@ int sb_test4(rmc_int *p, rmc_int *q) {
     return x;
 }
 
+int sb_test5(rmc_int *p, rmc_int *q) {
+    rmc_store_sc(p, 1);
+    int x = rmc_load_sc(q);
+
+    return x;
+}
 
 // Some tests of pre and post.
 void store_release(rmc_int *ptr, int val) {

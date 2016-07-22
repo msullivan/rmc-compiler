@@ -38,7 +38,11 @@ struct barrier_dummy {
 // safely, in the RMC atomics framework.
 // Implemented as a wrapper around std::atomic that uses different
 // memory orders.
-template<typename T>
+template<typename T,
+		 std::memory_order store_ord = std::__rmc_store_order,
+		 std::memory_order load_ord = std::__rmc_load_order,
+		 std::memory_order rmw_ord = std::__rmc_rmw_order
+		 >
 class atomic {
 private:
   // If the underlying type is a pointer, then we use ptrdiff_t as the
@@ -60,22 +64,22 @@ public:
 
   void store(T desired) noexcept {
     barrier_dummy dummy;
-    val.store(desired, std::__rmc_store_order);
+    val.store(desired, store_ord);
   }
   T load() const noexcept {
     barrier_dummy dummy;
-    return val.load(std::__rmc_load_order);
+    return val.load(load_ord);
   }
 
   bool compare_exchange_weak(T& expected, T desired) noexcept {
     barrier_dummy dummy;
     return val.compare_exchange_weak(
-      expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
+      expected, desired, rmw_ord, load_ord);
   }
   bool compare_exchange_strong(T& expected, T desired) noexcept {
     barrier_dummy dummy;
     return val.compare_exchange_strong(
-      expected, desired, std::__rmc_rmw_order, std::__rmc_load_order);
+      expected, desired, rmw_ord, load_ord);
   }
   bool compare_exchange(T& expected, T desired) noexcept {
     barrier_dummy dummy;
@@ -83,34 +87,41 @@ public:
   }
   T exchange(T desired) noexcept {
     barrier_dummy dummy;
-    return val.exchange(desired, std::__rmc_rmw_order);
+    return val.exchange(desired, rmw_ord);
   }
 
   // Arithmetic RMWs. Fails if the underlying type isn't integral or pointer
   T fetch_add(arith_arg_type arg) noexcept {
     barrier_dummy dummy;
-    return val.fetch_add(arg, std::__rmc_rmw_order);
+    return val.fetch_add(arg, rmw_ord);
   }
   T fetch_sub(arith_arg_type arg) noexcept {
     barrier_dummy dummy;
-    return val.fetch_sub(arg, std::__rmc_rmw_order);
+    return val.fetch_sub(arg, rmw_ord);
   }
   T fetch_and(T arg) noexcept {
     barrier_dummy dummy;
-    return val.fetch_and(arg, std::__rmc_rmw_order);
+    return val.fetch_and(arg, rmw_ord);
   }
   T fetch_or(T arg) noexcept {
     barrier_dummy dummy;
-    return val.fetch_or(arg, std::__rmc_rmw_order);
+    return val.fetch_or(arg, rmw_ord);
   }
   T fetch_xor(T arg) noexcept {
     barrier_dummy dummy;
-    return val.fetch_xor(arg, std::__rmc_rmw_order);
+    return val.fetch_xor(arg, rmw_ord);
   }
 
   // We could add operator overloading, but I'm not sure if I approve
   // of it in this circumstance.
 };
+
+template<class T>
+using sc_atomic = atomic<T,
+						 std::memory_order_seq_cst,
+						 std::memory_order_seq_cst,
+						 std::memory_order_seq_cst>;
+
 
 
 template<class T> struct remove_rmc              {typedef T type;};

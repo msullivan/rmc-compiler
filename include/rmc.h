@@ -43,6 +43,10 @@ typedef _Rmc(unsigned int)      rmc_uint;
 
 
 
+#define rmc_init(object, desired)                               \
+    atomic_init(                                                \
+        __rmc_atomic_fixup(object), desired)
+
 #define rmc_compare_exchange_strong(object, expected, desired)          \
     atomic_compare_exchange_strong_explicit(                            \
         __rmc_atomic_fixup(object), expected,                           \
@@ -72,10 +76,6 @@ typedef _Rmc(unsigned int)      rmc_uint;
     atomic_fetch_xor_explicit(                                       \
         __rmc_atomic_fixup(object), operand, __rmc_rmw_order)
 
-#define rmc_init(object, desired)                               \
-    atomic_init(                                                \
-        __rmc_atomic_fixup(object), desired)
-
 // rmc_store needs to return a value to be used by L(). We don't
 // bother returning a useful one.
 #define rmc_store(object, desired)                                   \
@@ -86,5 +86,51 @@ typedef _Rmc(unsigned int)      rmc_uint;
 #define rmc_load(object)                                             \
     atomic_load_explicit(                                            \
         __rmc_atomic_fixup(object), __rmc_load_order)
+
+
+//////////////////////
+// Sigh. SC versions of all of these things.
+
+#define rmc_compare_exchange_strong_sc(object, expected, desired)          \
+    atomic_compare_exchange_strong(                            \
+        __rmc_atomic_fixup(object), expected,                           \
+        desired)
+#define rmc_compare_exchange_sc(object, expected, desired)          \
+    rmc_compare_exchange_strong(object, expected, desired)
+#define rmc_compare_exchange_weak_sc(object, expected, desired)            \
+    atomic_compare_exchange_weak(                              \
+        __rmc_atomic_fixup(object), expected,                           \
+        desired)
+#define rmc_exchange_sc(object, desired)                                   \
+    atomic_exchange(                                           \
+        __rmc_atomic_fixup(object), desired)
+#define rmc_fetch_add_sc(object, operand)                               \
+    atomic_fetch_add(                                       \
+        __rmc_atomic_fixup(object), operand)
+#define rmc_fetch_and_sc(object, operand)                               \
+    atomic_fetch_and(                                       \
+        __rmc_atomic_fixup(object), operand)
+#define rmc_fetch_or_sc(object, operand)                                \
+    atomic_fetch_or(                                        \
+        __rmc_atomic_fixup(object), operand)
+#define rmc_fetch_sub_sc(object, operand)                               \
+    atomic_fetch_sub(                                       \
+        __rmc_atomic_fixup(object), operand)
+#define rmc_fetch_xor_sc(object, operand)                               \
+    atomic_fetch_xor(                                       \
+        __rmc_atomic_fixup(object), operand)
+
+// rmc_store needs to return a value to be used by L(). We don't
+// bother returning a useful one.
+#define rmc_store_sc(object, desired)                                   \
+    ({atomic_store(                                         \
+        __rmc_atomic_fixup(object), desired);     \
+      0;})
+
+#define rmc_load_sc(object)                                             \
+    atomic_load(                                            \
+        __rmc_atomic_fixup(object))
+
+
 
 #endif
