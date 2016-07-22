@@ -1,3 +1,7 @@
+// Copyright (c) 2014-2016 Michael J. Sullivan
+// Use of this source code is governed by an MIT-style license that can be
+// found in the LICENSE file.
+
 #include "rculist_rmc.hpp"
 #include "rculist_user_rmc.hpp"
 #include "epoch.hpp"

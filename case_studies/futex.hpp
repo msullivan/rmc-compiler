@@ -1,3 +1,7 @@
+// Copyright (c) 2014-2016 Michael J. Sullivan
+// Use of this source code is governed by an MIT-style license that can be
+// found in the LICENSE file.
+
 // Implementation of "futexes", a scheme for maintaining blocking
 // queues associated with memory addresses. We can use actual Linux
 // futexes or

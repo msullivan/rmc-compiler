@@ -1,3 +1,7 @@
+// Copyright (c) 2014-2016 Michael J. Sullivan
+// Use of this source code is governed by an MIT-style license that can be
+// found in the LICENSE file.
+
 // Use an egregious hack to turn an RMC version (without PEDGE) of
 // something into a pure release_acquire version.
 

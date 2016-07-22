@@ -1,3 +1,7 @@
+// Copyright (c) 2014-2016 Michael J. Sullivan
+// Use of this source code is governed by an MIT-style license that can be
+// found in the LICENSE file.
+
 // N.B.: This doesn't have header guards. It should be included with a
 // new name for UnsafeTStackNode defined.  This is so that different
 // versions of UnsafeTStack can be used in the same program for
