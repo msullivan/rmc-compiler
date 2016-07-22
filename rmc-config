@@ -11,18 +11,19 @@ RMC_INCLUDE_DIR="$DIR/include/"
 RMC_LIB="$DIR/RMC.so"
 
 REALIZE_RMC=1
+USE_SMT=1
 
 # Argument handling
-while true
+while [ "$1" ]
 do
 	case "$1" in
 		--fallback)
 			shift
 			unset REALIZE_RMC
 			;;
-		--smt)
+		--no-smt)
 			shift
-			USE_SMT=1
+			unset USE_SMT
 			;;
 		--cleanup)
 			shift
@@ -41,7 +42,8 @@ do
 			PRINT_LIB=1
 			;;
 		*)
-			break
+			echo "Unknown argument: $1">&2
+			exit 1
 	esac
 done
 

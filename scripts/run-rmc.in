@@ -16,6 +16,8 @@ PATH="$LLVM_DIR:$PATH"
 # Argument defaults
 RMC_PLATFORM=arm
 
+USE_SMT=1
+
 # Argument handling
 while true
 do
@@ -36,9 +38,9 @@ do
 			shift
 			RMC_PLATFORM=power
 			;;
-		--smt)
+		--no-smt)
 			shift
-			USE_SMT=1
+			unset USE_SMT
 			;;
 		--cleanup)
 			shift
