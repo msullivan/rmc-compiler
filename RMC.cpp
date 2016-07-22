@@ -1108,15 +1108,17 @@ AtomicOrdering strengthenOrder(AtomicOrdering order, AtomicOrdering strength) {
 void strengthenBlockOrders(BasicBlock *block, AtomicOrdering strength) {
   for (auto & i : *block) {
     if (StoreInst *store = dyn_cast<StoreInst>(&i)) {
-      store->setOrdering(strengthenOrder(store->getOrdering(), strength));
+      store->setAtomic(strengthenOrder(store->getOrdering(), strength));
     }
     if (LoadInst *load = dyn_cast<LoadInst>(&i)) {
-      load->setOrdering(strengthenOrder(load->getOrdering(), strength));
+      load->setAtomic(strengthenOrder(load->getOrdering(), strength));
     }
     if (AtomicRMWInst *rmw = dyn_cast<AtomicRMWInst>(&i)) {
+      rmw->setSynchScope(CrossThread);
       rmw->setOrdering(strengthenOrder(rmw->getOrdering(), strength));
     }
     if (AtomicCmpXchgInst *cas = dyn_cast<AtomicCmpXchgInst>(&i)) {
+      cas->setSynchScope(CrossThread);
       cas->setSuccessOrdering(
         strengthenOrder(cas->getSuccessOrdering(), strength));
       // Failure orderings are just loads, so making them Release
