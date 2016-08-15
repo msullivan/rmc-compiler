@@ -65,3 +65,34 @@ void mutex2_unlock(mutex2_t *lock)
     VEDGE(pre, unlock);
     L(unlock, lock->owner = lock->owner + 1);
 }
+
+
+///////////////////////////////////////
+
+// Mutexes that manage to obey the super strict requirements of the
+// data-race-free execution requirement.
+
+// Note that the other ones in practice will work fine: you just need
+// to assume them as operations that induce visibility (like C++ does
+// with its locks) when applying the theorem.
+
+// The main thing is that we need to ensure that all of the accesses
+// to lock->locked are synchronized-before each other. Since there is
+// nothing else that ensures this, the way we do it is to make sure
+// that every access to lock->locked is a RW so that they are properly
+// visibility ordered. Weirdly, they can't be a proper CAS, since that
+// doesn't write when it doesn't match.
+
+void drf_mutex_lock(mutex_t *lock)
+{
+    XEDGE(trylock, post);
+    while (L(trylock, lock->locked.exchange(1)) == 1)
+        continue;
+}
+
+void drf_mutex_unlock(mutex_t *lock)
+{
+    VEDGE(pre, unlock);
+    XEDGE(unlock, post); // ew
+    L(unlock, lock->locked.exchange(0));
+}

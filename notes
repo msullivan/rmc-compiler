@@ -420,6 +420,35 @@ change it to be (po|sameloc u vt|sameloc)+, then we support CoRR.
 
 I think we should just add the CoRR rule.
 
+Joe suggests that maybe we could, as an optimization, compile
+R -xo-> R edges using the same location to just take advantage of the
+hardware's coherence order. I *think* this might be workable;
+definitely it doesn't work to establish any edges via transitivity,
+but it might be fine.
+The optimization would be tricky, though, since it is important to
+make sure that the location is actually the same, even though it could
+vary over loops and stuff.
+I think it's not worth it.
+-
+
+OK, I have at least one example of a case where it could matter:
+bool somebody_lock(mutex *lock) {
+    XEDGE(lock, post);
+    while (lock->locked) {}
+	return L(lock, lock->locked.compare_and_swap(0, 1));
+}
+
+Then you could have a case where like, whenever threads take the lock,
+they check some flag and maybe do something. Then, some thread T1
+might set the flag and wakeup T2 and T2 wants to make sure to do that
+processing. So T2 does somebody_lock: T1's lock of the mutex is vt to
+it, so if the while loop observes an unlock, it is because somebody
+unlocked it. So if we have RR, then the only way that the function can
+fail is if some other thread actually *has* taken the lock again. So
+then we can know, for example, that once the lock *is* actually taken,
+the work will have already been done.
+I'm not sure how practical this is.
+
 -------
 
 I think the reason isb might be slow is because it is really
@@ -442,3 +471,66 @@ Look into whether this is going to wreck me:
 11:07 < Quxxy> sully: I know it'll specialise even inline(never) functions
 11:07 < bluss> sully: specialize the noinline function so that it only handles
                the cases it's actually called with
+
+- I stopped using noinline so should be fine...
+
+-------
+See drc_mutex_lock/drc_mutex_unlock in lock.cpp for a discussion of
+how to satisfy the drf execution requirement.
+
+-------
+
+I think it is Right and Proper to have a different definition of data
+race for proving SC and defining HCF for plain accesses.
+
+First, note that the execution post edge is really important in the SC
+proof. If we just make it VT, the theorem is super false. Consider:
+T1: x.xchg(1); r1 = y.xadd(0);
+T2: y.xchg(1); r2 = x.xadd(0);
+
+This does not have data races by the VT definition but it does have
+data races if you require xo-post edges. That's right, because it
+admits the non-SC behavior. The things can just get reordered.
+Adding execution edges prevents that (with straightforward trace order
+reasoning).
+
+-
+Consider another variant on store buffering. In this example, x and y
+are plain accesses and the mutexes are bs mutexes that need edges
+drawn explicitly.
+
+T1:
+  lock xl; -x-> x = 1;  -v-> unlock xl;
+  lock yl; -x-> r1 = y; -v-> unlock yl;
+T2:
+  lock yl; -x-> y = 1;  -v-> unlock yl;
+  lock xl; -x-> r1 = x; -v-> unlock xl;
+
+Here, all of the accesses to plain  variables are protected by locks
+and have appropriate constraints so that they can't be accessed
+"concurrently" and will see anything done in a previous section of
+that lock.
+
+-
+And another, that is important:
+
+T1:
+  setup listA -v-> *post
+  pa = listA
+  setup listB -v-> *post
+  pb = list B
+
+T2:
+  rb = listB -x-> uses of rb
+  ra = listA -x-> uses of ra
+
+Here, this allows rb=listB, ra=initA, a non-SC behavior.
+But that is totally fine!
+
+The values you get when reading out of the list will still be totally
+defined by which writes the ra and rb reads read-from.
+
+-
+I think I will call programs that satisfy the synchronized-before,
+SC-enforcing definition "strongly data-race-free" and programs that
+satisfy the visible-to based definition "weakly data-race-free".
