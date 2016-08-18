@@ -16,6 +16,11 @@ namespace rmclib {
 template<typename T>
 class MSQueue {
 private:
+    static const std::memory_order mo_rlx = std::memory_order_relaxed;
+    static const std::memory_order mo_rel = std::memory_order_release;
+    static const std::memory_order mo_acq = std::memory_order_acquire;
+    static const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
+
     struct MSQueueNode {
         std::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
         optional<T> data_;
@@ -56,30 +61,42 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     lf_ptr<MSQueueNode> tail, next;
 
     for (;;) {
-        tail = this->tail_;
-        next = tail->next_;
+        // acquire because we need to see node init
+        tail = this->tail_.load(mo_acq);
+        // acquire because anything we see through this needs to be
+        // re-published if we try to do a catchup swing: **
+        next = tail->next_.load(mo_acq);
         // Check that tail and next are consistent:
         // If we are using an epoch/gc based approach
         // (which we had better be, since we don't have gen counters),
         // this is purely an optimization.
-        if (tail != this->tail_) continue;
+        // XXX: order? I think it doesn't matter since in this version
+        // this check is an optimization??
+        if (tail != this->tail_.load(mo_rlx)) continue;
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak(next, node)) {
+            // release because publishing; not acquire since I don't
+            // think we care what we see
+            if (tail->next_.compare_exchange_weak(next, node,
+                                                  mo_rel, mo_rlx)) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong(tail, next);
+            // release because we need to keep the node data visible
+            // (**) - maybe can put an acq_rel *fence* here instead
+            this->tail_.compare_exchange_strong(tail, next,
+                                                mo_rel, mo_rlx);
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong(tail, node);
+    // release because publishing
+    this->tail_.compare_exchange_strong(tail, node, mo_rel, mo_rlx);
 }
 
 template<typename T>
@@ -89,12 +106,14 @@ optional<T> MSQueue<T>::dequeue() {
     lf_ptr<MSQueueNode> head, tail, next;
 
     for (;;) {
-        head = this->head_;
-        tail = this->tail_;
-        next = head->next_;
+        head = this->head_.load(mo_acq);
+        tail = this->tail_.load(mo_acq);
+        // This one could maybe use an acq/rel fence
+        next = head->next_.load(mo_acq);
 
         // Consistency check; see note above
-        if (head != this->head_) continue;
+        // no ordering because just an optimization thing
+        if (head != this->head_.load(mo_rlx)) continue;
 
         // Check if the queue *might* be empty
         // XXX: is it necessary to have the empty check under this
@@ -109,7 +128,9 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong(tail, next);
+                // Release because anything we saw needs to be republished
+                this->tail_.compare_exchange_strong(tail, next,
+                                                    mo_rel, mo_rlx);
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -118,7 +139,10 @@ optional<T> MSQueue<T>::dequeue() {
             // note that we would need to read out the data *before* we
             // do the CAS, or else things are gonna get bad.
             // (could get reused first)
-            if (this->head_.compare_exchange_weak(head, next)) {
+
+            // release because we're republishing; don't care about what we read
+            if (this->head_.compare_exchange_weak(head, next,
+                                                  mo_rel, mo_rlx)) {
                 break;
             }
         }
