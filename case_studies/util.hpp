@@ -108,6 +108,15 @@ static void joinAll(std::vector<std::thread> &threads) {
     }
 }
 
+const int kDefaultWork = 50;
+static void fakeWork(int work = kDefaultWork) {
+    volatile int nus = 0;
+    for (int i = 0; i < work; i++) {
+        nus++;
+    }
+}
+
+
 }
 
 #endif

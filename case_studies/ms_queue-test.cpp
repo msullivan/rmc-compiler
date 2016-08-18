@@ -20,6 +20,9 @@ typedef unsigned long ulong;
 
 const ulong kCount = 10000000;
 
+cl::opt<int> Work("w", cl::desc("Number of dumb work loops"),
+                  cl::init(kDefaultWork));
+
 struct Test {
     MSQueue<ulong> queue;
 
@@ -33,17 +36,9 @@ struct Test {
     Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
 };
 
-void work() {
-    const int kWork = 50;
-    volatile int nus = 0;
-    for (int i = 0; i < kWork; i++) {
-        nus++;
-    }
-}
-
 void producer(Test *t) {
     for (int i = 1; i < t->count; i++) {
-        work();
+        fakeWork(Work);
         t->queue.enqueue(i);
     }
 }
@@ -55,7 +50,7 @@ void consumer(Test *t) {
     bool producersDone = false;
     for (;;) {
         auto res = t->queue.dequeue();
-        work();
+        fakeWork(Work);
         if (!res) {
             // Bail once we fail to do a dequeue /after/ having
             // observered that the producers are done.  Otherwise we
