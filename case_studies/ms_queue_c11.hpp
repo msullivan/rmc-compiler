@@ -55,6 +55,7 @@ public:
 };
 
 template<typename T>
+__attribute__((noinline))
 void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     auto guard = Epoch::pin();
 
@@ -100,6 +101,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
 }
 
 template<typename T>
+__attribute__((noinline))
 optional<T> MSQueue<T>::dequeue() {
     auto guard = Epoch::pin();
 
