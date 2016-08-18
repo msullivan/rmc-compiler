@@ -53,7 +53,7 @@ endif
 DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
 
 CXX:=$(shell $(CFG_LLVM_CONFIG) --bindir)/clang++
-RMC_FLAGS:=$(shell ../rmc-config --cxxflags --smt --cleanup)
+RMC_FLAGS:=$(shell ../rmc-config --cxxflags --cleanup)
 CXXFLAGS=--std=c++14 $(RMC_FLAGS) \
 	$(MARCH) \
 	-Wall -Wno-unused-function $(DEFINES) $(OPT_LEVEL)
