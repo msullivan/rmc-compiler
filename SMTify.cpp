@@ -101,6 +101,7 @@ TuningParams armv8Params() {
   p.useDataCost = 1;
   p.makeReleaseCost = 49;
   p.makeAcquireCost = 49;
+  p.acqRelAbuse = true;
   return p;
 }
 
@@ -731,32 +732,42 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                       RMCEdgeType type) {
   SmtExpr relAcq = s.ctx().bool_val(false);
 
+  // On x86 and on ARMv8, we can get more guarentees from the
+  // realization of release/acquire than C++11 actually provides. In
+  // particular, ARMv8's rel/acq insturctions suffice to implement *
+  // -v-> W and even R -v-> *.
+  // XXX: double check the ARMv8 thing against the model paper, not
+  // just the ARM documentation - seems good, maybe triple check.
+  // Also, interestingly, reading the documentation made me think that
+  // it *wouldn't* suffice for R-v->*, but the model paper implied
+  // that it should.
+
+  const bool abuse = m.params.acqRelAbuse;
+
   // W1 -v-> W/RW2  -- W/RW2 = rel
+  // *  -v-> W/RW2  -- W/RW2 = rel, on ARMv8
   if (type == VisibilityEdge &&
-      src.type == ActionSimpleWrites &&
+      (src.type == ActionSimpleWrites || abuse) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
     relAcq = relAcq || getRelease(s, m, dst);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
-  if (type == ExecutionEdge &&
+  // R/RW1 -v-> *   -- R/RW1 = acq, on ARMv8
+  if ((type == ExecutionEdge ||
+       (type == VisibilityEdge && abuse)) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
     relAcq = relAcq || getAcquire(s, m, src);
   }
   // R/RW1 -v-> W/RW2 -- complicated
-  if ((type == VisibilityEdge || type == ExecutionEdge) &&
+  // If we /aren't/ doing the abusive non-C11 interpretation of
+  // release and acquire, we can do an R->W vis edge by marking both.
+  if (!abuse &&
+      (type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
 
-    // On x86 and (I think) on ARMv8, it suffices to make W/RW2 = rel
-    // On x86 we could probably also use an acquire but why bother.
-    // XXX: double check the ARMv8 thing against the model paper, not
-    // just the ARM documentation
-    if (m.params.acqRelAbuse) {
-      relAcq = relAcq || getRelease(s, m, dst);
-    } else {
-      relAcq = relAcq || (getRelease(s, m, dst) &&
-                          getAcquire(s, m, src));
-    }
+    relAcq = relAcq || (getRelease(s, m, dst) &&
+                        getAcquire(s, m, src));
   }
 
   return relAcq.simplify();
