@@ -69,31 +69,42 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
     NodePtr tail, next;
 
     for (;;) {
-        tail = this->tail_;
-        next = tail->next_;
+        // acquire because we need to see node init
+        tail = this->tail_.load(mo_acq);
+        // acquire because anything we see through this needs to be
+        // re-published if we try to do a catchup swing: **
+        next = tail->next_.load(mo_acq);
         // Check that tail and next are consistent: In this gen
         // counter version, this is important for correctness: if,
         // after we read the tail, it gets removed from this queue,
         // freed, and added to some other queue, we need to make sure
         // that we don't try to append to that queue instead.
-        if (tail != this->tail_) continue;
+        // XXX: So I think that means it should be acquire
+        if (tail != this->tail_.load(mo_acq)) continue;
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak_gen(next, node)) {
+            // release because publishing; not acquire since I don't
+            // think we care what we see
+            if (tail->next_.compare_exchange_weak_gen(next, node,
+                                                      mo_rel, mo_rlx)) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong_gen(tail, next);
+            // release because we need to keep the node data visible
+            // (**) - maybe can put an acq_rel *fence* here instead
+            this->tail_.compare_exchange_strong_gen(tail, next,
+                                                    mo_rel, mo_rlx);
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong_gen(tail, node);
+    // release because publishing
+    this->tail_.compare_exchange_strong_gen(tail, node, mo_rel, mo_rlx);
 }
 
 template<typename T>
@@ -103,12 +114,13 @@ optional<T> MSQueue<T>::dequeue() {
     universal data;
 
     for (;;) {
-        head = this->head_;
-        tail = this->tail_;
-        next = head->next_;
+        head = this->head_.load(mo_acq);
+        tail = this->tail_.load(mo_acq);
+        // This one could maybe use an acq/rel fence
+        next = head->next_.load(mo_acq);
 
         // Consistency check; see note above
-        if (head != this->head_) continue;
+        if (head != this->head_.load(mo_acq)) continue;
 
         // Check if the queue *might* be empty
         // XXX: is it necessary to have the empty check under this
@@ -123,7 +135,9 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong_gen(tail, next);
+                // Release because anything we saw needs to be republished
+                this->tail_.compare_exchange_strong_gen(tail, next,
+                                                        mo_rel, mo_rlx);
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -132,7 +146,10 @@ optional<T> MSQueue<T>::dequeue() {
             // *before* we try to dequeue it or else it could get
             // reused before we read it out.
             data = next->data_;
-            if (this->head_.compare_exchange_weak_gen(head, next)) {
+
+            // release because we're republishing; don't care about what we read
+            if (this->head_.compare_exchange_weak_gen(head, next,
+                                                      mo_rel, mo_rlx)) {
                 break;
             }
         }
