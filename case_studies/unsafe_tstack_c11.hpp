@@ -37,11 +37,6 @@ private:
     alignas(kCacheLinePadding)
     std::atomic<TStackNode *> head_{nullptr};
 
-    static const std::memory_order mo_rlx = std::memory_order_relaxed;
-    static const std::memory_order mo_rel = std::memory_order_release;
-    static const std::memory_order mo_acq = std::memory_order_acquire;
-    static const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
-
 public:
     void pushStack(TStackNode *head, TStackNode *tail);
     void pushNode(TStackNode *node);

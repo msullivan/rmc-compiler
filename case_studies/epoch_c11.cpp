@@ -13,11 +13,6 @@
 namespace rmclib {
 /////////////////////////////
 
-const std::memory_order mo_rlx = std::memory_order_relaxed;
-const std::memory_order mo_rel = std::memory_order_release;
-//const std::memory_order mo_acq = std::memory_order_acquire;
-const std::memory_order mo_sc  = std::memory_order_seq_cst;
-
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;

@@ -38,8 +38,6 @@ struct Test {
     Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
 };
 
-const std::memory_order mo_rlx = std::memory_order_relaxed;
-const std::memory_order mo_rel = std::memory_order_release;
 template <typename T>
 T fake_consume(std::atomic<T> &val) {
     // XXX: ALPHA or some shit also compilers wtvr

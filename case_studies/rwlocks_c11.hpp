@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <utility>
+#include "util.hpp"
 
 namespace rmclib {
 
@@ -14,10 +15,6 @@ namespace rmclib {
 class busy_rwlock_readstarve {
     const uintptr_t kWriterLocked = ~(~0u >> 1);
     std::atomic<uintptr_t> locked_{0};
-
-    static const std::memory_order mo_rlx = std::memory_order_relaxed;
-    static const std::memory_order mo_rel = std::memory_order_release;
-    static const std::memory_order mo_acq = std::memory_order_acquire;
 
     void delay() { }
     bool writeLocked(uintptr_t locked) { return (locked & kWriterLocked) != 0; }
@@ -68,10 +65,6 @@ public:
 class busy_rwlock_writestarve {
     const uintptr_t kWriterLocked = ~(~0u >> 1);
     std::atomic<uintptr_t> locked_{0};
-
-    static const std::memory_order mo_rlx = std::memory_order_relaxed;
-    static const std::memory_order mo_rel = std::memory_order_release;
-    static const std::memory_order mo_acq = std::memory_order_acquire;
 
     void delay() { }
     bool writeLocked(uintptr_t locked) { return (locked & kWriterLocked) != 0; }

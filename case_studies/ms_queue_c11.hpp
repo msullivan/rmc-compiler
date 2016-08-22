@@ -16,11 +16,6 @@ namespace rmclib {
 template<typename T>
 class MSQueue {
 private:
-    static const std::memory_order mo_rlx = std::memory_order_relaxed;
-    static const std::memory_order mo_rel = std::memory_order_release;
-    static const std::memory_order mo_acq = std::memory_order_acquire;
-    static const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
-
     struct MSQueueNode {
         std::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
         optional<T> data_;

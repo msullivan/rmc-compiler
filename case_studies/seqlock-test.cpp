@@ -42,8 +42,6 @@ struct Test {
         : count(c), producers(pr), consumers(co), interval(iv) {}
 };
 
-const std::memory_order mo_rlx = std::memory_order_relaxed;
-
 void produce(Test *t) {
     t->lock.write_lock();
     int i = t->foo.a + 1;

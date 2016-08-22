@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <thread>
 #include <vector>
+#include <atomic>
 #include <experimental/optional>
 #include <assert.h>
 
@@ -46,6 +47,14 @@ using std::experimental::optional;
 const int kCacheLinePadding = 64; // I have NFI
 
 template<class T> using lf_ptr = T*;
+
+// Abbreviations for the memory orders
+const std::memory_order mo_rlx = std::memory_order_relaxed;
+const std::memory_order mo_rel = std::memory_order_release;
+const std::memory_order mo_acq = std::memory_order_acquire;
+const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
+const std::memory_order mo_sc = std::memory_order_seq_cst;
+
 
 // A proper C++-style implementation of container_of: given a
 // pointer-to-member for some class and also an actual pointer to that
