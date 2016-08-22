@@ -37,13 +37,20 @@ private:
     alignas(kCacheLinePadding)
     std::atomic<TStackNode *> head_{nullptr};
 
+    static const std::memory_order mo_rlx = std::memory_order_relaxed;
+    static const std::memory_order mo_rel = std::memory_order_release;
+    static const std::memory_order mo_acq = std::memory_order_acquire;
+    static const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
+
 public:
     void pushStack(TStackNode *head, TStackNode *tail);
     void pushNode(TStackNode *node);
     TStackNode *popNode();
     TStackNode *popAll() {
-        if (!head_) return nullptr;
-        return head_.exchange(nullptr);
+        if (!head_.load(mo_rlx)) return nullptr;
+        // shouldn't need release because we aren't publishing anything
+        // do need acquire since we care about the contents we popped
+        return head_.exchange(nullptr, mo_acq);
     }
 
     UnsafeTStack() { }
@@ -57,9 +64,14 @@ void UnsafeTStack<T>::pushNode(TStackNode *node) {
 template<typename T>
 void UnsafeTStack<T>::pushStack(TStackNode *head, TStackNode *tail) {
     for (;;) {
-        TStackNode *oldHead = head_;
-        tail->next_ = oldHead;
-        if (head_.compare_exchange_weak(oldHead, head)) break;
+        TStackNode *oldHead = head_.load(mo_acq);
+        // XXX: could use acq_rel fence?
+        // but I think the compiler can handle it.
+        // XXX: should we try to use the loads in the compare/exchange
+        // We do in the gen count version
+        tail->next_.store(oldHead, mo_rel);
+        if (head_.compare_exchange_weak(oldHead, head,
+                                        mo_rel, mo_rlx)) break;
     }
 }
 
@@ -68,13 +80,14 @@ typename UnsafeTStack<T>::TStackNode *UnsafeTStack<T>::popNode() {
     TStackNode *head;
 
     for (;;) {
-        head = this->head_;
+        head = this->head_.load(mo_acq);
         if (head == nullptr) {
             return nullptr;
         }
-        TStackNode *next = head->next_;
+        TStackNode *next = head->next_.load(mo_acq);
 
-        if (this->head_.compare_exchange_weak(head, next)) {
+        if (this->head_.compare_exchange_weak(head, next,
+                                              mo_rel, mo_rlx)) {
             break;
         }
     }

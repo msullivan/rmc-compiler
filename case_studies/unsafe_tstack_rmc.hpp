@@ -42,6 +42,7 @@ public:
     void pushNode(TStackNode *node);
     TStackNode *popNode();
     TStackNode *popAll() {
+        // XXX: why is this a *vedge*
         VEDGE(popall, post);
 
         if (!head_) return nullptr;

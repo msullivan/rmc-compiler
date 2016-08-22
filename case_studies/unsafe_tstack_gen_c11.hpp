@@ -44,6 +44,11 @@ private:
     alignas(kCacheLinePadding)
     std::gen_atomic<TStackNode *> head_;
 
+    static const std::memory_order mo_rlx = std::memory_order_relaxed;
+    static const std::memory_order mo_rel = std::memory_order_release;
+    static const std::memory_order mo_acq = std::memory_order_acquire;
+    static const std::memory_order mo_acq_rel = std::memory_order_acq_rel;
+
 public:
     void pushNode(TStackNode *node);
     TStackNode *popNode();
@@ -53,23 +58,27 @@ public:
 
 template<typename T>
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
-    NodePtr oldHead = head_;
+    NodePtr oldHead = head_.load(mo_acq);
     for (;;) {
-        node->next_ = oldHead;
-        if (head_.compare_exchange_weak_gen(oldHead, node)) break;
+        // XXX: could use acq_rel fence?
+        // can the compiler handle it?
+        node->next_.store(oldHead, mo_rel);
+        if (head_.compare_exchange_weak_gen(oldHead, node,
+                                            mo_rel, mo_acq)) break;
     }
 }
 
 template<typename T>
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
-    NodePtr head = this->head_;;
+    NodePtr head = this->head_.load(mo_acq);
     for (;;) {
         if (head == nullptr) {
             return nullptr;
         }
-        TStackNode *next = head->next_;
+        TStackNode *next = head->next_.load(mo_acq);
 
-        if (this->head_.compare_exchange_weak_gen(head, next)) {
+        if (this->head_.compare_exchange_weak_gen(head, next,
+                                                  mo_rel, mo_acq)) {
             break;
         }
     }
