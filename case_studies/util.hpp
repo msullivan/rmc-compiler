@@ -13,6 +13,8 @@
 #include <experimental/optional>
 #include <assert.h>
 
+#define rmc_noinline __attribute__((noinline))
+
 #ifndef __ASSERT_FUNCTION
 #define __ASSERT_FUNCTION NULL
 #endif

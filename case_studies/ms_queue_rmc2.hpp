@@ -63,7 +63,7 @@ public:
 };
 
 template<typename T>
-__attribute__((noinline))
+rmc_noinline
 void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
     node->next_ = node->next_.load().update(nullptr); // XXX: ok?
 
@@ -130,7 +130,7 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
 }
 
 template<typename T>
-__attribute__((noinline))
+rmc_noinline
 optional<T> MSQueue<T>::dequeue() {
     // Core message passing: reading the data out of the node comes
     // after getting the pointer to it.
