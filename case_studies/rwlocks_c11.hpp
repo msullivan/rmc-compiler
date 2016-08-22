@@ -2,8 +2,8 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-#ifndef RWLOCKS_SC_H
-#define RWLOCKS_SC_H
+#ifndef RWLOCKS_C11_H
+#define RWLOCKS_C11_H
 
 #include <atomic>
 #include <utility>
