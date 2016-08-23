@@ -20,7 +20,7 @@ typedef unsigned long ulong;
 
 const ulong kCount = 10000000;
 
-cl::opt<int> Work("w", cl::desc("Number of dumb work loops"),
+cl::opt<int> Work("w", cl::desc("Number of dummy work iterations"),
                   cl::init(kDefaultWork));
 
 struct Test {

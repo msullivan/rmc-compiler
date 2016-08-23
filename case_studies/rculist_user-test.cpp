@@ -49,13 +49,6 @@ struct Test {
 };
 
 
-void work() {
-    const int kWork = 500;
-    volatile int nus = 0;
-    for (int i = 0; i < kWork; i++) {
-        nus++;
-    }
-}
 thread_local unsigned writeIdx = 0;
 thread_local unsigned produceCnt = 0;
 

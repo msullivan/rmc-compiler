@@ -15,7 +15,7 @@
 
 using namespace rmclib;
 
-// This is total garbage and needs to be a real test.
+// XXX: This is total garbage and needs to be a real test.
 
 std::atomic<bool> go;
 std::atomic<bool> ready2;
@@ -24,18 +24,10 @@ std::atomic<bool> signaled;
 std::mutex lock;
 condition_variable_futex cvar;
 
-void work(int work = 50) {
-    volatile int nus = 0;
-    for (int i = 0; i < work; i++) {
-        nus++;
-    }
-}
-
-
 void t1() {
     while (!go) {}
 
-    work(rand() % 5000);
+    fakeWork(rand() % 5000);
 
     std::unique_lock<std::mutex> lk(lock);
     while (!signaled) {
@@ -49,7 +41,7 @@ void t2() {
     ready2 = true;
     while (!go) {}
 
-    work(rand() % 5000);
+    fakeWork(rand() % 5000);
 
     std::unique_lock<std::mutex> lk(lock);
     signaled = true;

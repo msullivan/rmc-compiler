@@ -44,14 +44,10 @@ T fake_consume(std::atomic<T> &val) {
     return val.load(mo_rlx);
 }
 
+// XXX: don't do consumer work
+cl::opt<int> Work("w", cl::desc("Number of dummy work iterations"),
+                  cl::init(500));
 
-void work() {
-    const int kWork = 500;
-    volatile int nus = 0;
-    for (int i = 0; i < kWork; i++) {
-        nus++;
-    }
-}
 
 void producer(Test *t) {
     Foo foos[2];
@@ -62,7 +58,7 @@ void producer(Test *t) {
         Foo *foo = &foos[fooIdx];
 
         foo->a = i;
-        work(); // lol
+        fakeWork(Work); // lol
         foo->b = -i;
 
         t->foo.store(foo, mo_rel);
