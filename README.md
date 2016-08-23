@@ -21,7 +21,7 @@ background on the ideas behind the system are in the RMC slides
 is pretty theoretical. The concrete syntax in the slides and original
 paper is a bit out of date, though, so the best documentation for how
 the actual concrete syntax works is the proposal and the code in the
-examples/ directory.
+`case_studies/` and `examples/` directories.
 
 You can find me in `##rmc` on `irc.freenode.org`.
 
