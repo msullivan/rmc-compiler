@@ -83,7 +83,7 @@ void consumer(Test *t, int threadnum) {
     t->totalSum += max;
 }
 
-cl::opt<int> BenchMode("b", cl::desc("Use benchmark output"));
+cl::opt<bool> BenchMode("b", cl::desc("Use benchmark output"));
 
 void test(Test &t) {
     std::vector<std::thread> producers;

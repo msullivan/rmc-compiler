@@ -108,7 +108,7 @@ void consumer(Test *t, int threadnum) {
     }
 }
 
-cl::opt<int> BenchMode("b", cl::desc("Use benchmark output"));
+cl::opt<bool> BenchMode("b", cl::desc("Use benchmark output"));
 
 void build_list(nooblist *noobs, int size) {
     for (int i = 0; i < size; i++) {
