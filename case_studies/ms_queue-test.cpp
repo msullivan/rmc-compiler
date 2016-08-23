@@ -37,6 +37,7 @@ struct Test {
 };
 
 void producer(Test *t) {
+    CPUTracker cpu;
     for (int i = 1; i < t->count; i++) {
         fakeWork(Work);
         t->queue.enqueue(i);
@@ -44,6 +45,7 @@ void producer(Test *t) {
 }
 
 void consumer(Test *t) {
+    CPUTracker cpu;
     ulong max = 0;
     ulong sum = 0;
     ulong count = 0; // lurr

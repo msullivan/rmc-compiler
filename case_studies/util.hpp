@@ -113,6 +113,18 @@ public:
     }
 };
 
+class CPUTracker {
+    unsigned startCPU_;
+public:
+    CPUTracker() {
+        startCPU_ = sched_getcpu();
+    }
+    ~CPUTracker() {
+        unsigned stop = sched_getcpu();
+        printf("Started on %u, finished on %u\n", startCPU_, stop);
+    }
+};
+
 static void joinAll(std::vector<std::thread> &threads) {
     for (auto & thread : threads) {
         thread.join();
