@@ -163,7 +163,6 @@ optional<T> MSQueue<T>::dequeue() {
         } else {
             // OK, now we try to actually read the thing out.
 
-            assert_ne(next, nullptr);
             // If we weren't planning to rely on epochs or something,
             // note that we would need to read out the data *before* we
             // do the CAS, or else things are gonna get bad.
