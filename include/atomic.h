@@ -56,7 +56,7 @@
 
 #elif defined(__arm__)
 
-#define smp_mb() __asm__ __volatile__("dmb":::"memory")
+#define smp_mb() __asm__ __volatile__("dmb ish":::"memory")
 #define smp_rmb smp_mb
 #define smp_wmb smp_mb
 #define smp_read_barrier_depends() nop()
