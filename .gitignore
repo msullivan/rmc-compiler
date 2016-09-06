@@ -2,6 +2,7 @@
 config.mk
 config.stamp
 run-rmc
+perf.data*
 
 *.d
 
