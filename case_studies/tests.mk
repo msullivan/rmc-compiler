@@ -2,7 +2,7 @@ THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking condvar \
 	rculist_user tune_work
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
-MS_QUEUE_EPOCH_TYPES=sc relacq rmc c11
+MS_QUEUE_EPOCH_TYPES=sc relacq rmc c11 linux
 MS_QUEUE_FREELIST_TYPES=sc2 rmc2 c112
 MS_QUEUE_TYPES=lock 2lock
 
