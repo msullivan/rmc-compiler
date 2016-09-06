@@ -37,7 +37,8 @@ struct Test {
 };
 
 void producer(Test *t) {
-    CPUTracker cpu;
+    //BenchTimer timer("producer");
+    //CPUTracker cpu("producer");
     for (int i = 1; i < t->count; i++) {
         fakeWork(Work);
         t->queue.enqueue(i);
@@ -45,7 +46,10 @@ void producer(Test *t) {
 }
 
 void consumer(Test *t) {
-    CPUTracker cpu;
+    //BenchTimer timer("consumer");
+    //CPUTracker cpu("consumer");
+
+    ulong missed = 0;
     ulong max = 0;
     ulong sum = 0;
     ulong count = 0; // lurr
@@ -60,6 +64,7 @@ void consumer(Test *t) {
             // finishes, and then we exit without dequeueing it.
             if (producersDone) break;
             producersDone = t->producersDone;
+            missed++;
         } else {
             ulong val = *res;
             assert_op(val, <, t->count);
@@ -76,6 +81,7 @@ void consumer(Test *t) {
     }
     // Stupidly, this winds up being "more atomic" than using cout
     //printf("Done: %lu\n", sum);
+    printf("Missed: %lu\n", missed);
     t->totalSum += sum;
     t->totalCount += count;
 }
@@ -83,6 +89,8 @@ void consumer(Test *t) {
 cl::opt<bool> BenchMode("b", cl::desc("Use benchmark output"));
 
 void test(Test &t) {
+    //CPUTracker cpu("tester");
+
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
 
@@ -125,6 +133,8 @@ cl::opt<int> Reps("r", cl::desc("Number of times to repeat"), cl::init(1));
 cl::opt<int> Dups("d", cl::desc("Number of times to duplicate"), cl::init(1));
 
 int main(int argc, char** argv) {
+    //printf("env size: %zu\n", getEnvironSize());
+
     cl::ParseCommandLineOptions(argc, argv);
 
     for (int i = 0; i < Reps; i++) {

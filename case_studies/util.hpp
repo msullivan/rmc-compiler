@@ -8,11 +8,13 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
 #include <vector>
 #include <atomic>
 #include <experimental/optional>
 #include <assert.h>
+#include <unistd.h>
 
 #define rmc_noinline __attribute__((noinline))
 
@@ -79,9 +81,12 @@ class BenchTimer {
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> start_, stop_;
     bool stopped_{false};
+    bool reported_{false};
+    const char *name_;
 public:
     void start() { start_ = std::chrono::high_resolution_clock::now(); }
-    BenchTimer() { start(); }
+    BenchTimer(const char *name = nullptr) : name_(name) { start(); }
+    ~BenchTimer() { report(); }
     void stop() {
         if (!stopped_) {
             stop_ = std::chrono::high_resolution_clock::now();
@@ -90,6 +95,9 @@ public:
     }
     void report(long numOps = 0, bool verbose = true) {
         stop();
+        if (reported_) return;
+        reported_ = true;
+
         auto int_ms = std::chrono::duration_cast<
             std::chrono::milliseconds>(stop_ - start_);
 
@@ -98,6 +106,7 @@ public:
         std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
 
         if (verbose) {
+            if (name_) printf("%s: ", name_);
             printf("Runtime: %lldms\n", (long long)int_ms.count());
             if (numOps > 0) {
 
@@ -115,13 +124,14 @@ public:
 
 class CPUTracker {
     unsigned startCPU_;
+    const char *name_;
 public:
-    CPUTracker() {
+    CPUTracker(const char *name = "<anon>") : name_(name) {
         startCPU_ = sched_getcpu();
     }
     ~CPUTracker() {
         unsigned stop = sched_getcpu();
-        printf("Started on %u, finished on %u\n", startCPU_, stop);
+        printf("%s: Started on %u, finished on %u\n", name_, startCPU_, stop);
     }
 };
 
@@ -139,6 +149,14 @@ static void fakeWork(int work = kDefaultWork) {
     }
 }
 
+static size_t getEnvironSize() {
+    size_t size = 0;
+    for (char **ss = environ; *ss; ss++) {
+        size += sizeof(*ss);
+        size += strlen(*ss)+1;
+    }
+    return size;
+}
 
 }
 
