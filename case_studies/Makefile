@@ -103,6 +103,9 @@ endef
 define compile_ll_with_headers
 	$(call compile_with_headers_inner,-S -emit-llvm,$(2),$(3),$(4),$(5))
 endef
+define compile_S_with_headers
+	$(call compile_with_headers_inner,-S,$(2),$(3),$(4),$(5))
+endef
 
 
 define TEST_template
@@ -124,6 +127,8 @@ $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.ll: $(1)-test.cpp $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
 	$(call compile_ll_with_headers,$(1),$(2),$(3),$(4),$(5))
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.s: $(1)-test.cpp $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
+	$(call compile_S_with_headers,$(1),$(2),$(3),$(4),$(5))
 
 ifeq (,$$(findstring $$(POSSIBLE_LIB_OBJ),$$(BUILTLIBS)))
 BUILTLIBS+=$$(POSSIBLE_LIB_OBJ)
