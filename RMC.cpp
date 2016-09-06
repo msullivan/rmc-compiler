@@ -163,7 +163,7 @@ Instruction *makeSync(Instruction *to_precede) {
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
   if (isARM(target)) {
-    a = makeAsm(f_ty, "dmb sy // sync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb ish // sync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "sync # sync", "~{memory}", true);
   } else if (target == TargetX86) {
@@ -176,7 +176,7 @@ Instruction *makeLwsync(Instruction *to_precede) {
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
   if (isARM(target)) {
-    a = makeAsm(f_ty, "dmb sy // lwsync", "~{memory}", true);
+    a = makeAsm(f_ty, "dmb ish // lwsync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "lwsync # lwsync", "~{memory}", true);
   } else if (target == TargetX86) {
