@@ -2,8 +2,8 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-#ifndef RMC_MS_QUEUE_LINUX
-#define RMC_MS_QUEUE_LINUX
+#ifndef RMC_MS_QUEUE_BARRIER
+#define RMC_MS_QUEUE_BARRIER
 
 #include <atomic.h>
 #include <rmc++.h>
