@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <unistd.h>
 
-#define REMOTE_PUSH_MPROTECT 1
+#define REMOTE_PUSH_MPROTECT 0
 
 #ifdef REMOTE_PUSH_MPROTECT
 #include <sys/mman.h>
