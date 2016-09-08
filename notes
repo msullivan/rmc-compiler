@@ -534,3 +534,19 @@ defined by which writes the ra and rb reads read-from.
 I think I will call programs that satisfy the synchronized-before,
 SC-enforcing definition "strongly data-race-free" and programs that
 satisfy the visible-to based definition "weakly data-race-free".
+
+
+-----------------------------------
+
+On integrity with -p 2 -c 2, at least:
+The fastest ms_queue I could produce has redundant barriers.
+1. compiler does not actually produce the barriers I expect it to; I expected things to be sunk down more. - WAIT, false? - Totally false - the get_tail -xo-> get_next edge needs that lwsync in order to order between loops
+2. the thing I think it ought to have emitted was slightly slower than the best
+ - actually no it is bimodally fucked also
+
+-
+the 'if (tail != this->tail_) continue;' check does seem to actually help
+
+
+- some of the bimodality I've seen feels reaaaaaly fishy
+- gets into "runs" of fast or slow things
