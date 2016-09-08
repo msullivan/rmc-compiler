@@ -84,7 +84,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
             this->tail_.compare_exchange_strong(tail, next);
         }
     }
-    // XXX: WHY DOES THIS GET PUT IN!!!!
+    // This is here because of the enqueue->enqueue_swing edge
     smp_mb();
     // Try to swing the tail_ to point to what we inserted
     this->tail_.compare_exchange_strong(tail, node);
