@@ -543,6 +543,10 @@ The fastest ms_queue I could produce has redundant barriers.
 1. compiler does not actually produce the barriers I expect it to; I expected things to be sunk down more. - WAIT, false? - Totally false - the get_tail -xo-> get_next edge needs that lwsync in order to order between loops
 2. the thing I think it ought to have emitted was slightly slower than the best
  - actually no it is bimodally fucked also
+!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!
+The slow runs generally use waaaaay more memory.
+Though the extra time *is* in userland. But CREAM, sooo.
 
 -
 the 'if (tail != this->tail_) continue;' check does seem to actually help

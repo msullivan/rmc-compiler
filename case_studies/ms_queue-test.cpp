@@ -30,6 +30,11 @@ struct Test {
     std::atomic<ulong> totalSum{0};
     std::atomic<ulong> totalCount{0};
 
+    //alignas(kCacheLinePadding)
+    //std::atomic<int> approxEnqueues{0};
+    //alignas(kCacheLinePadding)
+    //std::atomic<int> approxDequeues{0};
+
     const long count;
     const int producers;
     const int consumers;
@@ -37,12 +42,22 @@ struct Test {
 };
 
 void producer(Test *t) {
+    //int maxSeen = 0;
     //BenchTimer timer("producer");
     //CPUTracker cpu("producer");
     for (int i = 1; i < t->count; i++) {
+        //BenchTimer b;
         fakeWork(Work);
         t->queue.enqueue(i);
+        /*
+        int enqs = t->approxEnqueues.fetch_add(1, mo_rlx);
+        int deqs = t->approxDequeues.load(mo_rlx);
+        int size = enqs - deqs;
+        if (size > maxSeen) maxSeen = size;
+        */
+        //b.stop(true);
     }
+    //printf("Max size: %d\n", maxSeen);
 }
 
 void consumer(Test *t) {
@@ -66,6 +81,7 @@ void consumer(Test *t) {
             producersDone = t->producersDone;
             missed++;
         } else {
+            //t->approxDequeues.fetch_add(1, mo_rlx);
             ulong val = *res;
             assert_op(val, <, t->count);
             if (t->producers == 1) {

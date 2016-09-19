@@ -87,11 +87,12 @@ public:
     void start() { start_ = std::chrono::high_resolution_clock::now(); }
     BenchTimer(const char *name = nullptr) : name_(name) { start(); }
     ~BenchTimer() { report(); }
-    void stop() {
+    void stop(bool asdf = false) {
         if (!stopped_) {
             stop_ = std::chrono::high_resolution_clock::now();
             stopped_ = true;
         }
+        if (asdf) reported_ = true;
     }
     void report(long numOps = 0, bool verbose = true) {
         stop();
