@@ -47,7 +47,7 @@ private:
     // Garbage added in current global epoch
     Bag new_;
 
-    const int kGarbageThreshold = 1024;
+    const int kGarbageThreshold = 896;
 
 public:
     uintptr_t size() {
