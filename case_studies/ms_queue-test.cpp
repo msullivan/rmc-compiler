@@ -47,7 +47,8 @@ void producer(Test *t) {
     //CPUTracker cpu("producer");
     for (int i = 1; i < t->count; i++) {
         //BenchTimer b;
-        fakeWork(Work);
+        //fakeWork(Work);
+        fakeWork(Work + Work/4);
         t->queue.enqueue(i);
         /*
         int enqs = t->approxEnqueues.fetch_add(1, mo_rlx);

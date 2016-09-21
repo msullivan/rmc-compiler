@@ -75,14 +75,14 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            //smp_mb(); //asdf
+            smp_mb(); //asdf
             if (tail->next_.compare_exchange_weak(next, node)) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            //smp_mb(); //asdf
+            smp_mb(); //asdf
             this->tail_.compare_exchange_strong(tail, next);
         }
     }

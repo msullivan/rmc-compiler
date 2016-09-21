@@ -56,6 +56,7 @@ public:
 };
 
 template<typename T>
+rmc_noinline
 void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     std::lock_guard<std::mutex> lock(tail_lock_);
     tail_->next_ = node;
@@ -63,6 +64,7 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
 }
 
 template<typename T>
+rmc_noinline
 optional<T> MSQueue<T>::dequeue() {
     std::unique_lock<std::mutex> lock(head_lock_);
 
