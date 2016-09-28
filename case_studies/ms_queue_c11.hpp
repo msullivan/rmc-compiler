@@ -137,7 +137,7 @@ optional<T> MSQueue<T>::dequeue() {
             // do the CAS, or else things are gonna get bad.
             // (could get reused first)
 
-            // release because we're republishing; don't care about what we read
+            // release because we're republishing; don't care what we read
             if (this->head_.compare_exchange_weak(head, next,
                                                   mo_rel, mo_rlx)) {
                 break;

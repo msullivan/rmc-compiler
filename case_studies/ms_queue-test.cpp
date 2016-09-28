@@ -23,6 +23,13 @@ const ulong kCount = 10000000;
 cl::opt<int> Work("w", cl::desc("Number of dummy work iterations"),
                   cl::init(kDefaultWork));
 
+struct CacheLineCounter {
+    alignas(kCacheLinePadding)
+    std::atomic<int> ctr{0};
+};
+
+const int kMax = 128;
+
 struct Test {
     MSQueue<ulong> queue;
 
@@ -38,32 +45,64 @@ struct Test {
     const long count;
     const int producers;
     const int consumers;
+
+    CacheLineCounter ctrs[kMax];
+
     Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
 };
 
-void producer(Test *t) {
-    //int maxSeen = 0;
+int guessSize(Test *t) {
+    int count = 0;
+    for (int i = 0; i < t->producers; i++) {
+        count += t->ctrs[i].ctr.load(mo_rlx);
+    }
+    for (int i = t->producers; i < t->producers+t->consumers; i++) {
+        count -= t->ctrs[i].ctr.load(mo_rlx);
+    }
+    return count;
+}
+
+const int backPressureCheckFreq = 8192/2;
+// Backpressure at 100k does not seem to save us at /all/ but
+// backpressure at 10k pretty often does.
+const int backPressureMax = 10000;
+
+void producer(Test *t, int no) {
+    int maxSeen = 0;
     //BenchTimer timer("producer");
     //CPUTracker cpu("producer");
+    std::atomic<int> &ctr = t->ctrs[no].ctr;
+
     for (int i = 1; i < t->count; i++) {
         //BenchTimer b;
-        //fakeWork(Work);
-        fakeWork(Work + Work/4);
+        fakeWork(Work);
+        //fakeWork(Work + Work/4);
         t->queue.enqueue(i);
+        ctr.store(i, mo_rlx);
         /*
         int enqs = t->approxEnqueues.fetch_add(1, mo_rlx);
         int deqs = t->approxDequeues.load(mo_rlx);
         int size = enqs - deqs;
         if (size > maxSeen) maxSeen = size;
         */
+        if (i % backPressureCheckFreq == 0) {
+            int size = guessSize(t);
+            if (size > maxSeen) maxSeen = size;
+            while (size > backPressureMax) {
+                fakeWork(Work);
+                size = guessSize(t);
+            }
+        }
+
         //b.stop(true);
     }
-    //printf("Max size: %d\n", maxSeen);
+    printf("Max size: %d\n", maxSeen);
 }
 
-void consumer(Test *t) {
+void consumer(Test *t, int no) {
     //BenchTimer timer("consumer");
     //CPUTracker cpu("consumer");
+    std::atomic<int> &ctr = t->ctrs[no + t->producers].ctr;
 
     ulong missed = 0;
     ulong max = 0;
@@ -83,6 +122,7 @@ void consumer(Test *t) {
             missed++;
         } else {
             //t->approxDequeues.fetch_add(1, mo_rlx);
+            ctr.store(count+1, mo_rlx);
             ulong val = *res;
             assert_op(val, <, t->count);
             if (t->producers == 1) {
@@ -116,10 +156,10 @@ void test(Test &t) {
     rmclib::BenchTimer timer;
 
     for (int i = 0; i < t.producers; i++) {
-        producers.push_back(std::thread(producer, &t));
+        producers.push_back(std::thread(producer, &t, i));
     }
     for (int i = 0; i < t.consumers; i++) {
-        consumers.push_back(std::thread(consumer, &t));
+        consumers.push_back(std::thread(consumer, &t, i));
     }
 
     joinAll(producers);
@@ -153,6 +193,11 @@ int main(int argc, char** argv) {
     //printf("env size: %zu\n", getEnvironSize());
 
     cl::ParseCommandLineOptions(argc, argv);
+
+    if (Producers+Consumers > kMax) {
+        printf("Too many producers/consumers: max = %d\n", kMax);
+        return 1;
+    }
 
     for (int i = 0; i < Reps; i++) {
         std::vector<std::thread> tests;
