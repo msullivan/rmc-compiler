@@ -100,11 +100,10 @@ rmc_noinline
 optional<T> MSQueue<T>::dequeue() {
     auto guard = Epoch::pin();
 
-    lf_ptr<MSQueueNode> head, tail, next;
+    lf_ptr<MSQueueNode> head, next;
 
     for (;;) {
         head = this->head_.load(mo_acq);
-        tail = this->tail_.load(mo_acq);
         // This one could maybe use an acq/rel fence
         next = head->next_.load(mo_acq);
 
@@ -112,31 +111,11 @@ optional<T> MSQueue<T>::dequeue() {
         // no ordering because just an optimization thing
         if (head != this->head_.load(mo_rlx)) continue;
 
-        // Check if the queue *might* be empty
-        // XXX: is it necessary to have the empty check under this
-        if (head == tail) {
-            // Ok, so, the queue might be empty, but it also might
-            // be that the tail pointer has just fallen behind.
-            // If the next pointer is null, then it is actually empty
-            if (next == nullptr) {
-                return optional<T>{};
-            } else {
-                // not empty: tail falling behind; since it is super
-                // not ok for the head to advance past the tail,
-                // try advancing the tail
-                // XXX weak v strong?
-                // Release because anything we saw needs to be republished
-                this->tail_.compare_exchange_strong(tail, next,
-                                                    mo_rel, mo_rlx);
-            }
+        // Queue empty?
+        if (next == nullptr) {
+            return optional<T>{};
         } else {
             // OK, now we try to actually read the thing out.
-
-            // If we weren't planning to rely on epochs or something,
-            // note that we would need to read out the data *before* we
-            // do the CAS, or else things are gonna get bad.
-            // (could get reused first)
-
             // release because we're republishing; don't care what we read
             if (this->head_.compare_exchange_weak(head, next,
                                                   mo_rel, mo_rlx)) {

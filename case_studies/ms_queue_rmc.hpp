@@ -73,6 +73,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     // enqueue needs to be visible before enqueue_swing so that if
     // head != tail in dequeue, it always manages to have seen
     // head->next
+    // XXX: do we still need this??
     VEDGE(enqueue, enqueue_swing);
 
 
@@ -121,52 +122,24 @@ optional<T> MSQueue<T>::dequeue() {
     XEDGE(get_next, node_use);
     // Make sure we see at least head's init
     XEDGE(get_head, get_next);
-    // XXX: another part of maintaining the awful head != tail ->
-    // next != null invariant that causes like a billion constraints.
-    // Think about it a bit more to make sure this is right.
-    // This is awful, so many barriers.
-    XEDGE(get_head, get_tail);
-    // If we see an updated tail (so that head != tail), make sure that
-    // we see update to head->next.
-    XEDGE(get_tail, get_next);
     // Need to make sure anything visible through the next pointer
     // stays visible when it gets republished at the head or tail
-    VEDGE(get_next, catchup_swing);
     VEDGE(get_next, dequeue);
 
-    lf_ptr<MSQueueNode> head, tail, next;
+    lf_ptr<MSQueueNode> head, next;
 
     for (;;) {
         head = L(get_head, this->head_);
-        tail = L(get_tail, this->tail_); // XXX: really?
         next = L(get_next, head->next_);
 
         // Consistency check; see note above
         if (head != this->head_) continue;
 
-        // Check if the queue *might* be empty
-        // XXX: is it necessary to have the empty check under this
-        if (head == tail) {
-            // Ok, so, the queue might be empty, but it also might
-            // be that the tail pointer has just fallen behind.
-            // If the next pointer is null, then it is actually empty
-            if (next == nullptr) {
-                return optional<T>{};
-            } else {
-                // not empty: tail falling behind; since it is super
-                // not ok for the head to advance past the tail,
-                // try advancing the tail
-                // XXX weak v strong?
-                L(catchup_swing,
-                  this->tail_.compare_exchange_strong(tail, next));
-            }
+        // Is the queue empty?
+        if (next == nullptr) {
+            return optional<T>{};
         } else {
             // OK, now we try to actually read the thing out.
-
-            // If we weren't planning to rely on epochs or something,
-            // note that we would need to read out the data *before* we
-            // do the CAS, or else things are gonna get bad.
-            // (could get reused first)
             if (L(dequeue, this->head_.compare_exchange_weak(head, next))) {
                 break;
             }

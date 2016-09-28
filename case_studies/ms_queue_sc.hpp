@@ -88,38 +88,20 @@ rmc_noinline
 optional<T> MSQueue<T>::dequeue() {
     auto guard = Epoch::pin();
 
-    lf_ptr<MSQueueNode> head, tail, next;
+    lf_ptr<MSQueueNode> head, next;
 
     for (;;) {
         head = this->head_;
-        tail = this->tail_;
         next = head->next_;
 
         // Consistency check; see note above
         if (head != this->head_) continue;
 
-        // Check if the queue *might* be empty
-        // XXX: is it necessary to have the empty check under this
-        if (head == tail) {
-            // Ok, so, the queue might be empty, but it also might
-            // be that the tail pointer has just fallen behind.
-            // If the next pointer is null, then it is actually empty
-            if (next == nullptr) {
-                return optional<T>{};
-            } else {
-                // not empty: tail falling behind; since it is super
-                // not ok for the head to advance past the tail,
-                // try advancing the tail
-                // XXX weak v strong?
-                this->tail_.compare_exchange_strong(tail, next);
-            }
+        // Is the queue empty?
+        if (next == nullptr) {
+            return optional<T>{};
         } else {
             // OK, now we try to actually read the thing out.
-
-            // If we weren't planning to rely on epochs or something,
-            // note that we would need to read out the data *before* we
-            // do the CAS, or else things are gonna get bad.
-            // (could get reused first)
             if (this->head_.compare_exchange_weak(head, next)) {
                 break;
             }
