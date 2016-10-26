@@ -401,7 +401,16 @@ New idea: can we *model* them as either:
 -
 Actual plan is mostly to just add a new sort of "sc" operation with
 appropriate coherence rules.
-- XXX: find the notes for these, write them down
+
+- The example for why pushes don't work:
+T1: x = 1 -push-> r1 = y
+T2: y = 1 -push-> r2 = x
+
+Assuming that y is our SC location, this is stronger than we want. If
+r1 = 0, then the T1 push must be before the T2 push (or else we
+couldn't do that read), which means we must have r2 = 0. This is
+stronger than just SC on SC locations would imply.
+
 
 
 --------
@@ -554,3 +563,60 @@ the 'if (tail != this->tail_) continue;' check does seem to actually help
 
 - some of the bimodality I've seen feels reaaaaaly fishy
 - gets into "runs" of fast or slow things
+
+
+-------------------------------------------
+
+Notes on the RMC execution model:
+
+In all models:
+- Threads "initiate" (init) actions in order
+- Some mechanism (differing between models) allows for multiple
+  actions per thread to be initiated (but unexecuted)
+- Initiated actions can be executed out-of-order subject to "executable"
+
+
+-- RMCv1
+
+- Initiated actions replaced by an 'identifier'
+- The RHS of a bind can be stepped if the LHS is initiated and the
+  bound variable isn't free in the "transaction"
+- When an action is executed, its identifier is replaced by "ret v"
+- A speculation rule allows free variables to be eliminated by
+  substituting in for it and adding an equality constraint to the
+  term.
+- N.B: speculations are tracked in the *expr*
+
+-- RMCv2
+
+- When actions are initiated, they also have a value speculated
+- Initiated actions are immediately replaced by the speculated value
+- When an action is executed, the speculated value must match
+- N.B: speculations are tracked in the *history*
+
+- RMW mildly annoying: Need to know the speculated value *before* the
+  value being written is ready (since we need to compute it), so we
+  pre-speculate a value and track it in the term until we actually
+  speculate the RW
+
+-- RMCv2.5
+
+- Like RMCv2, but:
+- Threads may nondeterministically "promise" to perform a write that
+  has not yet been initiated
+- Needs to show an alternate trace where it initiates that write with
+  no undischarged read speculations
+- For a write to execute, there must be an outstanding promise
+- XXX: might be some problems: not executable? RWs wrong?
+
+
+----------------------------------------------
+
+Even less formal execution model:
+- Actions may be executed in any order except as constrained by
+  execution order
+- This includes when there is a data or a control dependency: reads
+  can have a value speculatively returned before the read is actually
+  executed
+- BUT: A write may only be executed if the same write could have been
+  executed without any outstanding speculated reads.
