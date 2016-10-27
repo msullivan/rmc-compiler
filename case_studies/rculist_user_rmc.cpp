@@ -27,7 +27,19 @@ noob *noob_find(nooblist *list, unsigned key) {
 
 void noob_insert(nooblist *list, noob *obj) {
     std::unique_lock<std::mutex> lock(list->write_lock);
-    noob *old = noob_find(list, obj->key);
+    // We needn't give any constraints on the node lookup here.  Since
+    // insertions always happen under the lock, any list modifications
+    // are already visible to us.
+
+    // There is some compilation fail here.
+
+    // LLVM inlines noob_find_give and ought to be able to eliminate
+    // the use of nullptr and a null check to signal a nonexistent
+    // node and instead have that emerge implicitly from the control
+    // flow. Unfortunately, the value obfuscation that rmc-compiler
+    // does to make sure that LLVM doesn't break our data dependencies
+    // also hides the fact that node is non-NULL when returning it.
+    noob *old = noob_find_give(list, obj->key);
 
     // If nothing to replace we just insert it normally
     if (!old) {
