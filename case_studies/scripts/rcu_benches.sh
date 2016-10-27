@@ -11,4 +11,5 @@ RCU_TESTS+="rculist_user-ermc-rmc-test rculist_user-ec11-ec11-test "
 
 RCU_TESTS=$(echo $RCU_TESTS | xargs -n1 | sort -u | xargs)
 
-./scripts/bench.sh $N 4x "-p 0 -c 4" $RCU_TESTS
+COUNT=3000000
+./scripts/bench.sh $N 4x "-p 0 -c 4 -n $COUNT" $RCU_TESTS
