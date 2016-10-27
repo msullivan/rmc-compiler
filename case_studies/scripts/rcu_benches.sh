@@ -13,4 +13,4 @@ RCU_TESTS=$(echo $RCU_TESTS | xargs -n1 | sort -u | xargs)
 
 COUNT=3000000
 ./scripts/bench.sh $N 4x "-p 0 -c 4 -n $COUNT" $RCU_TESTS
-./scripts/bench.sh $N 2x "-p 0 -c 4 -n $COUNT" $RCU_TESTS
+./scripts/bench.sh $N 2x "-p 0 -c 2 -n $COUNT" $RCU_TESTS
