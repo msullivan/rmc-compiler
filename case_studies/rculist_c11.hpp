@@ -14,6 +14,23 @@
 ///////////////
 namespace rmclib {
 
+// So that we can benchmark how fast C11 would be if consume actually
+// worked.
+#ifdef USE_FAKE_CONSUME
+template <typename T>
+T rculist_consume(std::atomic<T> &val) {
+    // XXX: ALPHA or some shit also compilers wtvr
+    // I think that *probably* the compiler won't mess with us, and I
+    // don't care about ALPHA. Should I bother doing more?
+    return val.load(std::memory_order_relaxed);
+}
+#else
+template <typename T>
+T rculist_consume(std::atomic<T> &val) {
+    return val.load(std::memory_order_consume);
+}
+#endif
+
 
 #define rcu_container_of(ptr, type, member) ({                        \
             const __typeof__( ((type *)0)->member ) *__mptr = (ptr);  \
@@ -55,7 +72,7 @@ static void rculist_replace(rculist_node *n_old, rculist_node *n_new) {
 
 
 #define rculist_entry(ptr, type, member) \
-    rcu_container_of(ptr.load(std::memory_order_consume), type, member)
+    rcu_container_of(rculist_consume(ptr), type, member)
 
 #define rculist_for_each_entry(pos, h, member) \
     for (pos = rculist_entry((h)->head.next, __typeof__(*pos), member); \
