@@ -98,7 +98,7 @@ void producer(Test *t, int no) {
 
         //b.stop(true);
     }
-    printf("Max size: %d\n", maxSeen);
+    //printf("Max size: %d\n", maxSeen);
 }
 
 void consumer(Test *t, int no) {
