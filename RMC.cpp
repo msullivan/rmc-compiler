@@ -218,9 +218,12 @@ Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
   return i;
 }
 Instruction *makeCopy(Value *v, Instruction *to_precede) {
+  Value *getRealValue(Value *v);
   FunctionType *f_ty = FunctionType::get(v->getType(), v->getType(), false);
   InlineAsm *a = makeAsm(f_ty, "# copy", "=r,0", false); /* false?? */
-  return CallInst::Create(a, v, "__rmc_bs_copy", to_precede);
+  return CallInst::Create(a, v,
+                          getRealValue(v)->getName() + ".__rmc_bs_copy",
+                          to_precede);
 }
 // We also need to add a thing for fake data deps, which is more annoying.
 
@@ -733,14 +736,16 @@ Value *getBSCopyValue(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
   // This is kind of dubious
-  return call->getName().startswith("__rmc_bs_copy") ?
+  return call->getName().find(".__rmc_bs_copy") != StringRef::npos?
     call->getOperand(0) : nullptr;
 }
 
 // Look through a possible bs copy to find the real underlying value
 Value *getRealValue(Value *v) {
-  Value *copyVal = getBSCopyValue(v);
-  return copyVal ? copyVal : v;
+  Value *copyVal;
+  while ((copyVal = getBSCopyValue(v)) != nullptr)
+    v = copyVal;
+  return v;
 }
 
 // Rewrite an instruction so that an operand is a dummy copy to
