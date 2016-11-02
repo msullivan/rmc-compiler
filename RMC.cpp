@@ -231,7 +231,7 @@ Instruction *makeCopy(Value *v, Instruction *to_precede) {
 //// Some annoying LLVM version specific stuff
 
 #if LLVM_VERSION_MAJOR == 3 &&                          \
-  (LLVM_VERSION_MINOR == 5 || LLVM_VERSION_MINOR == 6)
+  (LLVM_VERSION_MINOR >= 5 && LLVM_VERSION_MINOR <= 6)
 // Some annoying changes with how LoopInfo interacts with the pass manager
 #define LOOPINFO_PASS_NAME LoopInfo
 LoopInfo &getLoopInfo(const Pass &pass) {
@@ -243,8 +243,7 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
 }
 
 #elif LLVM_VERSION_MAJOR == 3 &&                        \
-  (LLVM_VERSION_MINOR == 7 || LLVM_VERSION_MINOR == 8)
-
+  (LLVM_VERSION_MINOR >= 7 && LLVM_VERSION_MINOR <= 9)
 
 #define LOOPINFO_PASS_NAME LoopInfoWrapperPass
 LoopInfo &getLoopInfo(const Pass &pass) {
@@ -305,8 +304,8 @@ Instruction *getPrevInstr(Instruction *i) {
 // Sigh. LLVM 3.7 has a method inside BasicBlock for this, but
 // earlier ones don't.
 BasicBlock *getSingleSuccessor(BasicBlock *bb) {
-  auto i = succ_begin(bb), e = succ_end(bb);
-  return i == e || i+1 != e ? nullptr : *i;
+  TerminatorInst *term = bb->getTerminator();
+  return term->getNumSuccessors() == 1 ? term->getSuccessor(0) : nullptr;
 }
 
 // Code to detect our inline asm things
@@ -506,12 +505,12 @@ void handleTransfer(Action &info, CallInst *call) {
 
 template <typename T>
 bool actionIsSC(T *i) {
-  return i->getOrdering() == SequentiallyConsistent &&
+  return i->getOrdering() == AtomicOrdering::SequentiallyConsistent &&
     i->getSynchScope() == CrossThread;
 }
 bool actionIsSC(AtomicCmpXchgInst *i) {
-  return i->getSuccessOrdering() == SequentiallyConsistent &&
-    i->getFailureOrdering() == SequentiallyConsistent &&
+  return i->getSuccessOrdering() == AtomicOrdering::SequentiallyConsistent &&
+    i->getFailureOrdering() == AtomicOrdering::SequentiallyConsistent &&
     i->getSynchScope() == CrossThread;
 }
 
@@ -1130,9 +1129,11 @@ Instruction *getCutInstr(const EdgeCut &cut) {
 }
 
 AtomicOrdering strengthenOrder(AtomicOrdering order, AtomicOrdering strength) {
-  if (order == SequentiallyConsistent) return order;
-  if (order == Acquire && strength == Release) return AcquireRelease;
-  if (order == Release && strength == Acquire) return AcquireRelease;
+  if (order == AtomicOrdering::SequentiallyConsistent) return order;
+  if (order == AtomicOrdering::Acquire && strength == AtomicOrdering::Release)
+    return AtomicOrdering::AcquireRelease;
+  if (order == AtomicOrdering::Release && strength == AtomicOrdering::Acquire)
+    return AtomicOrdering::AcquireRelease;
   return strength;
 }
 
@@ -1154,7 +1155,7 @@ void strengthenBlockOrders(BasicBlock *block, AtomicOrdering strength) {
         strengthenOrder(cas->getSuccessOrdering(), strength));
       // Failure orderings are just loads, so making them Release
       // doesn't make any sense.
-      if (strength == Acquire) {
+      if (strength == AtomicOrdering::Acquire) {
         cas->setFailureOrdering(
           strengthenOrder(cas->getFailureOrdering(), strength));
       }
@@ -1200,10 +1201,10 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     break;
   }
   case CutRelease:
-    strengthenBlockOrders(cut.src, Release);
+    strengthenBlockOrders(cut.src, AtomicOrdering::Release);
     break;
   case CutAcquire:
-    strengthenBlockOrders(cut.src, Acquire);
+    strengthenBlockOrders(cut.src, AtomicOrdering::Acquire);
     break;
   default:
     assert(false && "Unimplemented insertCut case");
