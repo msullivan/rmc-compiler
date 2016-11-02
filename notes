@@ -636,3 +636,4 @@ Compilation shortcomings:
 
 - We don't use binding sites when doing sync/lwsync cuts. See
   examples/crit_edge.c for an case where this comes up.
+*** FIXED

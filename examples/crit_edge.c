@@ -2,16 +2,6 @@
 
 void crit_edge(int b1, int b2) {
     extern int some_func(int n);
-
-    // XXX: We don't take advantage of binding sites when doing
-    // sync/lwsync cuts. I had thought that they weren't useful but in
-    // fact they are useful in exactly this sort of situation in which
-    // there are lots of plausible paths through a function that don't
-    // hit where we want the barrier to go.
-    // Throw an rmc_push_here() up at the top so we can still make
-    // sure that inserting into the critical edge works.
-    rmc_push_here();
-
     // Test that we can properly break a critical edge and insert a
     // sync that runs on just the right path.
     // In this program, there are CFG edges a->b, a->d, and c->d

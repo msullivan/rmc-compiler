@@ -318,7 +318,6 @@ SmtExpr getPathFunc(DeclMap<PathKey> &map,
                      bool *alreadyThere = nullptr) {
   return getFunc(map, makePathKey(path), alreadyThere);
 }
-
 ///////////////
 
 // We precompute this so that the solver doesn't need to consider
@@ -429,11 +428,11 @@ struct VarMaps {
   DeclMap<BlockKey> release;
   DeclMap<BlockKey> acquire;
   // XXX: Make arrays keyed by edge type
-  DeclMap<EdgeKey> pcut;
-  DeclMap<EdgeKey> vcut;
+  DeclMap<BlockEdgeKey> pcut;
+  DeclMap<BlockEdgeKey> vcut;
   DeclMap<BlockEdgeKey> xcut;
-  DeclMap<PathKey> pathPcut;
-  DeclMap<PathKey> pathVcut;
+  DeclMap<BlockPathKey> pathPcut;
+  DeclMap<BlockPathKey> pathVcut;
   DeclMap<BlockPathKey> pathXcut;
 
   DeclMap<EdgeKey> isync;
@@ -669,11 +668,13 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
 
 
 SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
-                     PathID path, bool isPush) {
+                     PathID path, BasicBlock *bindSite,
+                     bool isPush) {
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) {
-      return getPathFunc(isPush ? m.pathPcut : m.pathVcut, path, b); },
+      return getFunc(isPush ? m.pathPcut : m.pathVcut,
+                     makeBlockPathKey(bindSite, path), b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
       return makeEdgeVcut(s, m, src, dst, isPush);
     });
@@ -683,7 +684,7 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite);
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                 RMCEdgeType edgeType);
+                 BasicBlock *bindSite, RMCEdgeType edgeType);
 
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
                      PathID path, Action &tail,
@@ -712,7 +713,8 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   }
 
   s.add(isCut ==
-        (makePathVcut(s, m, path, false) || pathCtrlCut || pathDataCut));
+        (makePathVcut(s, m, path, bindSite, false) ||
+         pathCtrlCut || pathDataCut));
 
   return isCut;
 }
@@ -780,7 +782,7 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
   // source anyways and the xcut code doesn't handle multi-block
   // actions right.
   if (src.type == ActionComplex) {
-    return makeVcut(s, m, src, dst, ExecutionEdge);
+    return makeVcut(s, m, src, dst, bindSite, ExecutionEdge);
   }
 
   bool alreadyMade;
@@ -800,14 +802,15 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
 
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                 RMCEdgeType edgeType) {
+                 BasicBlock *bindSite, RMCEdgeType edgeType) {
   bool isPush = edgeType == PushEdge;
-  SmtExpr isCut = getEdgeFunc(isPush ? m.pcut : m.vcut,
-                              src.outBlock, dst.bb);
+  SmtExpr isCut = getFunc(isPush ? m.pcut : m.vcut,
+                          makeBlockEdgeKey(bindSite, src.outBlock, dst.bb));
 
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.outBlock, dst.bb,
-    [&] (PathID path) { return makePathVcut(s, m, path, isPush); });
+    [&] (PathID path) { return makePathVcut(s, m, path, bindSite, isPush); },
+    bindSite);
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
   s.add(isCut == (allPathsCut || relAcqCut));
 
@@ -852,11 +855,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
                       paramEnabled(params.makeReleaseCost)),
     DeclMap<BlockKey>(c.bool_sort(), "acquire",
                       paramEnabled(params.makeAcquireCost)),
-    DeclMap<EdgeKey>(c.bool_sort(), "pcut"),
-    DeclMap<EdgeKey>(c.bool_sort(), "vcut"),
+    DeclMap<BlockEdgeKey>(c.bool_sort(), "pcut"),
+    DeclMap<BlockEdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<BlockEdgeKey>(c.bool_sort(), "xcut"),
-    DeclMap<PathKey>(c.bool_sort(), "path_pcut"),
-    DeclMap<PathKey>(c.bool_sort(), "path_vcut"),
+    DeclMap<BlockPathKey>(c.bool_sort(), "path_pcut"),
+    DeclMap<BlockPathKey>(c.bool_sort(), "path_vcut"),
     DeclMap<BlockPathKey>(c.bool_sort(), "path_xcut"),
 
     DeclMap<EdgeKey>(c.bool_sort(), "isync",
@@ -899,20 +902,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
       for (auto & entry : src.transEdges[edgeType]) {
         Action &dst = *entry.first;
 
-        if (edgeType == ExecutionEdge) {
-          // For execution edges, we check all the binding sites.
-          for (BasicBlock *bindSite : entry.second) {
+        // Cut based on all the binding sites. There should basically
+        // only ever be one, though.
+        for (BasicBlock *bindSite : entry.second) {
+          if (edgeType == ExecutionEdge) {
             s.add(makeXcut(s, m, src, dst, bindSite));
+          } else {
+            s.add(makeVcut(s, m, src, dst, bindSite, edgeType));
           }
-        } else {
-          // I'm pretty sure binding isn't useful for vis edges, so we
-          // don't bother checking binding sites here.
-
-          // XXX: That's not true, there are cases where it could
-          // potentially be useful. Or rather, there are cases where
-          // it is *meaningful* and could generate different code.
-          // I'm not sure if there are cases where it is *useful*.
-          s.add(makeVcut(s, m, src, dst, edgeType));
         }
       }
     }
