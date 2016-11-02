@@ -330,7 +330,7 @@ I guess we could add edges from all function calls that could possibly
 invoke us recursively... but that sounds annoying.
 
 * I think for now we will not support this???
-* XXX: I HAVE NOTES FOR A PLAN ABOUT THIS SOMERWHERE
+* XXX: I HAVE NOTES FOR A PLAN ABOUT THIS SOMEWHERE
 
 -----
 
@@ -609,7 +609,6 @@ In all models:
 - For a write to execute, there must be an outstanding promise
 - XXX: might be some problems: not executable? RWs wrong?
 
-
 ----------------------------------------------
 
 Even less formal execution model:
@@ -620,3 +619,20 @@ Even less formal execution model:
   executed
 - BUT: A write may only be executed if the same write could have been
   executed without any outstanding speculated reads.
+
+----------------------------------------------
+
+Compilation shortcomings:
+
+- If we do something like this:
+   VEDGE(a, b); VEDGE(b, c);
+    L(a, ...);
+    if (...) L(b, rmc_noop());
+    L(c, ...);
+  The semantics only generate an "a -vo-> c" edge when b gets
+  executed. But our compilation strategy takes the transitive closure
+  of all the edges in a flow-insensitive way, which will result in
+  inserting an unconditional lwsync and not one in the branch.
+
+- We don't use binding sites when doing sync/lwsync cuts. See
+  examples/crit_edge.c for an case where this comes up.

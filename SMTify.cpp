@@ -907,6 +907,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
         } else {
           // I'm pretty sure binding isn't useful for vis edges, so we
           // don't bother checking binding sites here.
+
+          // XXX: That's not true, there are cases where it could
+          // potentially be useful. Or rather, there are cases where
+          // it is *meaningful* and could generate different code.
+          // I'm not sure if there are cases where it is *useful*.
           s.add(makeVcut(s, m, src, dst, edgeType));
         }
       }
