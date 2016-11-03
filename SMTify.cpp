@@ -431,6 +431,8 @@ struct VarMaps {
   DeclMap<BlockEdgeKey> pcut;
   DeclMap<BlockEdgeKey> vcut;
   DeclMap<BlockEdgeKey> xcut;
+  // Wait, pathPcut and pathVcut *don't* need to be keyed by blocks.
+  // But if I made them arrays keyed by edge type, it would make sense...
   DeclMap<BlockPathKey> pathPcut;
   DeclMap<BlockPathKey> pathVcut;
   DeclMap<BlockPathKey> pathXcut;
@@ -668,13 +670,13 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
 
 
 SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
-                     PathID path, BasicBlock *bindSite,
+                     PathID path,
                      bool isPush) {
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) {
       return getFunc(isPush ? m.pathPcut : m.pathVcut,
-                     makeBlockPathKey(bindSite, path), b); },
+                     makeBlockPathKey(nullptr, path), b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
       return makeEdgeVcut(s, m, src, dst, isPush);
     });
@@ -713,7 +715,7 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   }
 
   s.add(isCut ==
-        (makePathVcut(s, m, path, bindSite, false) ||
+        (makePathVcut(s, m, path, false) ||
          pathCtrlCut || pathDataCut));
 
   return isCut;
@@ -809,7 +811,7 @@ SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
   SmtExpr allPathsCut = forAllPaths(
     s, m, src.outBlock, dst.bb,
-    [&] (PathID path) { return makePathVcut(s, m, path, bindSite, isPush); },
+    [&] (PathID path) { return makePathVcut(s, m, path, isPush); },
     bindSite);
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, edgeType);
   s.add(isCut == (allPathsCut || relAcqCut));
