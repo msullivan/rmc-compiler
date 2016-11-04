@@ -338,7 +338,6 @@ void deleteRegisterCall(Instruction *i) {
 Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
   if (bb2action_[bb]) {
     assert(bb2action_[bb]->type == ActionPrePost);
-    errs() << "Warning: duplicate pre/post\n";
     return bb2action_[bb];
   }
 
