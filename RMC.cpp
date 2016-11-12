@@ -657,12 +657,24 @@ void RealizeRMC::findActions() {
     }
     end->setName("_rmc_end_" + name);
 
-    actions_.emplace_back(main, out, name);
+    // There is a subtly here: further processing of actions can cause
+    // the out block to get split, leaving our pointer to it wrong
+    // (since if it gets split we want the *later* block).
+    // We work around this in a hacky way by storing the *end* block
+    // instead and then patching them up once we have processed all
+    // the actions.
+    actions_.emplace_back(main, end, name);
     bb2action_[main] = &actions_.back();
-
 
     deleteRegisterCall(reg);
     deleteRegisterCall(close);
+  }
+
+  // Now we need to go fix up our out blocks.
+  for (auto & action : actions_) {
+    BasicBlock *out = action.outBlock->getSinglePredecessor();
+    assert(out);
+    action.outBlock = out;
   }
 }
 
