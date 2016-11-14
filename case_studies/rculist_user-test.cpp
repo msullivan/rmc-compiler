@@ -14,8 +14,8 @@
 
 #include "util.hpp"
 
-#include "epoch.hpp"
 #include "rculist_user.hpp"
+#include "epoch.hpp"
 
 using namespace rmclib;
 
