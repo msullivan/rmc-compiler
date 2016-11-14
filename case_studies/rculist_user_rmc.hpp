@@ -17,6 +17,7 @@ struct noob {
     rculist_node link;
     noob(unsigned pkey, unsigned pval1, unsigned pval2) :
         key(pkey), val1(pval1), val2(pval2) {}
+#if RCULIST_POISON
     // Poison the memory for testing purposes so that the world
     // is more likely to end of something goes wrong.
     ~noob() {
@@ -24,6 +25,7 @@ struct noob {
         link.next = link.prev = dead;
         key = val1 = val2 = 0xdeaddead;
     }
+#endif
 };
 
 struct nooblist {
