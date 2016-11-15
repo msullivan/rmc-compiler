@@ -33,8 +33,8 @@ struct nooblist {
     std::mutex write_lock;
 };
 
-noob *noob_find(nooblist *list, unsigned key);
-void noob_insert(nooblist *list, noob *obj);
+noob *noob_find(nooblist *list, unsigned key) noexcept;
+void noob_insert(nooblist *list, noob *obj) noexcept;
 
 }
 
