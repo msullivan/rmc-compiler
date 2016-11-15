@@ -11,7 +11,7 @@
 
 #define REMOTE_PUSH_MPROTECT 0
 
-#ifdef REMOTE_PUSH_MPROTECT
+#if REMOTE_PUSH_MPROTECT
 #include <sys/mman.h>
 
 namespace rmclib {
@@ -42,7 +42,10 @@ static struct DummyPage {
 } dummyPage;
 
 inline void placeholder() {
-    std::atomic_signal_fence(std::memory_order_seq_cst);
+    // clang on arm generates a dmb for an atomic_signal_fence, which
+    // kind of defeats the whole fucking purpose, huh?
+    //std::atomic_signal_fence(std::memory_order_seq_cst);
+    __asm__ __volatile__("":::"memory");
 }
 
 inline void trigger() {
