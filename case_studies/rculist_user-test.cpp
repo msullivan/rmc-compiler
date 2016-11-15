@@ -102,9 +102,6 @@ void consumer(Test *t, int threadnum) {
         if (t->interval && i % t->interval == offset) produce(t, threadnum);
         readIdx += kReadStride;
         consume(t, readIdx % t->elems);
-
-        auto guard = Epoch::rcuPin();
-
     }
 }
 
