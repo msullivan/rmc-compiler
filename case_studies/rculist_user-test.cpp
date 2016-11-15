@@ -73,7 +73,7 @@ void producer(Test *t, int threadnum) {
 
 #ifdef RCULIST_USER_RMC
 void consume(Test *t, unsigned key) {
-    XEDGE(find, a);
+    XEDGE_HERE(find, a);
     auto guard = Epoch::rcuPin();
 
     noob *nobe = LTAKE(find, noob_find_give(&t->noobs, key));
