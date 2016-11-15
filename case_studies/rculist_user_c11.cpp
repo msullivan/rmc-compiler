@@ -10,7 +10,7 @@
 
 namespace rmclib {
 ////////////
-noob *noob_find(nooblist *list, unsigned key) {
+noob *noob_find(nooblist *list, unsigned key) noexcept {
     noob *node;
     rculist_for_each_entry(node, &list->head, link) {
         if (node->key == key) {
@@ -21,7 +21,7 @@ noob *noob_find(nooblist *list, unsigned key) {
     return nullptr;
 }
 
-void noob_insert(nooblist *list, noob *obj) {
+void noob_insert(nooblist *list, noob *obj) noexcept {
     std::unique_lock<std::mutex> lock(list->write_lock);
     noob *old = noob_find(list, obj->key);
 
