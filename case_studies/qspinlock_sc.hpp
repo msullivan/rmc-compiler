@@ -31,7 +31,7 @@ class QSpinLock {
 
     void clearTag(std::atomic<Node::Ptr> &loc) {
         // We want to just xadd(-1) the thing, but C++ doesn't let us
-        // because of the level of obstruction^Wabstruction that
+        // because of the level of obstruction^Wabstraction that
         // tagged_ptr adds.
         //
         // Or maybe what we want to do is to align Node on 256 boundaries
@@ -44,6 +44,9 @@ class QSpinLock {
         intloc.fetch_sub(1);
 #elif CLEAR_BYTE_WRITE
         // This is certainly undefined, and only works on little endian
+        // C++ really does not have any story for mixed-size atomics
+        // and mixed-size atomics are pretty funky in practice.
+        // Linux does do this on some platforms, though.
         auto &byteloc = reinterpret_cast<std::atomic<uint8_t> &>(loc);
         byteloc = 0;
 #else
