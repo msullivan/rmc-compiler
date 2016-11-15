@@ -177,7 +177,8 @@ LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES)) \
          $(EXTRA_LIB_SRCS)
 
 OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
-	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS))
+	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS)) \
+	      $(BUILTLIBS)
 
 -include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
