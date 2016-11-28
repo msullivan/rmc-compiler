@@ -7,11 +7,11 @@ QUEUE_TESTS+="ms_queue-ec11-rmc-test ms_queue-ec11-sc-test ms_queue-ec11-c11-tes
 QUEUE_TESTS+="ms_queue-fc11-rmc2-test ms_queue-fc11-sc2-test ms_queue-fc11-c112-test "
 
 # Queue tests where the underlying system matches
-QUEUE_TESTS+="ms_queue-ermc-rmc-test ms_queue-esc-sc-test ms_queue-ec11-c11-test "
-QUEUE_TESTS+="ms_queue-frmc-rmc2-test ms_queue-fsc-sc2-test ms_queue-fc11-c112-test "
+#QUEUE_TESTS+="ms_queue-ermc-rmc-test ms_queue-esc-sc-test ms_queue-ec11-c11-test "
+#QUEUE_TESTS+="ms_queue-frmc-rmc2-test ms_queue-fsc-sc2-test ms_queue-fc11-c112-test "
 
 # Queue tests where we hold the queue constant and vary the epoch impl
-QUEUE_TESTS+="ms_queue-ermc-c11-test ms_queue-esc-c11-test ms_queue-ec11-c11-test "
+#QUEUE_TESTS+="ms_queue-ermc-c11-test ms_queue-esc-c11-test ms_queue-ec11-c11-test "
 
 QUEUE_TESTS=$(echo $QUEUE_TESTS | xargs -n1 | sort -u | xargs)
 
