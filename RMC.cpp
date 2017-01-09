@@ -869,56 +869,94 @@ bool branchesOn(BasicBlock *bb, Value *load,
   return false;
 }
 
+typedef SmallPtrSet<Value *, 4> PendingPhis;
+
 // Look for address dependencies on a read.
 bool addrDepsOnSearch(Value *pointer, Value *load,
-                      PathCache *cache, PathID path,
-                      std::vector<Instruction *> *trail) {
+                      PathCache *cache, PathCache::SkipSet &reachable,
+                      PendingPhis &phis,
+                      std::vector<std::vector<Instruction *> > *trails) {
   Instruction *instr = dyn_cast<Instruction>(pointer);
   if (!instr) return false;
 
-  if (pointer == load) {
-    if (trail) trail->push_back(instr);
+  unsigned init_size = trails ? trails->size() : 0;
+  auto extend_trails = [&] (bool ret) {
+    if (!trails || !ret) return ret;
+    for (unsigned i = init_size; i < trails->size(); i++) {
+      (*trails)[i].push_back(instr);
+    }
     return true;
+  };
+
+
+  if (pointer == load || phis.count(pointer)) {
+    // Push an empty trail on the back to fill up
+    if (trails) trails->push_back({});
+    return extend_trails(true);
   } else if (getBSCopyValue(pointer)) {
-    bool succ=addrDepsOnSearch(getRealValue(pointer), load, cache, path, trail);
-    if (succ && trail) trail->push_back(instr);
-    return succ;
+    bool succ = addrDepsOnSearch(getRealValue(pointer),
+                                 load, cache, reachable, phis, trails);
+    return extend_trails(succ);
   }
 
   // We trace through GEP, BitCast, IntToPtr.
   // I wish we weren't recursive. Maybe we should restrict how we
   // trace through GEPs?
   // TODO: less heavily restrict what we use?
+  // XXX: We need to do Loads now, right??? Is the way we do it right??
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
-      isa<SExtInst>(instr) || isa<IntToPtrInst>(instr)) {
+      isa<SExtInst>(instr) || isa<IntToPtrInst>(instr) ||
+      isa<LoadInst>(instr)) {
     for (auto v : instr->operand_values()) {
-      if (addrDepsOnSearch(v, load, cache, path, trail)) {
-        if (trail) trail->push_back(instr);
-        return true;
+      if (addrDepsOnSearch(v, load, cache, reachable, phis, trails)) {
+        return extend_trails(true);
       }
     }
   }
-  // Trace through PHI nodes also, using any information about the
-  // path we took to get here
+  // We need to trace down *every* phi node path, except ones
+  // that weren't reachable anyways.
   if (PHINode *phi = dyn_cast<PHINode>(instr)) {
-    if (BasicBlock *pred = getPathPred(cache, path, phi->getParent())) {
-      bool succ = addrDepsOnSearch(phi->getIncomingValueForBlock(pred),
-                                   load, cache, path, trail);
-      if (succ && trail) trail->push_back(instr);
-      return succ;
+    for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+      // Don't trace down through blocks that aren't reachable
+      if (!reachable.count(phi->getIncomingBlock(i))) continue;
+      phis.insert(phi);
+      bool succ = addrDepsOnSearch(phi->getIncomingValue(i),
+                                   load, cache, reachable, phis, trails);
+      phis.erase(phi);
+      if (!succ) return false;
     }
+    return extend_trails(true);
   }
-
 
   return false;
 }
 
-// Look for address dependencies on a read.
 bool addrDepsOn(Use *use, Value *load,
-                PathCache *cache, PathID path,
-                std::vector<Instruction *> *trail) {
-  Value *pointer = use->get();
-  return addrDepsOnSearch(pointer, load, cache, path, trail);
+                PathCache *cache, BasicBlock *bindSite,
+                std::vector<std::vector<Instruction *> > *trails) {
+  Instruction *pointer = dyn_cast<Instruction>(use->get());
+  Instruction *load_instr = dyn_cast<Instruction>(load);
+  if (!pointer || !load_instr) return false;
+
+  PendingPhis phis;
+  PathCache::SkipSet skip;
+  if (bindSite) skip.insert(bindSite);
+  PathCache::SkipSet reachable =
+    cache->findAllReachable(&skip,
+                            load_instr->getParent());
+
+#ifdef DEBUG_SPEW
+  errs() << "from: " << load_instr->getParent()->getName() << " ";
+  if (bindSite) errs() << "bound: " << bindSite->getName() << " ";
+  errs() << "reachable: {";
+  for (BasicBlock *block : reachable) {
+    errs() << block->getName() << ", ";
+  }
+  errs() << "}\n";
+#endif
+
+  return addrDepsOnSearch(pointer, load_instr, cache,
+                           reachable, phis, trails);
 }
 
 }
@@ -988,21 +1026,28 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 
   if (hasSoftCut) return SoftCut;
 
+  return NoCut;
+}
+
+bool RealizeRMC::isEdgeDataCut(const RMCEdge &edge,
+                               bool enforceSoft) {
   // Try a data cut
   // See if we have a data dep in a very basic way.
   // FIXME: Should be able to handle writes also!
-  std::vector<Instruction *> trail;
-  auto trailp = enforceSoft ? &trail : nullptr;
+  std::vector<std::vector<Instruction *> > trails;
+  auto trailp = enforceSoft ? &trails : nullptr;
   if (edge.src->outgoingDep && edge.dst->incomingDep &&
       addrDepsOn(edge.dst->incomingDep, edge.src->outgoingDep,
-                 &pc_, pathid, trailp)) {
+                 &pc_, edge.bindSite, trailp)) {
     if (enforceSoft) {
-      enforceAddrDeps(edge.dst->incomingDep, trail);
+      for (auto & trail : trails) {
+        enforceAddrDeps(edge.dst->incomingDep, trail);
+      }
     }
-    return DataCut;
+    return true;
   }
 
-  return NoCut;
+  return false;
 }
 
 CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
@@ -1018,6 +1063,11 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
     CutStrength pathStrength = isPathCut(edge, path,
                                          enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
+  }
+
+  if (!justCheckCtrl && strength == NoCut &&
+      isEdgeDataCut(edge, enforceSoft)) {
+    return DataCut;
   }
 
   return strength;
@@ -1204,11 +1254,13 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   }
   case CutData:
   {
-    std::vector<Instruction *> trail;
+    std::vector<std::vector<Instruction *> > trails;
     Use *end = bb2action_[cut.dst]->incomingDep;
-    bool deps = addrDepsOn(end, cut.read, &pc_, cut.path, &trail);
+    bool deps = addrDepsOn(end, cut.read, &pc_, cut.bindSite, &trails);
     assert_(deps);
-    enforceAddrDeps(end, trail);
+    for (auto & trail : trails) {
+      enforceAddrDeps(end, trail);
+    }
     break;
   }
   case CutRelease:

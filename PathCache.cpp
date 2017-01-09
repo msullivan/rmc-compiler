@@ -89,6 +89,39 @@ PathList PathCache::findAllSimplePaths(SkipSet *grey,
   return paths;
 }
 
+void findAllReachableDFS(PathCache::SkipSet *grey,
+                         BasicBlock *src,
+                         bool includeReturnLoop) {
+
+  if (grey->count(src)) return;
+
+  grey->insert(src);
+
+  // We consider all exits from a function to loop back to the start
+  // edge, so we need to handle that unfortunate case.
+  if (includeReturnLoop && isa<ReturnInst>(src->getTerminator())) {
+    BasicBlock *entry = &src->getParent()->getEntryBlock();
+    findAllReachableDFS(grey, entry, includeReturnLoop);
+  }
+  // Go search all the normal successors
+  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
+    findAllReachableDFS(grey, *i, includeReturnLoop);
+  }
+}
+
+PathCache::SkipSet PathCache::findAllReachable(
+    SkipSet *skip, BasicBlock *src,
+    bool includeReturnLoop) {
+  SkipSet grey = *skip;
+  findAllReachableDFS(&grey, src, includeReturnLoop);
+  for (auto bb : *skip) {
+    grey.erase(bb);
+  }
+
+  return grey;
+}
+
+
 PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
                                        bool includeReturnLoop,
                                        bool allowSelfCycle) {

@@ -30,6 +30,10 @@ public:
                               bool includeReturnLoop = true,
                               bool allowSelfCycle = true);
 
+  // this isn't really path related but...
+  SkipSet findAllReachable(SkipSet *grey, BasicBlock *src,
+                           bool includeReturnLoop = true);
+
   Path extractPath(PathID k) const;
 
   static const PathID kEmptyPath = -1;
