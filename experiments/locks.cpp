@@ -11,11 +11,13 @@ typedef struct bslock_peterson_t {
 } bslock_peterson_t;
 #define BSLOCK_INIT { 0, {0, 0} }
 
+// XXX: NOTE THAT THIS IS x86!
+// Other things need more shit!
 void bslock_lock_peterson(bslock_peterson_t *lock, int me) {
     int other = 1-me;
     ACCESS_ONCE(lock->turn) = other;
-    ACCESS_ONCE(lock->flag[me]) = 1;
     smp_mb();
+    ACCESS_ONCE(lock->flag[me]) = 1;
     while (ACCESS_ONCE(lock->flag[other]) && ACCESS_ONCE(lock->turn) == other) {
         continue;
     }
@@ -29,6 +31,8 @@ void bslock_unlock_peterson(bslock_peterson_t *lock, int me) {
 //
 #define bslock_dekker_t bslock_peterson_t
 
+// XXX: NOTE THAT THIS IS x86!
+// I am also not super confident here.
 void bslock_lock_dekker(bslock_dekker_t *lock, int me) {
     int other = 1-me;
     ACCESS_ONCE(lock->flag[me]) = 1;
