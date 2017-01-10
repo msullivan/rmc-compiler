@@ -362,9 +362,13 @@ C++ seq cst fences:
    that they don't push out everything they have seen. In acq/rel
    IRIW, it is exactly because they don't synchronize-with each other
    that we don't get SC
-* Even if we added the synchronizes-with thing, though, I think
-  relaxed IRIW would not be SC, since even if we observed the write
-  we aren't synchronizing with it.
+ * Even if we added the synchronizes-with thing, though, I think
+   relaxed IRIW would not be SC, since even if we observed the write
+   we aren't synchronizing with it.
+ * ACTUALLY: With the synchronizes-with thing, I think IRIW where
+   the readers are relaxed would be ruled out and the writers are
+   release, since the fence would handle the visibility stuff.
+
 
 IN GENERAL, WE HAVE STRONGER TRANSITIVE VISIBILITY PROPERTIES.
 
@@ -637,3 +641,5 @@ Compilation shortcomings:
 - We don't use binding sites when doing sync/lwsync cuts. See
   examples/crit_edge.c for an case where this comes up.
 *** FIXED
+
+---------------------------------------------------------------------
