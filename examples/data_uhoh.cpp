@@ -55,3 +55,11 @@ void nus4(rmc::atomic<int*> &a, int *p, int i) {
     int n = L(b, *q);
     lol(n);
 }
+
+void nus5(rmc::atomic<int*> &a, int *p) {
+    // Should only need the one dmb.
+    XEDGE(a, b);
+    int *q = L(a, a);
+    int n = L(b, *q);
+    VEDGE(c, d); LS(c, lol(n)); LS(d, lol(n));
+}
