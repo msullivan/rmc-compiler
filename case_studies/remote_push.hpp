@@ -9,9 +9,50 @@
 #include <cstdio>
 #include <unistd.h>
 
+#define REMOTE_PUSH_SYS_MEMBARRIER 0
 #define REMOTE_PUSH_MPROTECT 0
 
-#if REMOTE_PUSH_MPROTECT
+#if REMOTE_PUSH_SYS_MEMBARRIER
+// This winds up being disasterously slow.
+// I hope Linux goes and adds a faster path than using
+// sched_synchronize()
+
+#include <linux/membarrier.h>
+#include <sys/syscall.h>
+
+namespace rmclib {
+namespace remote_push {
+
+inline int membarrier(int cmd, int flags) {
+    return syscall(__NR_membarrier, cmd, flags);
+}
+
+static struct Setup {
+    Setup() {
+        if (membarrier(MEMBARRIER_CMD_QUERY, 0) < 0) {
+            assert(0 && "membarrier not supported!");
+        }
+    }
+} dummy;
+
+inline void placeholder() {
+    // clang on arm generates a dmb for an atomic_signal_fence, which
+    // kind of defeats the whole fucking purpose, huh?
+    //std::atomic_signal_fence(std::memory_order_seq_cst);
+    __asm__ __volatile__("":::"memory");
+}
+
+inline void trigger() {
+    membarrier(MEMBARRIER_CMD_SHARED, 0);
+}
+
+}
+}
+
+#elif REMOTE_PUSH_MPROTECT
+// XXX: This might not actually work on ARM!
+// ARM has instructions to remotely invalidate TLB entries!
+
 #include <sys/mman.h>
 
 namespace rmclib {
