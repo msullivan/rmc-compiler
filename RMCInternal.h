@@ -178,14 +178,17 @@ struct EdgeCut {
   EdgeCut() {}
   EdgeCut(CutType ptype, BasicBlock *psrc, BasicBlock *pdst,
           Value *pread = nullptr,
-          BasicBlock *pbindSite = nullptr)
-    : type(ptype), src(psrc), dst(pdst), read(pread), bindSite(pbindSite) {}
+          BasicBlock *pbindSite = nullptr,
+          PathID ppath = PathCache::kEmptyPath)
+  : type(ptype), src(psrc), dst(pdst), read(pread),
+    bindSite(pbindSite), path(ppath) {}
 
   CutType type{CutNone};
   BasicBlock *src{nullptr};
   BasicBlock *dst{nullptr};
   Value *read{nullptr};
   BasicBlock *bindSite{nullptr};
+  PathID path{PathCache::kEmptyPath};
 };
 
 enum CutStrength {
@@ -199,8 +202,8 @@ enum CutStrength {
 bool branchesOn(BasicBlock *bb, Value *load,
                 ICmpInst **icmpOut = nullptr, int *outIdx = nullptr);
 bool addrDepsOn(Use *use, Value *load,
-                 PathCache *cache, BasicBlock *bindSite,
-                 std::vector<std::vector<Instruction *> > *trails = nullptr);
+                PathCache *cache, BasicBlock *bindSite, PathID path,
+                std::vector<std::vector<Instruction *> > *trails = nullptr);
 
 // Class to track the analysis of the function and insert the syncs.
 class RealizeRMC {
@@ -237,8 +240,6 @@ private:
   // non-SMT compilation
   CutStrength isPathCut(const RMCEdge &edge, PathID path,
                         bool enforceSoft, bool justCheckCtrl);
-  bool isEdgeDataCut(const RMCEdge &edge,
-                     bool enforceSoft = false);
   CutStrength isEdgeCut(const RMCEdge &edge,
                         bool enforceSoft = false, bool justCheckCtrl = false);
   bool isCut(const RMCEdge &edge);

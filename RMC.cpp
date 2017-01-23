@@ -931,8 +931,11 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   return false;
 }
 
+// FIXME: This currently ignores the path component which results in
+// being overly conservative, as well as duplicating work.
 bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache, BasicBlock *bindSite,
+                PathID path,
                 std::vector<std::vector<Instruction *> > *trails) {
   Instruction *pointer = dyn_cast<Instruction>(use->get());
   Instruction *load_instr = dyn_cast<Instruction>(load);
@@ -1026,11 +1029,6 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
 
   if (hasSoftCut) return SoftCut;
 
-  return NoCut;
-}
-
-bool RealizeRMC::isEdgeDataCut(const RMCEdge &edge,
-                               bool enforceSoft) {
   // Try a data cut
   // See if we have a data dep in a very basic way.
   // FIXME: Should be able to handle writes also!
@@ -1038,16 +1036,16 @@ bool RealizeRMC::isEdgeDataCut(const RMCEdge &edge,
   auto trailp = enforceSoft ? &trails : nullptr;
   if (edge.src->outgoingDep && edge.dst->incomingDep &&
       addrDepsOn(edge.dst->incomingDep, edge.src->outgoingDep,
-                 &pc_, edge.bindSite, trailp)) {
+                 &pc_, edge.bindSite, pathid, trailp)) {
     if (enforceSoft) {
       for (auto & trail : trails) {
         enforceAddrDeps(edge.dst->incomingDep, trail);
       }
     }
-    return true;
+    return DataCut;
   }
 
-  return false;
+  return NoCut;
 }
 
 CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
@@ -1063,11 +1061,6 @@ CutStrength RealizeRMC::isEdgeCut(const RMCEdge &edge,
     CutStrength pathStrength = isPathCut(edge, path,
                                          enforceSoft, justCheckCtrl);
     if (pathStrength < strength) strength = pathStrength;
-  }
-
-  if (!justCheckCtrl && strength == NoCut &&
-      isEdgeDataCut(edge, enforceSoft)) {
-    return DataCut;
   }
 
   return strength;
@@ -1256,8 +1249,10 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   {
     std::vector<std::vector<Instruction *> > trails;
     Use *end = bb2action_[cut.dst]->incomingDep;
-    bool deps = addrDepsOn(end, cut.read, &pc_, cut.bindSite, &trails);
+    bool deps = addrDepsOn(end, cut.read, &pc_,
+                           cut.bindSite, cut.path, &trails);
     assert_(deps);
+
     for (auto & trail : trails) {
       enforceAddrDeps(end, trail);
     }

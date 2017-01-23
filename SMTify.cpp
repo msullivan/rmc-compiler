@@ -447,7 +447,8 @@ struct VarMaps {
 
   // The edge here isn't actually a proper edge in that it isn't
   // necessarily two blocks connected in the CFG
-  DeclMap<BlockEdgeKey> usesData;
+  DeclMap<std::pair<BlockKey, EdgePathKey>> usesData;
+  DeclMap<std::pair<BlockKey, std::pair<PathID, BlockPathKey>>> pathData;
 };
 
 // Generalized it.
@@ -496,12 +497,8 @@ SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
-//// Real stuff now: the definitions of all the functions
-SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                 BasicBlock *bindSite);
-SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                 BasicBlock *bindSite, RMCEdgeType edgeType);
 
+//// Real stuff now: the definitions of all the functions
 // XXX: there is a lot of duplication...
 SmtExpr makeCtrl(SmtSolver &s, VarMaps &m,
                  BasicBlock *dep, BasicBlock *src, BasicBlock *dst) {
@@ -600,26 +597,56 @@ SmtExpr makePathCtrlCut(SmtSolver &s, VarMaps &m,
   }
 }
 
+SmtExpr makeData(SmtSolver &s, VarMaps &m,
+                 BasicBlock *dep, BasicBlock *dst,
+                 PathID path, BasicBlock *bindSite) {
+  Action *src = m.bb2action[dep];
+  Action *tail = m.bb2action[dst];
+  if (src && tail && src->outgoingDep && tail->incomingDep &&
+      addrDepsOn(tail->incomingDep, src->outgoingDep, &m.pc, bindSite, path))
+    return getFunc(m.usesData,
+                   std::make_pair(makeBlockKey(bindSite),
+                                  makeEdgePathKey(src->bb, tail->bb, path)));
+
+  return s.ctx().bool_val(false);
+}
+
 // Does it make sense for this to be a path variable at all???
-SmtExpr makeDataCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
-                     BasicBlock *bindSite) {
+SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
+                        PathID fullPath, Action &tail, BasicBlock *bindSite) {
   SmtContext &c = s.ctx();
   if (!m.usesData.enabled) return c.bool_val(false);
+  if (m.pc.isEmpty(fullPath)) return c.bool_val(false);
+  BasicBlock *dep = m.pc.getHead(fullPath);
+  // Can't have a addr dependency when it's not a load.
+  // XXX: we can maybe be more granular about things.
+  if (!m.bb2action[dep] || !m.bb2action[dep]->outgoingDep)
+    return c.bool_val(false);
 
-  SmtExpr dataCut = c.bool_val(false);
-
-  if (src.outgoingDep && dst.incomingDep &&
-      addrDepsOn(dst.incomingDep, src.outgoingDep, &m.pc, bindSite)) {
-    dataCut = getFunc(m.usesData,
-                      makeBlockEdgeKey(bindSite, src.bb, dst.bb));
-
-    bool isSelfPath = src.bb == dst.bb;
-    if (!isSelfPath) {
-      dataCut = dataCut && makeXcut(s, m, src, src, bindSite);
-    }
-  }
-
-  return dataCut;
+  // XXX: CLEANUP: Is this breaking it up into a chain thing worth the
+  // effort at all? I think at this point it would only help for
+  // data->ctrl, since we handle data->data as part of addrDepsOn now.
+  return forAllPathEdges(
+    s, m, fullPath,
+    // We need to include both the fullPath and the postfix because
+    // we don't want to share postfixes incorrectly.
+    [&] (PathID path, bool *b) {
+      return getFunc(m.pathData,
+                     std::make_pair(
+                       makeBlockKey(bindSite),
+                       std::make_pair(fullPath, makeBlockPathKey(dep, path))),
+                       b);
+    },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      SmtExpr cut = makeData(s, m, dep, dst, fullPath, bindSite);
+      path = m.pc.getTail(path);
+      if (dst != tail.bb) {
+        cut = cut &&
+          (makePathCtrlCut(s, m, path, tail) ||
+           makePathDataCut(s, m, path, tail, bindSite));
+      }
+      return cut;
+    });
 }
 
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
@@ -664,6 +691,11 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
 }
 
 
+SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
+                 BasicBlock *bindSite);
+SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
+                 BasicBlock *bindSite, RMCEdgeType edgeType);
+
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
                      PathID path, Action &tail,
                      BasicBlock *bindSite) {
@@ -684,10 +716,15 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
       (makeAllPathsCtrl(s, m, head, head) ||
        makeXcut(s, m, *headAction, *headAction, bindSite));
   }
+  SmtExpr pathDataCut = makePathDataCut(s, m, path, tail, bindSite);
+  if (!isSelfPath) {
+    pathDataCut = pathDataCut &&
+      makeXcut(s, m, *headAction, *headAction, bindSite);
+  }
 
   s.add(isCut ==
         (makePathVcut(s, m, path, false) ||
-         pathCtrlCut));
+         pathCtrlCut || pathDataCut));
 
   return isCut;
 }
@@ -768,8 +805,7 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     [&] (PathID path) { return makePathXcut(s, m, path, dst, bindSite); },
     bindSite);
   SmtExpr relAcqCut = makeRelAcqCut(s, m, src, dst, ExecutionEdge);
-  SmtExpr dataCut = makeDataCut(s, m, src, dst, bindSite);
-  s.add(isCut == (allPathsCut || relAcqCut || dataCut));
+  s.add(isCut == (allPathsCut || relAcqCut));
 
   return isCut;
 }
@@ -846,8 +882,11 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     DeclMap<BlockPathKey>(c.bool_sort(), "path_ctrl"),
     DeclMap<EdgeKey>(c.bool_sort(), "all_paths_ctrl"),
 
-    DeclMap<BlockEdgeKey>(c.bool_sort(), "uses_data",
-                          paramEnabled(params.useDataCost)),
+    DeclMap<std::pair<BlockKey, EdgePathKey>>(
+      c.bool_sort(), "uses_data",
+      paramEnabled(params.useDataCost)),
+    DeclMap<std::pair<BlockKey, std::pair<PathID, BlockPathKey>>>(
+      c.bool_sort(), "path_data"),
   };
 
   // Compute the capacity function
@@ -939,8 +978,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   }
   // Data dep cost
   for (auto & entry : m.usesData.map) {
+    PathID path;
     BasicBlock *bindSite;
-    unpack(unpack(bindSite, unpack(src, dst)), v) = fix_pair(entry);
+    unpack(unpack(bindSite, unpack(unpack(src, dst), path)), v) =
+      fix_pair(entry);
     // XXX: this is a hack that depends on us only using actions in
     // usesData things
     BasicBlock *pred = bb2action_[dst]->bb->getSinglePredecessor();
@@ -994,11 +1035,14 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     cuts.push_back(EdgeCut(CutCtrl, edge.first, edge.second, read));
   });
   // Find data deps to preserve
-  processMap<BlockEdgeKey>(m.usesData, model, [&] (BlockEdgeKey &entry) {
-    EdgeKey edge; BasicBlock *bindSite;
-    unpack(bindSite, edge) = entry;
+  processMap<std::pair<BlockKey, EdgePathKey>>(
+    m.usesData, model,
+    [&] (std::pair<BlockKey, EdgePathKey> &entry) {
+    BasicBlock *src, *dst; PathID path;
+    BasicBlock *bindSite;
+    unpack(bindSite, unpack(unpack(src, dst), path)) = entry;
     Value *read = bb2action_[src]->outgoingDep;
-    cuts.push_back(EdgeCut(CutData, edge.first, edge.second, read, bindSite));
+    cuts.push_back(EdgeCut(CutData, src, dst, read, bindSite, path));
   });
 
 
