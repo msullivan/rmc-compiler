@@ -942,7 +942,7 @@ bool addrDepsOn(Use *use, Value *load,
   PendingPhis phis;
   // XXX: The path we are given can include a prefix we don't actually care
   // about.
-  PathCache::SkipSet reachable = cache->pathReachable(bindSite, path);
+  auto reachable = cache->pathReachable(bindSite, path);
 
 #ifdef DEBUG_SPEW
   errs() << "from: " << load_instr->getParent()->getName() << " ";
@@ -955,7 +955,7 @@ bool addrDepsOn(Use *use, Value *load,
 #endif
 
   return addrDepsOnSearch(pointer, load_instr, cache,
-                           reachable, phis, trails);
+                          reachable, phis, trails);
 }
 
 }

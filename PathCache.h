@@ -28,10 +28,11 @@ public:
   PathList findAllSimplePaths(SkipSet *grey, BasicBlock *src, BasicBlock *dst,
                               bool allowSelfCycle = true);
 
-  typedef DenseMap<BasicBlock *, std::shared_ptr<PathCache::SkipSet> > SCCMap;
   // this isn't really path related but...
+  typedef DenseMap<BasicBlock *, std::shared_ptr<PathCache::SkipSet> > SCCMap;
   SCCMap findSCCs(SkipSet *skip, Function *func);
   SCCMap findSCCs(BasicBlock *bindSite, Function *func);
+  SCCMap *findSCCsCached(BasicBlock *bindSite, Function *func);
   SkipSet pathReachable(BasicBlock *bindSite, PathID pathid);
 
   Path extractPath(PathID k) const;
@@ -50,9 +51,9 @@ public:
   void dumpPaths(const PathList &paths) const;
 
 private:
-
   std::vector<PathCacheEntry> entries_;
   DenseMap<PathCacheEntry, PathID> cache_;
+  DenseMap<BasicBlock *, SCCMap > sccCache_;
 
   PathID addToPath(BasicBlock *b, PathID id);
 };

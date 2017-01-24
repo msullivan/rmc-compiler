@@ -139,7 +139,6 @@ void findAllReachableDFS(PathCache::SkipSet *grey,
 
 // Find SCCs using Kosaraju's Algorithm
 PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func) {
-
   PathCache::SkipSet grey = *skip;
 
   // Generating an ordering to traverse.
@@ -174,10 +173,18 @@ PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func) {
 }
 
 PathCache::SCCMap PathCache::findSCCs(BasicBlock *bindSite, Function *func) {
-  // TODO: cache SCCs
   SkipSet skip;
   if (bindSite) skip.insert(bindSite);
   return findSCCs(&skip, func);
+}
+
+PathCache::SCCMap *PathCache::findSCCsCached(
+    BasicBlock *bindSite, Function *func) {
+  if (sccCache_.count(bindSite)) {
+    return &sccCache_[bindSite];
+  }
+  sccCache_[bindSite] = findSCCs(bindSite, func);
+  return &sccCache_[bindSite];
 }
 
 // Find every node that is reachable as part of a detour while
@@ -190,7 +197,8 @@ PathCache::SkipSet PathCache::pathReachable(BasicBlock *bindSite,
 
   Path path = extractPath(pathid);
 
-  auto sccs = findSCCs(bindSite, path[0]->getParent());
+  auto sccs_ptr = findSCCsCached(bindSite, path[0]->getParent());
+  auto sccs = *sccs_ptr;
 
   SkipSet reachable;
   for (auto *u : path) {
