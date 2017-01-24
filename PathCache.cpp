@@ -7,6 +7,7 @@
 #include <sstream>
 #include <memory>
 
+#include <llvm/ADT/iterator_range.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
@@ -151,7 +152,7 @@ PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func) {
   // Use that ordering a DFS over the reverse graph to compute SCCs.
   grey = *skip;
   SCCMap sccs;
-  for (auto * block : order) {
+  for (auto * block : make_range(order.rbegin(), order.rend())) {
     if (grey.count(block)) continue;
     auto set = std::make_shared<PathCache::SkipSet>();
 
