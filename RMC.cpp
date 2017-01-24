@@ -944,9 +944,9 @@ bool addrDepsOn(Use *use, Value *load,
   PendingPhis phis;
   PathCache::SkipSet skip;
   if (bindSite) skip.insert(bindSite);
-  PathCache::SkipSet reachable =
-    cache->findAllReachable(&skip,
-                            load_instr->getParent());
+  // XXX: The path we are given can include a prefix we don't actually care
+  // about.
+  PathCache::SkipSet reachable = cache->pathReachable(&skip, path);
 
 #ifdef DEBUG_SPEW
   errs() << "from: " << load_instr->getParent()->getName() << " ";

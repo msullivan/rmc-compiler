@@ -43,12 +43,12 @@ void nus3(rmc::atomic<int*> &a, int *p, int i) {
 
 
 void nus4(rmc::atomic<int*> &a, int *p, int i) {
-    // We wish we could only insert a dmb along the branch,
-    // but can't right now. Oh well.
+    // We should emit just one dmb, along the branch path.
     XEDGE_HERE(a, b);
     int *q = L(a, a);
 
     if (i) {
+        lol(10);
         q = p;
     }
 

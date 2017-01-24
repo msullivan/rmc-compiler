@@ -30,9 +30,14 @@ public:
                               bool includeReturnLoop = true,
                               bool allowSelfCycle = true);
 
+  typedef DenseMap<BasicBlock *, std::shared_ptr<PathCache::SkipSet> > SCCMap;
   // this isn't really path related but...
   SkipSet findAllReachable(SkipSet *grey, BasicBlock *src,
                            bool includeReturnLoop = true);
+  SCCMap findSCCs(SkipSet *skip, Function *func,
+                  bool includeReturnLoop = true);
+  SkipSet pathReachable(SkipSet *skip, PathID pathid,
+                        bool includeReturnLoop = true);
 
   Path extractPath(PathID k) const;
 
