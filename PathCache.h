@@ -23,21 +23,16 @@ class PathCache {
 public:
   void clear() { entries_.clear(); cache_.clear(); }
   PathList findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                              bool includeReturnLoop = true,
                               bool allowSelfCycle = true);
   typedef SmallPtrSet<BasicBlock *, 8> SkipSet;
   PathList findAllSimplePaths(SkipSet *grey, BasicBlock *src, BasicBlock *dst,
-                              bool includeReturnLoop = true,
                               bool allowSelfCycle = true);
 
   typedef DenseMap<BasicBlock *, std::shared_ptr<PathCache::SkipSet> > SCCMap;
   // this isn't really path related but...
-  SkipSet findAllReachable(SkipSet *grey, BasicBlock *src,
-                           bool includeReturnLoop = true);
-  SCCMap findSCCs(SkipSet *skip, Function *func,
-                  bool includeReturnLoop = true);
-  SkipSet pathReachable(SkipSet *skip, PathID pathid,
-                        bool includeReturnLoop = true);
+  SCCMap findSCCs(SkipSet *skip, Function *func);
+  SCCMap findSCCs(BasicBlock *bindSite, Function *func);
+  SkipSet pathReachable(BasicBlock *bindSite, PathID pathid);
 
   Path extractPath(PathID k) const;
 

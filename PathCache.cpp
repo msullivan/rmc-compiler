@@ -19,6 +19,44 @@ using namespace llvm;
 ///////////////////////////////////////////////////////////////////////////
 // Graph algorithms
 
+template <class F>
+void forwardIterate(BasicBlock *src, F f) {
+  // We consider all exits from a function to loop back to the start
+  // edge, so we need to handle that unfortunate case.
+  if (isa<ReturnInst>(src->getTerminator())) {
+    BasicBlock *entry = &src->getParent()->getEntryBlock();
+    f(entry);
+  }
+  // Go search all the normal successors
+  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
+    f(*i);
+  }
+}
+template <class F>
+void backwardIterate(BasicBlock *src, F f) {
+  // We consider all exits from a function to loop back to the start
+  // edge. This is the worst. Is there a better way than scanning
+  // them all?
+  if (src == &src->getParent()->getEntryBlock()) {
+    for (auto & block : *src->getParent()) {
+      if (isa<ReturnInst>(block.getTerminator())) {
+        f(&block);
+      }
+    }
+  }
+  // Go search all the normal predecessors
+  for (auto i = pred_begin(src), e = pred_end(src); i != e; i++) {
+    f(*i);
+  }
+}
+template <class F>
+void graphIterate(BasicBlock *src, bool back, F f) {
+  if (back) {
+    backwardIterate(src, f);
+  } else {
+    forwardIterate(src, f);
+  }
+}
 
 // Code to find all simple paths between two basic blocks.
 // Could generalize more to graphs if we wanted, but I don't right
@@ -52,7 +90,6 @@ Path PathCache::extractPath(PathID k) const {
 
 PathList PathCache::findAllSimplePaths(SkipSet *grey,
                                        BasicBlock *src, BasicBlock *dst,
-                                       bool includeReturnLoop,
                                        bool allowSelfCycle) {
   PathList paths;
   if (src == dst && !allowSelfCycle) {
@@ -64,18 +101,10 @@ PathList PathCache::findAllSimplePaths(SkipSet *grey,
 
   grey->insert(src);
 
-  // We consider all exits from a function to loop back to the start
-  // edge, so we need to handle that unfortunate case.
-  if (includeReturnLoop && isa<ReturnInst>(src->getTerminator())) {
-    BasicBlock *entry = &src->getParent()->getEntryBlock();
-    paths = findAllSimplePaths(grey, entry, dst, includeReturnLoop, false);
-  }
-  // Go search all the normal successors
-  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    PathList subpaths = findAllSimplePaths(grey, *i, dst,
-                                           includeReturnLoop, false);
+  forwardIterate(src, [&] (BasicBlock *succ) {
+    PathList subpaths = findAllSimplePaths(grey, succ, dst, false);
     std::move(subpaths.begin(), subpaths.end(), std::back_inserter(paths));
-  }
+  });
 
   // Add our step to all of the vectors
   for (auto & path : paths) {
@@ -92,94 +121,41 @@ PathList PathCache::findAllSimplePaths(SkipSet *grey,
   return paths;
 }
 
-template <class F>
-void forwardIterate(BasicBlock *src, bool includeReturnLoop, F f) {
-  // We consider all exits from a function to loop back to the start
-  // edge, so we need to handle that unfortunate case.
-  if (includeReturnLoop && isa<ReturnInst>(src->getTerminator())) {
-    BasicBlock *entry = &src->getParent()->getEntryBlock();
-    f(entry);
-  }
-  // Go search all the normal successors
-  for (auto i = succ_begin(src), e = succ_end(src); i != e; i++) {
-    f(*i);
-  }
-}
-template <class F>
-void backwardIterate(BasicBlock *src, bool includeReturnLoop, F f) {
-  // We consider all exits from a function to loop back to the start
-  // edge. This is the worst. Is there a better way than scanning
-  // them all?
-  if (includeReturnLoop && src == &src->getParent()->getEntryBlock()) {
-    for (auto & block : *src->getParent()) {
-      if (isa<ReturnInst>(block.getTerminator())) {
-        f(&block);
-      }
-    }
-  }
-  // Go search all the normal predecessors
-  for (auto i = pred_begin(src), e = pred_end(src); i != e; i++) {
-    f(*i);
-  }
-}
-template <class F>
-void graphIterate(BasicBlock *src, bool includeReturnLoop, bool back, F f) {
-  if (back) {
-    backwardIterate(src, includeReturnLoop, f);
-  } else {
-    forwardIterate(src, includeReturnLoop, f);
-  }
-}
-
 template <class Post>
 void findAllReachableDFS(PathCache::SkipSet *grey,
                          BasicBlock *src,
-                         bool includeReturnLoop,
                          bool backwards,
                          Post post) {
 
   if (grey->count(src)) return;
 
   grey->insert(src);
-  graphIterate(src, includeReturnLoop, backwards, [&] (BasicBlock *succ) {
-    findAllReachableDFS(grey, succ, includeReturnLoop, backwards, post);
+  graphIterate(src, backwards, [&] (BasicBlock *succ) {
+    findAllReachableDFS(grey, succ, backwards, post);
   });
   post(src);
 }
 
-PathCache::SkipSet PathCache::findAllReachable(
-    SkipSet *skip, BasicBlock *src,
-    bool includeReturnLoop) {
-  SkipSet grey = *skip;
-  auto dummy = [&](BasicBlock *node) {};
-  findAllReachableDFS(&grey, src, includeReturnLoop, true, dummy);
-  for (auto bb : *skip) {
-    grey.erase(bb);
-  }
-
-  return grey;
-}
-
 // Find SCCs using Kosaraju's Algorithm
-PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func,
-                                      bool includeReturnLoop) {
-  std::vector<BasicBlock *> order;
+PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func) {
+
   PathCache::SkipSet grey = *skip;
 
   // Generating an ordering to traverse.
+  std::vector<BasicBlock *> order;
   auto post = [&](BasicBlock *node) { order.push_back(node); };
   for (auto & block : *func) {
-    findAllReachableDFS(&grey, &block, false, includeReturnLoop, post);
+    findAllReachableDFS(&grey, &block, false, post);
   }
 
-  grey = *skip;
   // Use that ordering a DFS over the reverse graph to compute SCCs.
+  grey = *skip;
   SCCMap sccs;
   for (auto * block : order) {
     if (grey.count(block)) continue;
     auto set = std::make_shared<PathCache::SkipSet>();
 
-    findAllReachableDFS(&grey, block, true, includeReturnLoop,
+    findAllReachableDFS(&grey, block, true,
                         [&] (BasicBlock *node) {
       set->insert(node);
       sccs[node] = set;
@@ -196,17 +172,24 @@ PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func,
   return sccs;
 }
 
+PathCache::SCCMap PathCache::findSCCs(BasicBlock *bindSite, Function *func) {
+  // TODO: cache SCCs
+  SkipSet skip;
+  if (bindSite) skip.insert(bindSite);
+  return findSCCs(&skip, func);
+}
+
 // Find every node that is reachable as part of a detour while
 // following a path. That is every node u such that
 // p_i ->* u ->* p_i for some p_i along the path.
 // These nodes are everything that is in the same SCC as something
 // along the path.
-PathCache::SkipSet PathCache::pathReachable(SkipSet *skip, PathID pathid,
-                                            bool includeReturnLoop) {
+PathCache::SkipSet PathCache::pathReachable(BasicBlock *bindSite,
+                                            PathID pathid) {
+
   Path path = extractPath(pathid);
 
-  // TODO: cache SCCs
-  auto sccs = findSCCs(skip, path[0]->getParent(), includeReturnLoop);
+  auto sccs = findSCCs(bindSite, path[0]->getParent());
 
   SkipSet reachable;
   for (auto *u : path) {
@@ -222,10 +205,9 @@ PathCache::SkipSet PathCache::pathReachable(SkipSet *skip, PathID pathid,
 
 
 PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
-                                       bool includeReturnLoop,
                                        bool allowSelfCycle) {
   SkipSet grey;
-  return findAllSimplePaths(&grey, src, dst, includeReturnLoop, allowSelfCycle);
+  return findAllSimplePaths(&grey, src, dst, allowSelfCycle);
 }
 
 ////

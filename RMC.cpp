@@ -931,8 +931,6 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   return false;
 }
 
-// FIXME: This currently ignores the path component which results in
-// being overly conservative, as well as duplicating work.
 bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache, BasicBlock *bindSite,
                 PathID path,
@@ -942,11 +940,9 @@ bool addrDepsOn(Use *use, Value *load,
   if (!pointer || !load_instr) return false;
 
   PendingPhis phis;
-  PathCache::SkipSet skip;
-  if (bindSite) skip.insert(bindSite);
   // XXX: The path we are given can include a prefix we don't actually care
   // about.
-  PathCache::SkipSet reachable = cache->pathReachable(&skip, path);
+  PathCache::SkipSet reachable = cache->pathReachable(bindSite, path);
 
 #ifdef DEBUG_SPEW
   errs() << "from: " << load_instr->getParent()->getName() << " ";
