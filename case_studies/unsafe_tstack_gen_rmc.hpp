@@ -58,12 +58,13 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     // read from the write to head.
 
     VEDGE(node_setup, push);
+    VEDGE(node_next, push);
 
     LPRE(node_setup);
 
+    NodePtr oldHead = head_;
     for (;;) {
-        NodePtr oldHead = head_;
-        L(node_setup, node->next_ = oldHead);
+        L(node_next, node->next_ = oldHead);
         if (L(push, head_.compare_exchange_weak_gen(oldHead, node)))
             break;
     }
