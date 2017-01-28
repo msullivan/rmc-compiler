@@ -33,7 +33,9 @@ struct Test {
     const long count;
     const int producers;
     const int consumers;
-    Test(int c, int pr, int co) : count(c), producers(pr), consumers(co) {}
+    const int trolls;
+    Test(int c, int pr, int co, int t) :
+        count(c), producers(pr), consumers(co), trolls(t) {}
 };
 
 void producer(Test *t) {
@@ -69,11 +71,26 @@ void consumer(Test *t) {
     t->totalCount += count;
 }
 
+void troll(Test *t, int no) {
+    ulong missed = 0;
+    for (int i = 1; i < t->count; i++) {
+        fakeWork(Work);
+        t->stack.push(i);
+        fakeWork(Work);
+        auto res = t->stack.pop();
+        // XXX do something with res?
+        if (!res) {
+            missed++;
+        }
+    }
+}
+
 cl::opt<bool> BenchMode("b", cl::desc("Use benchmark output"));
 
 void test(Test &t) {
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;
+    std::vector<std::thread> trolls;
 
     // XXX: we should probably synchronize thread starting work and
     // just time the actual work.
@@ -85,12 +102,16 @@ void test(Test &t) {
     for (int i = 0; i < t.consumers; i++) {
         consumers.push_back(std::thread(consumer, &t));
     }
+    for (int i = 0; i < t.trolls; i++) {
+        trolls.push_back(std::thread(troll, &t, i));
+    }
 
     joinAll(producers);
     t.producersDone = true;
     joinAll(consumers);
+    joinAll(trolls);
 
-    timer.report(t.count * (t.producers+t.consumers), !BenchMode);
+    timer.report(t.count * (t.producers+t.consumers+t.trolls*2), !BenchMode);
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
@@ -108,6 +129,8 @@ cl::opt<int> Producers("p", cl::desc("Number of producer threads"),
                        cl::init(1));
 cl::opt<int> Consumers("c", cl::desc("Number of consumer threads"),
                        cl::init(1));
+cl::opt<int> Trolls("t", cl::desc("Number of troll threads"),
+                    cl::init(0));
 cl::opt<int> Count("n", cl::desc("Number of per-thread operations"),
                    cl::init(kCount));
 cl::opt<int> Reps("r", cl::desc("Number of times to repeat"), cl::init(1));
@@ -120,7 +143,7 @@ int main(int argc, char** argv) {
         std::vector<std::thread> tests;
         for (int j = 0; j < Dups; j++) {
             tests.push_back(std::thread([=] {
-                Test t(Count, Producers, Consumers);
+                Test t(Count, Producers, Consumers, Trolls);
                 test(t);
             }));
         }
