@@ -34,7 +34,7 @@ public:
     }
 
     bool read_unlock(Tag tag) {
-        // The body of the criticial section needs to execute before
+        // The body of the critical section needs to execute before
         // the unlock check, because if we observed any writes from a
         // writer critical section, it is important that we also
         // observe the lock.

@@ -16,12 +16,12 @@
 
 using namespace rmclib;
 
-const ulong kCount = 1000000000;
+const ulong kCount = 100000000;
 const ulong kInterval = 10000;
 
 struct Foo {
-    std::atomic<int> a;
-    std::atomic<int> b;
+    std::atomic<int> a{0};
+    std::atomic<int> b{0};
 };
 
 struct Test {
