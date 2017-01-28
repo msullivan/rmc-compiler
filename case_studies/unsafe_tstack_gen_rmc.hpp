@@ -52,6 +52,7 @@ public:
 };
 
 template<typename T>
+rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     // Don't need edge from head_ load because 'push' will also
     // read from the write to head.
@@ -69,6 +70,7 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
 }
 
 template<typename T>
+rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
     // We don't need any constraints going /into/ 'pop'; all the data
     // in nodes is published by writes into head_, and the CAS reads-from

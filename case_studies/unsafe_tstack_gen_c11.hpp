@@ -52,6 +52,7 @@ public:
 };
 
 template<typename T>
+rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     NodePtr oldHead = head_.load(mo_acq);
     for (;;) {
@@ -64,6 +65,7 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
 }
 
 template<typename T>
+rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
     NodePtr head = this->head_.load(mo_acq);
     for (;;) {
