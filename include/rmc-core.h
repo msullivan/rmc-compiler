@@ -170,8 +170,8 @@ extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 // smart enough to do execution-order edge cutting if only execution
 // edges are drawn.
 #define __rmc_noop() ((void)0)
-#define LPRE(label) do { VEDGE(pre, label); LS(label, __rmc_noop()); } while(0)
-#define LPOST(label) do { VEDGE(label, post); LS(label, __rmc_noop()); }while(0)
+#define LPRE(label) do { VEDGE_HERE(pre, label); LS(label, __rmc_noop()); } while(0)
+#define LPOST(label) do { VEDGE_HERE(label, post); LS(label, __rmc_noop()); }while(0)
 
 
 #define __rmc_push_here_internal(l) do { L(l, __rmc_push()); VEDGE(pre, l); XEDGE(l, post); } while (0)
