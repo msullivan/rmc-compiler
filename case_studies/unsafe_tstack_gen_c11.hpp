@@ -54,13 +54,11 @@ public:
 template<typename T>
 rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
-    NodePtr oldHead = head_.load(mo_acq);
+    NodePtr oldHead = head_.load(mo_rlx);
     for (;;) {
-        // XXX: could use acq_rel fence?
-        // can the compiler handle it?
-        node->next_.store(oldHead, mo_rel);
+        node->next_.store(oldHead, mo_rlx);
         if (head_.compare_exchange_weak_gen(oldHead, node,
-                                            mo_rel, mo_acq)) break;
+                                            mo_rel, mo_rlx)) break;
     }
 }
 
@@ -72,10 +70,12 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
         if (head == nullptr) {
             return nullptr;
         }
-        TStackNode *next = head->next_.load(mo_acq);
+        TStackNode *next = head->next_.load(mo_rlx);
 
+        // We would like to make the success order mo_rlx,
+        // but the success order can't be weaker than the failure one.
         if (this->head_.compare_exchange_weak_gen(head, next,
-                                                  mo_rel, mo_acq)) {
+                                                  mo_acq, mo_acq)) {
             break;
         }
     }

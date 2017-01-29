@@ -73,21 +73,20 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
 template<typename T>
 rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
-    // We don't need any constraints going /into/ 'pop'; all the data
+    // We don't need any constraints going /into/ the pop; all the data
     // in nodes is published by writes into head_, and the CAS reads-from
     // and writes to head_, perserving visibility.
     XEDGE(read_head, read_next);
-    XEDGE(pop, out);
+    XEDGE(read_head, out);
 
-    NodePtr head;
+    NodePtr head = L(read_head, this->head_);
     for (;;) {
-        head = L(read_head, this->head_);
         if (head == nullptr) {
             return nullptr;
         }
         TStackNode *next = L(read_next, head->next_);
 
-        if (L(pop, this->head_.compare_exchange_weak_gen(head, next))){
+        if (L(read_head, this->head_.compare_exchange_weak_gen(head, next))){
             break;
         }
     }
