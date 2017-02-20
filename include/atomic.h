@@ -45,7 +45,7 @@
 #define isync() barrier()
 #define vis_barrier() barrier()
 
-#define bullshit_dep(v, bs) \
+#define bogus_dep(v, bs) \
     ({                                           \
     __typeof__(v) __v = v;                       \
     __asm__ __volatile__("" : [val] "+r" (__v) : [bs] "r" (bs):);   \
@@ -107,7 +107,7 @@
     __i;                                                                \
     })
 
-#define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
+#define bogus_dep(v, bs) ((v)+dependent_zero(bs))
 
 #define vis_barrier() smp_mb()
 
@@ -166,7 +166,7 @@
     __i;                                                                \
     })
 
-#define bullshit_dep(v, bs) ((v)+dependent_zero(bs))
+#define bogus_dep(v, bs) ((v)+dependent_zero(bs))
 
 #define vis_barrier() smp_mb()
 

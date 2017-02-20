@@ -40,7 +40,7 @@ struct Test {
 
 template <typename T>
 T fake_consume(std::atomic<T> &val) {
-    // XXX: ALPHA or some shit also compilers wtvr
+    // XXX: this isn't guarenteed to work of course
     return val.load(mo_rlx);
 }
 

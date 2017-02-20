@@ -37,7 +37,7 @@ int thread1()
 {
     int rready;
     while (!(rready = ready));
-    int rdata = *bullshit_dep(&data, rready);
+    int rdata = *bogus_dep(&data, rready);
     return ((!!rdata)<<1) | rready;
 }
 

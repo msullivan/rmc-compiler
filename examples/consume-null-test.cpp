@@ -29,6 +29,6 @@ void user(rmc::atomic<foo *> &pp) {
     if (p) {
         printf("thing: %d\n", p->b);
     } else {
-        printf("well fuck this\n");
+        printf("well that's not good\n");
     }
 }

@@ -19,7 +19,7 @@ namespace rmclib {
 #ifdef USE_FAKE_CONSUME
 template <typename T>
 T rculist_consume(std::atomic<T> &val) {
-    // XXX: ALPHA or some shit also compilers wtvr
+    // XXX: this isn't guarenteed to work of course
     // I think that *probably* the compiler won't mess with us, and I
     // don't care about ALPHA. Should I bother doing more?
     return val.load(std::memory_order_relaxed);

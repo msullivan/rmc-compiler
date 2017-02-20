@@ -12,8 +12,6 @@ typedef _Rmc(widget *) rmc_widget_ptr;
 
 rmc_widget_ptr widgets[NUM_WIDGETS];
 
-widget *butt;
-
 __attribute__((noinline))
 widget *get_widget(char *key) {
     XEDGE_HERE(get, ret);

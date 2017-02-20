@@ -22,7 +22,7 @@ int thread1()
     int ry1 = y;
     y = 2;
     int ry2 = y;
-    int rx = *bullshit_dep(&x, ry2);
+    int rx = *bogus_dep(&x, ry2);
     return (ry1<<3) | (rx<<2) | ry2;
 }
 

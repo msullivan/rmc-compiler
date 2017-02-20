@@ -316,7 +316,7 @@ int buf_dequeue_c11_sc_dumb(ring_buf_c11_t *buf)
 /* Use consume without having an honest data dependency. */
 /* If we were properly using C11 with a proper consume implementation,
  * the compiler should preserve a bogus dependency. We don't, though
- * so we implemented bullshit_dep() with inline assembly on ARM. */
+ * so we implemented bogus_dep() with inline assembly on ARM. */
 
 int buf_enqueue_c11_badman(ring_buf_t *buf, unsigned char c)
 {
@@ -325,7 +325,7 @@ int buf_enqueue_c11_badman(ring_buf_t *buf, unsigned char c)
 
     int enqueued = 0;
     if (ring_inc(back) != front) {
-        ACCESS_ONCE(buf->buf[bullshit_dep(back, front)]) = c;
+        ACCESS_ONCE(buf->buf[bogus_dep(back, front)]) = c;
         smp_store_release(&buf->back, ring_inc(back));
         enqueued = 1;
     }
@@ -340,7 +340,7 @@ int buf_dequeue_c11_badman(ring_buf_t *buf)
 
     int c = -1;
     if (front != back) {
-        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
+        c = ACCESS_ONCE(buf->buf[bogus_dep(front, back)]);
         smp_store_release(&buf->front, ring_inc(front));
     }
 
@@ -361,7 +361,7 @@ int buf_dequeue_depsbad(ring_buf_t *buf)
 
     int c = -1;
     if (front != back) {
-        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
+        c = ACCESS_ONCE(buf->buf[bogus_dep(front, back)]);
         ctrl_isync(c);
         ACCESS_ONCE(buf->front) = ring_inc(front);
     }
@@ -388,7 +388,7 @@ int buf_dequeue_deps(ring_buf_t *buf)
 
     int c = -1;
     if (front != back) {
-        c = ACCESS_ONCE(buf->buf[bullshit_dep(front, back)]);
+        c = ACCESS_ONCE(buf->buf[bogus_dep(front, back)]);
         vis_barrier();
 //        ctrl_isync(c);
         ACCESS_ONCE(buf->front) = ring_inc(front);
@@ -412,8 +412,8 @@ int buf_dequeue_deps2(ring_buf_t *buf)
     if (front != back) {
         c = ACCESS_ONCE(buf->buf[front]);
         // The second version is lol slow.
-        //ACCESS_ONCE(*bullshit_dep(&buf->front, c)) = ring_inc(front);
-        ACCESS_ONCE(bullshit_dep(buf, c)->front) = ring_inc(front);
+        //ACCESS_ONCE(*bogus_dep(&buf->front, c)) = ring_inc(front);
+        ACCESS_ONCE(bogus_dep(buf, c)->front) = ring_inc(front);
     }
 
     return c;

@@ -29,7 +29,7 @@ int thread2()
     // Can't do a ctrl dep because it might not happen
     //while ((ry = y) != 2);
     ry = y;
-    int rx = x;//*bullshit_dep(&x, ry);
+    int rx = x;//*bogus_dep(&x, ry);
     return (rx<<2) | ry;
 }
 

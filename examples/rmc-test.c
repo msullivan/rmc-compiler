@@ -2,9 +2,6 @@
 
 // Some test cases that required some bogosity to not have the branches get
 // optimized away.
-//
-// Also, if r doesn't get used usefully, that load gets optimized away.
-// I can't decide whether that is totally fucked or not.
 
 int bogus_ctrl_dep1(rmc_int *p, rmc_int *q) {
     XEDGE(read, write);
@@ -198,8 +195,8 @@ void ctrl_dom_test(rmc_int *p, rmc_int *q, int bs) {
 
     // Put in an edge that puts in an lwsync so that keeping the ctrl dep
     // close to the a load isn't useful for ensuring cross call ordering.
-    VEDGE(pre, fuckoff);
-    L(fuckoff, rmc_store(p, 1));
+    VEDGE(pre, force);
+    L(force, rmc_store(p, 1));
 }
 
 // MP sending
