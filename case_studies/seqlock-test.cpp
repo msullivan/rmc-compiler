@@ -105,7 +105,7 @@ void test(Test &t) {
     t.consumersDone = true;
     joinAll(producers);
 
-    printf("Max thing: %ld\n", t.totalSum.load());
+    //printf("Max thing: %ld\n", t.totalSum.load());
 
     timer.report(t.count * t.consumers, !BenchMode);
 }
