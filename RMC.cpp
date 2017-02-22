@@ -873,7 +873,7 @@ typedef SmallPtrSet<Value *, 4> PendingPhis;
 
 // Look for address dependencies on a read.
 bool addrDepsOnSearch(Value *pointer, Value *load,
-                      PathCache *cache, PathCache::SkipSet &reachable,
+                      PathCache::SkipSet &reachable,
                       PendingPhis &phis,
                       std::vector<std::vector<Instruction *> > *trails) {
   Instruction *instr = dyn_cast<Instruction>(pointer);
@@ -895,7 +895,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
     return extend_trails(true);
   } else if (getBSCopyValue(pointer)) {
     bool succ = addrDepsOnSearch(getRealValue(pointer),
-                                 load, cache, reachable, phis, trails);
+                                 load, reachable, phis, trails);
     return extend_trails(succ);
   }
 
@@ -908,7 +908,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
       isa<SExtInst>(instr) || isa<IntToPtrInst>(instr) ||
       isa<LoadInst>(instr)) {
     for (auto v : instr->operand_values()) {
-      if (addrDepsOnSearch(v, load, cache, reachable, phis, trails)) {
+      if (addrDepsOnSearch(v, load, reachable, phis, trails)) {
         return extend_trails(true);
       }
     }
@@ -921,7 +921,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
       if (!reachable.count(phi->getIncomingBlock(i))) continue;
       phis.insert(phi);
       bool succ = addrDepsOnSearch(phi->getIncomingValue(i),
-                                   load, cache, reachable, phis, trails);
+                                   load, reachable, phis, trails);
       phis.erase(phi);
       if (!succ) return false;
     }
@@ -954,7 +954,7 @@ bool addrDepsOn(Use *use, Value *load,
   errs() << "}\n";
 #endif
 
-  return addrDepsOnSearch(pointer, load_instr, cache,
+  return addrDepsOnSearch(pointer, load_instr,
                           reachable, phis, trails);
 }
 
