@@ -153,12 +153,10 @@ PathCache::SCCMap PathCache::findSCCs(SkipSet *skip, Function *func) {
   SCCMap sccs;
   for (auto * block : make_range(order.rbegin(), order.rend())) {
     if (grey.count(block)) continue;
-    auto set = std::make_shared<PathCache::SkipSet>();
 
     findAllReachableDFS(&grey, block, true,
                         [&] (BasicBlock *node) {
-      set->insert(node);
-      sccs[node] = set;
+      sccs[node] = block;
     });
 
     /*
@@ -186,32 +184,6 @@ PathCache::SCCMap *PathCache::findSCCsCached(
   sccCache_[bindSite] = findSCCs(bindSite, func);
   return &sccCache_[bindSite];
 }
-
-// Find every node that is reachable as part of a detour while
-// following a path. That is every node u such that
-// p_i ->* u ->* p_i for some p_i along the path.
-// These nodes are everything that is in the same SCC as something
-// along the path.
-PathCache::SkipSet PathCache::pathReachable(BasicBlock *bindSite,
-                                            PathID pathid) {
-
-  Path path = extractPath(pathid);
-
-  auto sccs_ptr = findSCCsCached(bindSite, path[0]->getParent());
-  auto sccs = *sccs_ptr;
-
-  SkipSet reachable;
-  for (auto *u : path) {
-    if (!reachable.count(u)) {
-      for (auto *v : *sccs[u]) {
-        reachable.insert(v);
-      }
-    }
-  }
-
-  return reachable;
-}
-
 
 PathList PathCache::findAllSimplePaths(BasicBlock *src, BasicBlock *dst,
                                        bool allowSelfCycle) {

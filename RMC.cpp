@@ -934,29 +934,45 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
 
 bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache, BasicBlock *bindSite,
-                PathID path,
+                PathID pathid,
                 std::vector<std::vector<Instruction *> > *trails) {
   Instruction *pointer = dyn_cast<Instruction>(use->get());
   Instruction *load_instr = dyn_cast<Instruction>(load);
   if (!pointer || !load_instr) return false;
 
-  PendingPhis phis;
   // XXX: The path we are given can include a prefix we don't actually care
   // about.
-  auto reachable = cache->pathReachable(bindSite, path);
-  auto reachable_p = [&] (BasicBlock *b) { return reachable.count(b) > 0; };
 
+  // Notionally, we want to find find every node that is reachable as
+  // part of a detour while following a path. That is every node u
+  // such that p_i ->* u ->* p_i for some p_i along the path.  These
+  // nodes are everything that is in the same SCC as something along
+  // the path.
+  //
+  // In practice, we only need to *check* membership in that set, not
+  // enumerate it. Thus we can optimize the setup process by only
+  // collecting the e canonical elements of the SCC for each path
+  // node.
+  Path path = cache->extractPath(pathid);
+  auto sccs_ptr = cache->findSCCsCached(bindSite, path[0]->getParent());
+  auto &sccs = *sccs_ptr;
+  PathCache::SkipSet reachableSccs;
+  for (auto *u : path) reachableSccs.insert(sccs[u]);
+  auto reachable_p = [&] (BasicBlock *b) {
+    return reachableSccs.count(sccs[b]) > 0;
+  };
 
 #ifdef DEBUG_SPEW
   errs() << "from: " << load_instr->getParent()->getName() << " ";
   if (bindSite) errs() << "bound: " << bindSite->getName() << " ";
-  errs() << "reachable: {";
-  for (BasicBlock *block : reachable) {
+  errs() << "reachable sccs: {";
+  for (BasicBlock *block : reachableSccs) {
     errs() << block->getName() << ", ";
   }
   errs() << "}\n";
 #endif
 
+  PendingPhis phis;
   return addrDepsOnSearch(pointer, load_instr,
                           reachable_p, phis, trails);
 }
