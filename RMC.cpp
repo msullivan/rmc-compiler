@@ -872,8 +872,9 @@ bool branchesOn(BasicBlock *bb, Value *load,
 typedef SmallPtrSet<Value *, 4> PendingPhis;
 
 // Look for address dependencies on a read.
+template<class F>
 bool addrDepsOnSearch(Value *pointer, Value *load,
-                      PathCache::SkipSet &reachable,
+                      F reachable,
                       PendingPhis &phis,
                       std::vector<std::vector<Instruction *> > *trails) {
   Instruction *instr = dyn_cast<Instruction>(pointer);
@@ -918,7 +919,7 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
   if (PHINode *phi = dyn_cast<PHINode>(instr)) {
     for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
       // Don't trace down through blocks that aren't reachable
-      if (!reachable.count(phi->getIncomingBlock(i))) continue;
+      if (!reachable(phi->getIncomingBlock(i))) continue;
       phis.insert(phi);
       bool succ = addrDepsOnSearch(phi->getIncomingValue(i),
                                    load, reachable, phis, trails);
@@ -943,6 +944,8 @@ bool addrDepsOn(Use *use, Value *load,
   // XXX: The path we are given can include a prefix we don't actually care
   // about.
   auto reachable = cache->pathReachable(bindSite, path);
+  auto reachable_p = [&] (BasicBlock *b) { return reachable.count(b) > 0; };
+
 
 #ifdef DEBUG_SPEW
   errs() << "from: " << load_instr->getParent()->getName() << " ";
@@ -955,7 +958,7 @@ bool addrDepsOn(Use *use, Value *load,
 #endif
 
   return addrDepsOnSearch(pointer, load_instr,
-                          reachable, phis, trails);
+                          reachable_p, phis, trails);
 }
 
 }
