@@ -1,5 +1,7 @@
 #!/bin/bash
 
+TAG=
+
 QUEUE_TESTS=
 
 # Queue tests where we hold the library constant and vary the queue.
@@ -19,7 +21,7 @@ echo $QUEUE_TESTS
 
 N=50
 
-./scripts/bench.sh $N mpmc "-p 2 -c 2" $QUEUE_TESTS
-./scripts/bench.sh $N spsc "-p 1 -c 1" $QUEUE_TESTS
-./scripts/bench.sh $N spmc "-p 1 -c 2" $QUEUE_TESTS
-./scripts/bench.sh $N hammer "-p 0 -c 0 -t 4" $QUEUE_TESTS
+./scripts/bench.sh $N mpmc$(TAG) "-p 2 -c 2" $QUEUE_TESTS
+./scripts/bench.sh $N spsc$(TAG) "-p 1 -c 1" $QUEUE_TESTS
+./scripts/bench.sh $N spmc$(TAG) "-p 1 -c 2" $QUEUE_TESTS
+./scripts/bench.sh $N hammer$(TAG) "-p 0 -c 0 -t 4" $QUEUE_TESTS
