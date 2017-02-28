@@ -99,8 +99,8 @@ TuningParams armv8Params() {
   p.useCtrlCost = 1;
   p.addCtrlCost = 7;
   p.useDataCost = 1;
-  p.makeReleaseCost = 49;
-  p.makeAcquireCost = 49;
+  p.makeReleaseCost = 24;
+  p.makeAcquireCost = 24;
   p.acqRelAbuse = true;
   return p;
 }
