@@ -2,6 +2,7 @@
 
 #TAG=-Xv2
 
+SIZE=10000000
 QUEUE_TESTS=
 
 # Queue tests to just redo the RMC tests
@@ -24,7 +25,7 @@ echo $QUEUE_TESTS
 
 N=50
 
-./scripts/bench.sh $N mpmc${TAG} "-p 2 -c 2" $QUEUE_TESTS
-./scripts/bench.sh $N spsc${TAG} "-p 1 -c 1" $QUEUE_TESTS
-./scripts/bench.sh $N spmc${TAG} "-p 1 -c 2" $QUEUE_TESTS
-./scripts/bench.sh $N hammer${TAG} "-p 0 -c 0 -t 4" $QUEUE_TESTS
+./scripts/bench.sh $N mpmc${TAG} "-p 2 -c 2 -n ${SIZE}" $QUEUE_TESTS
+./scripts/bench.sh $N spsc${TAG} "-p 1 -c 1 -n ${SIZE}" $QUEUE_TESTS
+./scripts/bench.sh $N spmc${TAG} "-p 1 -c 2 -n ${SIZE}" $QUEUE_TESTS
+./scripts/bench.sh $N hammer${TAG} "-p 0 -c 0 -t 4 -n ${SIZE}" $QUEUE_TESTS
