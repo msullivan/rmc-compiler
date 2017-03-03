@@ -5,7 +5,8 @@ include tests.mk
 include ../config.mk uppercase.mk
 
 # Files that force rebuilding everything
-CONFIG_FILES=Makefile ../config.mk ../RMC.so uppercase.mk
+CONFIG_FILES:=Makefile ../config.mk ../RMC.so uppercase.mk \
+	$(wildcard override.mk)
 
 OBJDIR=build
 
