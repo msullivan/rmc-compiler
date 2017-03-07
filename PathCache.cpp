@@ -64,7 +64,7 @@ void graphIterate(BasicBlock *src, bool back, F f) {
 // now.
 
 PathID PathCache::addToPath(BasicBlock *b, PathID id) {
-  PathCacheEntry key = std::make_pair(b, id);
+  PathCacheKey key = std::make_pair(b, id);
 
   auto entry = cache_.find(key);
   if (entry != cache_.end()) {
@@ -73,7 +73,8 @@ PathID PathCache::addToPath(BasicBlock *b, PathID id) {
   }
 
   PathID newID = entries_.size();
-  entries_.push_back(key);
+  BasicBlock *last = isEmpty(id) ? b : getLast(id);
+  entries_.push_back(std::make_pair(key, last));
 
   cache_.insert(std::make_pair(key, newID));
   //errs() << "Added (" << b->getName() << ", " << id << ") as " << newID << "\n";

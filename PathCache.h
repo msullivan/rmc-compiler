@@ -42,13 +42,16 @@ public:
   Path extractPath(PathID k) const;
 
   static const PathID kEmptyPath = -1;
-  typedef std::pair<BasicBlock *, PathID> PathCacheEntry;
+  typedef std::pair<BasicBlock *, PathID> PathCacheKey;
+  typedef std::pair<PathCacheKey, BasicBlock *> PathCacheEntry;
 
   bool isEmpty(PathID k) const { return k == kEmptyPath; }
 
   PathCacheEntry const &getEntry(PathID k) const { return entries_[k]; }
-  BasicBlock *getHead(PathID k) const { return entries_[k].first; }
-  PathID getTail(PathID k) const { return entries_[k].second; }
+  PathCacheKey const &getKey(PathID k) const { return getEntry(k).first; }
+  BasicBlock *getHead(PathID k) const { return getKey(k).first; }
+  PathID getTail(PathID k) const { return getKey(k).second; }
+  BasicBlock *getLast(PathID k) { return getEntry(k).second; }
 
   // For debugging:
   std::string formatPath(PathID pathid) const;
@@ -56,7 +59,7 @@ public:
 
 private:
   std::vector<PathCacheEntry> entries_;
-  DenseMap<PathCacheEntry, PathID> cache_;
+  DenseMap<PathCacheKey, PathID> cache_;
   DenseMap<BasicBlock *, SCCMap> sccCache_;
 
   PathID addToPath(BasicBlock *b, PathID id);
