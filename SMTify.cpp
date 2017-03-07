@@ -680,6 +680,11 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
 SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
                      PathID path,
                      bool isPush) {
+  // XXX: We want to be able to use dmb st and dmb ld to cut
+  // visibility edges, which could potentially be a big
+  // win. Unfortunately, I think it means we need to actually have
+  // separate maps for the different sorts of cuts, because of the
+  // path suffix sharing we do...
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) {
