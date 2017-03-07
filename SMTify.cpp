@@ -23,6 +23,8 @@
 
 using namespace llvm;
 
+#define NO_PATH_SUFFIX_SHARING 1
+
 #define LONG_PATH_NAMES 1
 
 // Some tuning parameters
@@ -473,6 +475,35 @@ SmtExpr forAllPaths(SmtSolver &s, VarMaps &m,
   return allPaths.simplify();
 }
 
+// I built a *lot* of infrastructure around the idea that we would
+// share the suffixes of paths to reduce the size of the problem. It
+// turns out, though, that certain things are a lot simpler if we
+// *don't* share path suffixes, and it isn't clear it helps much
+// anyways...
+#if NO_PATH_SUFFIX_SHARING
+SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
+                        PathID path,
+                        GetPathVarFunc getVar,
+                        EdgeFunc func) {
+  SmtContext &c = s.ctx();
+
+  bool alreadyMade;
+  SmtExpr isCut = getVar(path, &alreadyMade);
+  if (alreadyMade) return isCut;
+
+  PathID rest;
+  SmtExpr somethingCut = c.bool_val(false);
+  while (!m.pc.isEmpty(path) && !m.pc.isEmpty(rest = m.pc.getTail(path))) {
+    BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
+    somethingCut = somethingCut || func(src, dst, path);
+    path = rest;
+  }
+
+  s.add(isCut == somethingCut.simplify());
+
+  return isCut;
+}
+#else
 SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
                         PathID path,
                         GetPathVarFunc getVar,
@@ -491,12 +522,11 @@ SmtExpr forAllPathEdges(SmtSolver &s, VarMaps &m,
   BasicBlock *src = m.pc.getHead(path), *dst = m.pc.getHead(rest);
   SmtExpr somethingCut = func(src, dst, path) ||
     forAllPathEdges(s, m, rest, getVar, func);
-//  s.add(isCut == somethingCut.simplify());
   s.add(isCut == somethingCut);
 
   return isCut;
 }
-
+#endif
 
 //// Real stuff now: the definitions of all the functions
 // XXX: there is a lot of duplication...
