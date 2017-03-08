@@ -990,6 +990,24 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     }
   }
 
+
+  // Build a table of all the cut types we can use that can be viewed
+  // just as operating on a single edge. This lets us use the same
+  // code for calculating cost and extracting results for all of them.
+  struct {
+    DeclMap<EdgeKey> &map;
+    int cost;
+    CutType type;
+  } cuttypes[] = {
+    { m.sync, params.syncCost, CutSync },
+    { m.lwsync, params.lwsyncCost, CutLwsync },
+    { m.isync, params.isyncCost, CutIsync },
+    { m.dmbst, params.dmbstCost, CutDmbSt },
+    { m.dmbld, params.dmbldCost, CutDmbLd },
+    { m.release, params.makeReleaseCost, CutRelease },
+    { m.acquire, params.makeAcquireCost, CutAcquire },
+  };
+
   //////////
   // OK, now build a cost function. This will probably take a lot of
   // tuning.
@@ -999,47 +1017,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   BasicBlock *src, *dst;
   SmtExpr v = c.bool_val(false);
 
-  // Sync cost
-  for (auto & entry : m.sync.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.syncCost*weight(src, dst)+1);
-  }
-  // Lwsync cost
-  for (auto & entry : m.lwsync.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.lwsyncCost*weight(src, dst)+1);
-  }
-  // dmb st cost
-  for (auto & entry : m.dmbst.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.dmbstCost*weight(src, dst)+1);
-  }
-  // dmb ld cost
-  for (auto & entry : m.dmbld.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.dmbldCost*weight(src, dst)+1);
-  }
-  // Release cost
-  for (auto & entry : m.release.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.makeReleaseCost*weight(src, dst)+1);
-  }
-  // Acquire cost
-  for (auto & entry : m.acquire.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.makeAcquireCost*weight(src, dst)+1);
-  }
-  // Isync cost
-  for (auto & entry : m.isync.map) {
-    unpack(unpack(src, dst), v) = fix_pair(entry);
-    cost = cost +
-      boolToInt(v, params.isyncCost*weight(src, dst)+1);
+  // Cost for all edge cutting actions
+  for (auto & cuttype : cuttypes) {
+    for (auto & entry : cuttype.map.map) {
+      unpack(unpack(src, dst), v) = fix_pair(entry);
+      cost = cost +
+        boolToInt(v, cuttype.cost*weight(src, dst)+1);
+    }
   }
   // Ctrl cost
   for (auto & entry : m.usesCtrl.map) {
@@ -1082,35 +1066,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
 
   std::vector<EdgeCut> cuts;
 
-  // Find the syncs we are inserting
-  processMap<EdgeKey>(m.sync, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutSync, edge.first, edge.second));
-  });
-  // Find the lwsyncs we are inserting
-  processMap<EdgeKey>(m.lwsync, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutLwsync, edge.first, edge.second));
-  });
-  // Find the dmb sts we are inserting
-  processMap<EdgeKey>(m.dmbst, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutDmbSt, edge.first, edge.second));
-  });
-  // Find the dmb lds we are inserting
-  processMap<EdgeKey>(m.dmbst, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutDmbLd, edge.first, edge.second));
-  });
-  // Find the releases we are inserting
-  processMap<EdgeKey>(m.release, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutRelease, edge.first, edge.second));
-  });
-  // Find the Acquires we are inserting
-  processMap<EdgeKey>(m.acquire, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutAcquire, edge.first, edge.second));
-  });
-  // Find the isyncs we are inserting
-  processMap<EdgeKey>(m.isync, model, [&] (EdgeKey &edge) {
-    cuts.push_back(EdgeCut(CutIsync, edge.first, edge.second));
-  });
-  // Find the controls to preserve
+  // Find all edge cuts to insert
+  for (auto & cuttype : cuttypes) {
+    processMap<EdgeKey>(cuttype.map, model, [&] (EdgeKey &edge) {
+      cuts.push_back(EdgeCut(cuttype.type, edge.first, edge.second));
+    });
+  }
+  // Find the controls to preserve/insert
   processMap<BlockEdgeKey>(m.usesCtrl, model, [&] (BlockEdgeKey &entry) {
     EdgeKey edge; BasicBlock *dep;
     unpack(dep, edge) = entry;
