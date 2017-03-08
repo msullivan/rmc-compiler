@@ -58,6 +58,7 @@ struct TuningParams {
   int syncCost{100}; // mandatory.
   int lwsyncCost{-1};
   int dmbstCost{-1};
+  int dmbldCost{-1};
   int isyncCost{-1};
   int useCtrlCost{-1};
   int addCtrlCost{-1};
@@ -430,6 +431,7 @@ struct VarMaps {
   DeclMap<EdgeKey> sync;
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> dmbst;
+  DeclMap<EdgeKey> dmbld;
   DeclMap<BlockKey> release;
   DeclMap<BlockKey> acquire;
   // XXX: Make arrays keyed by edge type
@@ -684,7 +686,7 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
 
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst,
-                     bool isPush, bool dmbst) {
+                     bool isPush, bool dmbst, bool dmbld) {
   // Instead of generating a notion of push edges and making sure that
   // they are cut by syncs, we just insert syncs exactly where PUSHes
   // are written. We want to actually take advantage of these syncs,
@@ -707,6 +709,7 @@ SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
     SmtExpr cut = getEdgeFunc(m.lwsync, src, dst) ||
       getEdgeFunc(m.sync, src, dst);
     if (dmbst) cut = cut || getEdgeFunc(m.dmbst, src, dst);
+    if (dmbld) cut = cut || getEdgeFunc(m.dmbld, src, dst);
     return cut;
   }
 }
@@ -716,6 +719,7 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
                      PathID path,
                      bool isPush) {
   bool dmbst = false;
+  bool dmbld = false;
   if (NO_PATH_SUFFIX_SHARING && m.dmbst.enabled) {
     Action *head = m.bb2action[m.pc.getHead(path)];
     Action *tail = m.bb2action[m.pc.getLast(path)];
@@ -724,6 +728,10 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
         (head->type == ActionSimpleWrites) &&
         (tail->type == ActionSimpleWrites || tail->type == ActionSimpleRMW)) {
       dmbst = true;
+    }
+    // TODO: we could also use dmbld for RMWs when it is an xcut
+    if (head && tail && (head->type == ActionSimpleRead)) {
+      dmbld = true;
     }
   }
 
@@ -738,7 +746,7 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
       return getFunc(isPush ? m.pathPcut : m.pathVcut,
                      makeBlockPathKey(nullptr, path), b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      return makeEdgeVcut(s, m, src, dst, isPush, dmbst);
+      return makeEdgeVcut(s, m, src, dst, isPush, dmbst, dmbld);
     });
 }
 
@@ -915,6 +923,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
                      paramEnabled(params.lwsyncCost)),
     DeclMap<EdgeKey>(c.bool_sort(), "dmbst",
                      paramEnabled(params.dmbstCost)),
+    DeclMap<EdgeKey>(c.bool_sort(), "dmbld",
+                     paramEnabled(params.dmbldCost)),
     DeclMap<BlockKey>(c.bool_sort(), "release",
                       paramEnabled(params.makeReleaseCost)),
     DeclMap<BlockKey>(c.bool_sort(), "acquire",
@@ -1008,6 +1018,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     cost = cost +
       boolToInt(v, params.dmbstCost*weight(src, dst)+1);
   }
+  // dmb ld cost
+  for (auto & entry : m.dmbld.map) {
+    unpack(unpack(src, dst), v) = fix_pair(entry);
+    cost = cost +
+      boolToInt(v, params.dmbldCost*weight(src, dst)+1);
+  }
   // Release cost
   for (auto & entry : m.release.map) {
     unpack(src, v) = fix_pair(entry);
@@ -1078,6 +1094,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   // Find the dmb sts we are inserting
   processMap<EdgeKey>(m.dmbst, model, [&] (EdgeKey &edge) {
     cuts.push_back(EdgeCut(CutDmbSt, edge.first, edge.second));
+  });
+  // Find the dmb lds we are inserting
+  processMap<EdgeKey>(m.dmbst, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutDmbLd, edge.first, edge.second));
   });
   // Find the releases we are inserting
   processMap<BlockKey>(m.release, model, [&] (BlockKey &block) {

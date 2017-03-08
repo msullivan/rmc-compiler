@@ -197,6 +197,19 @@ Instruction *makeDmbSt(Instruction *to_precede) {
   }
   return CallInst::Create(a, None, "", to_precede);
 }
+Instruction *makeDmbLd(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
+  FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a = nullptr;
+  if (isARM(target)) {
+    a = makeAsm(f_ty, "dmb ishld // dmb ld", "~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "lwsync # dmb ld", "~{memory}", true);
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "# dmb ld", "~{memory}", true);
+  }
+  return CallInst::Create(a, None, "", to_precede);
+}
 Instruction *makeIsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty =
@@ -1261,6 +1274,9 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     break;
   case CutDmbSt:
     makeDmbSt(getCutInstr(cut));
+    break;
+  case CutDmbLd:
+    makeDmbLd(getCutInstr(cut));
     break;
   case CutIsync:
     makeIsync(getCutInstr(cut));
