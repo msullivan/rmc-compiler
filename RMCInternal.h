@@ -206,6 +206,7 @@ bool branchesOn(BasicBlock *bb, Value *load,
 bool addrDepsOn(Use *use, Value *load,
                 PathCache *cache, BasicBlock *bindSite, PathID path,
                 std::vector<std::vector<Instruction *> > *trails = nullptr);
+BasicBlock *getSingleSuccessor(BasicBlock *bb);
 
 // Class to track the analysis of the function and insert the syncs.
 class RealizeRMC {

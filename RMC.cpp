@@ -289,6 +289,7 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
 
 ///////////////////////////////////////////////////////////////////////////
 //// Code to pull random crap out of LLVM functions
+namespace llvm {
 
 StringRef getStringArg(Value *v) {
   const Value *g = cast<Constant>(v)->stripPointerCasts();
@@ -332,6 +333,8 @@ Instruction *getPrevInstr(Instruction *i) {
 BasicBlock *getSingleSuccessor(BasicBlock *bb) {
   TerminatorInst *term = bb->getTerminator();
   return term->getNumSuccessors() == 1 ? term->getSuccessor(0) : nullptr;
+}
+
 }
 
 // Code to detect our inline asm things

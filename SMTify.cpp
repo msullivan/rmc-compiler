@@ -414,7 +414,6 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
     caps.insert(std::make_pair(edge, cap));
   }
 
-
   //errs() << "Entry cap: " << extractInt(model.eval(entryNodeCap)) << "\n";
 
   return caps;
@@ -432,8 +431,11 @@ struct VarMaps {
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> dmbst;
   DeclMap<EdgeKey> dmbld;
-  DeclMap<BlockKey> release;
-  DeclMap<BlockKey> acquire;
+  // release and acquire are really morally BlockKeyd things, but
+  // we make them EdgeKey (with an edge to the unique successor block)
+  // in order to have it match interfaces with the most of the other cuts
+  DeclMap<EdgeKey> release;
+  DeclMap<EdgeKey> acquire;
   // XXX: Make arrays keyed by edge type
   DeclMap<BlockEdgeKey> pcut;
   DeclMap<BlockEdgeKey> vcut;
@@ -789,15 +791,16 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   return isCut;
 }
 
+
 SmtExpr getRelease(SmtSolver &s, VarMaps &m, Action &a) {
   if (a.allSC) return s.ctx().bool_val(true);
   if (!m.release.enabled) return s.ctx().bool_val(false);
-  return getBlockFunc(m.release, a.bb);
+  return getEdgeFunc(m.release, a.bb, getSingleSuccessor(a.bb));
 }
 SmtExpr getAcquire(SmtSolver &s, VarMaps &m, Action &a) {
   if (a.allSC) return s.ctx().bool_val(true);
   if (!m.acquire.enabled) return s.ctx().bool_val(false);
-  return getBlockFunc(m.acquire, a.bb);
+  return getEdgeFunc(m.acquire, a.bb, getSingleSuccessor(a.bb));
 }
 
 SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
@@ -925,10 +928,10 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
                      paramEnabled(params.dmbstCost)),
     DeclMap<EdgeKey>(c.bool_sort(), "dmbld",
                      paramEnabled(params.dmbldCost)),
-    DeclMap<BlockKey>(c.bool_sort(), "release",
-                      paramEnabled(params.makeReleaseCost)),
-    DeclMap<BlockKey>(c.bool_sort(), "acquire",
-                      paramEnabled(params.makeAcquireCost)),
+    DeclMap<EdgeKey>(c.bool_sort(), "release",
+                     paramEnabled(params.makeReleaseCost)),
+    DeclMap<EdgeKey>(c.bool_sort(), "acquire",
+                     paramEnabled(params.makeAcquireCost)),
     DeclMap<BlockEdgeKey>(c.bool_sort(), "pcut"),
     DeclMap<BlockEdgeKey>(c.bool_sort(), "vcut"),
     DeclMap<BlockEdgeKey>(c.bool_sort(), "xcut"),
@@ -965,10 +968,6 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     // probabilities for loop exits.
     //return edgeCap[makeEdgeKey(src, dst)]*pow(4, loopInfo_.getLoopDepth(src));
     return edgeCap[makeEdgeKey(src, dst)];
-  };
-  auto block_weight =
-    [&] (BasicBlock *block) {
-    return edgeCap[makeEdgeKey(block, nullptr)];
   };
 
   //////////
@@ -1026,15 +1025,15 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
   }
   // Release cost
   for (auto & entry : m.release.map) {
-    unpack(src, v) = fix_pair(entry);
+    unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, params.makeReleaseCost*block_weight(src)+1);
+      boolToInt(v, params.makeReleaseCost*weight(src, dst)+1);
   }
   // Acquire cost
   for (auto & entry : m.acquire.map) {
-    unpack(src, v) = fix_pair(entry);
+    unpack(unpack(src, dst), v) = fix_pair(entry);
     cost = cost +
-      boolToInt(v, params.makeAcquireCost*block_weight(src)+1);
+      boolToInt(v, params.makeAcquireCost*weight(src, dst)+1);
   }
   // Isync cost
   for (auto & entry : m.isync.map) {
@@ -1100,12 +1099,12 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     cuts.push_back(EdgeCut(CutDmbLd, edge.first, edge.second));
   });
   // Find the releases we are inserting
-  processMap<BlockKey>(m.release, model, [&] (BlockKey &block) {
-    cuts.push_back(EdgeCut(CutRelease, block, nullptr));
+  processMap<EdgeKey>(m.release, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutRelease, edge.first, edge.second));
   });
   // Find the Acquires we are inserting
-  processMap<BlockKey>(m.acquire, model, [&] (BlockKey &block) {
-    cuts.push_back(EdgeCut(CutAcquire, block, nullptr));
+  processMap<EdgeKey>(m.acquire, model, [&] (EdgeKey &edge) {
+    cuts.push_back(EdgeCut(CutAcquire, edge.first, edge.second));
   });
   // Find the isyncs we are inserting
   processMap<EdgeKey>(m.isync, model, [&] (EdgeKey &edge) {
