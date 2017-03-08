@@ -160,6 +160,7 @@ enum CutType {
   CutCtrl,
   CutIsync,
   CutLwsync,
+  CutDmbSt,
   CutSync,
   CutData,
   CutRelease,

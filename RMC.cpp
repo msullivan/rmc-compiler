@@ -184,6 +184,19 @@ Instruction *makeLwsync(Instruction *to_precede) {
   }
   return CallInst::Create(a, None, "", to_precede);
 }
+Instruction *makeDmbSt(Instruction *to_precede) {
+  LLVMContext &C = to_precede->getContext();
+  FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
+  InlineAsm *a = nullptr;
+  if (isARM(target)) {
+    a = makeAsm(f_ty, "dmb ishst // dmb st", "~{memory}", true);
+  } else if (target == TargetPOWER) {
+    a = makeAsm(f_ty, "lwsync # dmb st", "~{memory}", true);
+  } else if (target == TargetX86) {
+    a = makeAsm(f_ty, "# dmb st", "~{memory}", true);
+  }
+  return CallInst::Create(a, None, "", to_precede);
+}
 Instruction *makeIsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty =
@@ -1245,6 +1258,9 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
     // FIXME: it would be nice if we were clever enough to notice when
     // every edge out of a block as the same cut and merge them.
     makeLwsync(getCutInstr(cut));
+    break;
+  case CutDmbSt:
+    makeDmbSt(getCutInstr(cut));
     break;
   case CutIsync:
     makeIsync(getCutInstr(cut));
