@@ -201,8 +201,10 @@ Instruction *makeDmbLd(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
-  if (isARM(target)) {
+  if (target == TargetARMv8) {
     a = makeAsm(f_ty, "dmb ishld // dmb ld", "~{memory}", true);
+  } else if (target == TargetARM) {
+    a = makeAsm(f_ty, "dmb ish // dmb ld", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "lwsync # dmb ld", "~{memory}", true);
   } else if (target == TargetX86) {
