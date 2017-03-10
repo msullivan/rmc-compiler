@@ -1168,8 +1168,6 @@ void RealizeRMC::cutEdge(RMCEdge &edge) {
 void RealizeRMC::cutEdges() {
   // Maybe we should actually use the graph structure we built?
   for (auto & edge : edges_) {
-    // Drop pre/post edges, which we needed to handle earlier
-    if (!edge.src || !edge.dst) continue;
     cutEdge(edge);
   }
 }
@@ -1210,6 +1208,26 @@ void removeUselessEdges(std::vector<Action> &actions) {
     // they interact with visibility and execution edges in a critical way.
     // (And visibility and execution edges that we might not see.)
   }
+}
+
+// Given an action graph that has been modified, regenerate a list
+// of edges that can be processed more easily.
+std::vector<RMCEdge> rebuildEdges(std::vector<Action> &actions) {
+  std::vector<RMCEdge> edges;
+
+  for (auto & src : actions) {
+    for (auto edgeType : kEdgeTypes) {
+      for (auto & entry : src.transEdges[edgeType]) {
+        // Generate one per binding site. There should basically
+        // only ever be one, though.
+        for (BasicBlock *bindSite : entry.second) {
+          edges.push_back({edgeType, &src, entry.first, bindSite});
+        }
+      }
+    }
+  }
+
+  return edges;
 }
 
 // Find the instruction to insert a cut in front of.
@@ -1362,6 +1380,7 @@ bool RealizeRMC::run() {
     cutEdges();
   } else {
     removeUselessEdges(actions_);
+    edges_ = std::move(rebuildEdges(actions_));
     auto cuts = smtAnalyze();
     //errs() << "Applying SMT results:\n";
     for (auto & cut : cuts) {

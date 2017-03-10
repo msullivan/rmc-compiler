@@ -956,24 +956,13 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
 
   //////////
   // HOK. Make sure everything is cut.
-  for (auto & src : actions_) {
-    for (auto edgeType : kEdgeTypes) {
-      for (auto & entry : src.transEdges[edgeType]) {
-        Action &dst = *entry.first;
-
-        // Cut based on all the binding sites. There should basically
-        // only ever be one, though.
-        for (BasicBlock *bindSite : entry.second) {
-          if (edgeType == ExecutionEdge) {
-            s.add(makeXcut(s, m, src, dst, bindSite));
-          } else {
-            s.add(makeVcut(s, m, src, dst, bindSite, edgeType));
-          }
-        }
-      }
+  for (auto & edge : edges_) {
+    if (edge.edgeType == ExecutionEdge) {
+      s.add(makeXcut(s, m, *edge.src, *edge.dst, edge.bindSite));
+    } else {
+      s.add(makeVcut(s, m, *edge.src, *edge.dst, edge.bindSite, edge.edgeType));
     }
   }
-
 
   // Build a table of all the cut types we can use that can be viewed
   // just as operating on a single edge. This lets us use the same
