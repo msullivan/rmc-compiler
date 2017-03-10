@@ -378,6 +378,12 @@ Action *RealizeRMC::makePrePostAction(BasicBlock *bb) {
   a->type = ActionPrePost;
   return a;
 }
+Action *RealizeRMC::getPreAction(Action *a) {
+  return makePrePostAction(a->bb->getSinglePredecessor());
+}
+Action *RealizeRMC::getPostAction(Action *a) {
+  return makePrePostAction(getSingleSuccessor(a->outBlock));
+}
 
 void registerEdge(std::vector<RMCEdge> &edges,
                   RMCEdgeType edgeType,
@@ -437,13 +443,13 @@ void RealizeRMC::processEdge(CallInst *call) {
   // Handle pre and post edges now
   if (srcName == "pre") {
     for (auto dst : dsts) {
-      Action *src = makePrePostAction(dst->bb->getSinglePredecessor());
+      Action *src = getPreAction(dst);
       registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
   if (dstName == "post") {
     for (auto src : srcs) {
-      Action *dst = makePrePostAction(getSingleSuccessor(src->outBlock));
+      Action *dst = getPostAction(src);
       registerEdge(edges_, edgeType, bindSite, src, dst);
     }
   }
@@ -458,8 +464,12 @@ bool RealizeRMC::processPush(CallInst *call) {
   // properly sees the __rmc_push. Any function that wraps an
   // __rmc_push without it being in an action must be always_inline.
   if (a) {
-    pushes_.insert(a);
-    a->isPush = true;
+    // We do explicit pushes by generating a push edge from its
+    // pre-action to its post-action. Originally we hoped to generate
+    // push edges based on all "a -vo-> push -xo-> b" triples, but we
+    // can't: pre and post edges mean we can't actually find them all.
+    registerEdge(edges_, PushEdge, nullptr, getPreAction(a), getPostAction(a));
+
     return true;
   } else {
     return false;
@@ -611,11 +621,7 @@ void analyzeAction(Action &info) {
 
   // Try to characterize what this action does.
   // These categories might not be the best.
-  if (info.isPush) {
-    // shouldn't do anything else; but might be a store if we didn't mem2reg
-    assert(info.loads+info.calls+info.RMWs == 0 && info.stores <= 1);
-    info.type = ActionPush;
-  } else if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
+  if (info.loads == 1 && info.stores+info.calls+info.RMWs == 0) {
     info.outgoingDep = soleLoad;
     info.incomingDep = &soleLoad->getOperandUse(0);
     info.type = ActionSimpleRead;
@@ -1181,8 +1187,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
     src.transEdges[ExecutionEdge].clear();
     for (auto & entry : newExec) {
       ActionType dt = entry.first->type;
-      if (!(st == ActionPush || dt == ActionPush ||
-            st == ActionNop || dt == ActionNop ||
+      if (!(st == ActionNop || dt == ActionNop ||
             st == ActionSimpleWrites)) {
         src.transEdges[ExecutionEdge].insert(std::move(entry));
       }
@@ -1192,8 +1197,7 @@ void removeUselessEdges(std::vector<Action> &actions) {
     src.transEdges[VisibilityEdge].clear();
     for (auto & entry : newVis) {
       ActionType dt = entry.first->type;
-      if (!(st == ActionPush || dt == ActionPush ||
-            st == ActionNop || dt == ActionNop ||
+      if (!(st == ActionNop || dt == ActionNop ||
             /* R->R has same force as execution, and we made execution
              * versions of all the vis edges. */
             (st == ActionSimpleRead && dt == ActionSimpleRead) ||
@@ -1324,24 +1328,6 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
 
 ////////////// Shared compilation
 
-void RealizeRMC::cutPushes() {
-  // We just insert pushes wherever we see one, for now.
-  // We could also have a notion of push edges derived from
-  // the edges to and from a push action.
-  for (auto action : pushes_) {
-    assert(action->isPush);
-    BasicBlock *bb = action->bb;
-    makeSync(&*bb->getFirstInsertionPt());
-    cuts_[bb] = BlockCut(CutSync, true);
-    // XXX: since we can't actually handle cuts on the front and the
-    // back and because the sync is the only thing in the block and so
-    // cuts at both the front and back, we insert a bogus BlockCut in
-    // the next block.
-    cuts_[getSingleSuccessor(action->outBlock)] = BlockCut(CutSync, true);
-  }
-}
-
-
 bool RealizeRMC::run() {
   findActions();
   findEdges();
@@ -1371,8 +1357,6 @@ bool RealizeRMC::run() {
   //errs() << "Func body after setup:\n" << func_ << "\n";
 
   buildActionGraph(actions_, numNormalActions_, domTree_);
-
-  cutPushes();
 
   if (!useSMT_) {
     cutEdges();

@@ -689,23 +689,7 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst,
                      bool isPush, bool dmbst, bool dmbld) {
-  // Instead of generating a notion of push edges and making sure that
-  // they are cut by syncs, we just insert syncs exactly where PUSHes
-  // are written. We want to actually take advantage of these syncs,
-  // so check for them here. (If there is already a sync we generate
-  // a bunch of equations for the path which all evaluate to "true",
-  // which is kind of silly. We could avoid some of this if we cared.)
-  // We only need to check one of src and dst since arcs with PUSH as
-  // an endpoint are dropped.
-  // EXCEPT: Now we *do* have push edges, but only when they are
-  // written out explicitly. If you write a push explicitly, we do
-  // what was said above, but if you write a push edge, we represent
-  // it as such. Originally we had intended to generate push edges
-  // based on the constraints on pushes, but this doesn't work since
-  // we can't find them all.
-  if (m.bb2action[src] && m.bb2action[src]->isPush) {
-    return s.ctx().bool_val(true);
-  } else if (isPush) {
+  if (isPush) {
     return getEdgeFunc(m.sync, src, dst);
   } else {
     SmtExpr cut = getEdgeFunc(m.lwsync, src, dst) ||

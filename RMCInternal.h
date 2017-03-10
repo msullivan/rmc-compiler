@@ -70,7 +70,6 @@ enum ActionType {
   ActionPrePost,
   ActionNop,
   ActionComplex,
-  ActionPush,
   ActionSimpleRead,
   ActionSimpleWrites, // needs to be paired with a dep
   ActionSimpleRMW,
@@ -98,7 +97,6 @@ struct Action {
 
   // Some basic info about what sort of instructions live in the action
   ActionType type;
-  bool isPush{false};
   int stores{0};
   int loads{0};
   int RMWs{0};
@@ -221,7 +219,6 @@ private:
   int numNormalActions_{0};
   std::vector<Action> actions_;
   std::vector<RMCEdge> edges_;
-  SmallPtrSet<Action *, 4> pushes_;
   DenseMap<BasicBlock *, Action *> bb2action_;
   DenseMap<BasicBlock *, BlockCut> cuts_;
   PathCache pc_;
@@ -233,12 +230,12 @@ private:
   void findActions();
   void findEdges();
   Action *makePrePostAction(BasicBlock *bb);
+  Action *getPreAction(Action *a);
+  Action *getPostAction(Action *a);
+
   TinyPtrVector<Action *> collectEdges(StringRef name);
   void processEdge(CallInst *call);
   bool processPush(CallInst *call);
-
-  // Shared compilation
-  void cutPushes();
 
   // non-SMT compilation
   CutStrength isPathCut(const RMCEdge &edge, PathID path,
