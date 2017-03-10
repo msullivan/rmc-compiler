@@ -62,7 +62,7 @@ enum RMCEdgeType {
   kNumEdgeTypes = NoEdge
 };
 const std::vector<RMCEdgeType> kEdgeTypes{
-  ExecutionEdge, VisibilityEdge, PushEdge};
+  PushEdge, VisibilityEdge, ExecutionEdge};
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
 //// Information for a node in the RMC graph.

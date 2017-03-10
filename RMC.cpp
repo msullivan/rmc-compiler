@@ -1215,8 +1215,10 @@ void removeUselessEdges(std::vector<Action> &actions) {
 std::vector<RMCEdge> rebuildEdges(std::vector<Action> &actions) {
   std::vector<RMCEdge> edges;
 
-  for (auto & src : actions) {
-    for (auto edgeType : kEdgeTypes) {
+  // We fill the array with push, then vis, then exec,
+  // so that the greedy cutEdges works better.
+  for (auto edgeType : kEdgeTypes) {
+    for (auto & src : actions) {
       for (auto & entry : src.transEdges[edgeType]) {
         // Generate one per binding site. There should basically
         // only ever be one, though.
@@ -1374,13 +1376,16 @@ bool RealizeRMC::run() {
   }
   //errs() << "Func body after setup:\n" << func_ << "\n";
 
+  // Compute the transitive closure of the graph, prune actions that
+  // were only meaningful for their transitive properties, and then
+  // rebuild the edges list from the graph.
   buildActionGraph(actions_, numNormalActions_, domTree_);
+  removeUselessEdges(actions_);
+  edges_ = std::move(rebuildEdges(actions_));
 
   if (!useSMT_) {
     cutEdges();
   } else {
-    removeUselessEdges(actions_);
-    edges_ = std::move(rebuildEdges(actions_));
     auto cuts = smtAnalyze();
     //errs() << "Applying SMT results:\n";
     for (auto & cut : cuts) {
