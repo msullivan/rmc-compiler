@@ -145,9 +145,12 @@ int load_acquire(rmc_int *ptr) {
 }
 
 // A test where we have some overlapping things but could just do one
-// cut
+// cut. The greedy no-smt version inserts two.
 void overlapping(rmc_int *ptr) {
-    VEDGE(a, c); VEDGE(b, d);
+    // Because everything is bad, this is sensitive to the order these
+    // appear in.
+    VEDGE(a, d);
+    VEDGE(a, c);
     L(a, rmc_store(ptr, 1));
     L(b, rmc_store(ptr, 2));
     L(c, rmc_store(ptr, 3));

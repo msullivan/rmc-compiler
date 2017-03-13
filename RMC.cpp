@@ -738,21 +738,19 @@ BasicBlock *mergeBindPoints(DominatorTree &domTree,
   return dom;
 }
 
+// argh, MapVector doesn't have .insert() for ranges
+template <typename A, typename B>
+void insert(A &to, B &from) { for (auto & x : from) to.insert(x); }
+
 void buildActionGraph(std::vector<Action> &actions, int numReal,
                       DominatorTree &domTree) {
   // Copy the initial edge specifications into the transitive graph
   for (auto & a : actions) {
     for (auto edgeType : kEdgeTypes) {
-      a.transEdges[edgeType].insert(
-        a.edges[edgeType].begin(), a.edges[edgeType].end());
+      insert(a.transEdges[edgeType], a.edges[edgeType]);
     }
-    //a.visTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
-    //a.execTransEdges.insert(a.execEdges.begin(), a.execEdges.end());
-    //a.pushTransEdges.insert(a.pushEdges.begin(), a.pushEdges.end());
     // Visibility implies execution.
-    a.transEdges[ExecutionEdge].insert(
-        a.edges[VisibilityEdge].begin(), a.edges[VisibilityEdge].end());
-    //a.execTransEdges.insert(a.visEdges.begin(), a.visEdges.end());
+    insert(a.transEdges[ExecutionEdge], a.edges[VisibilityEdge]);
     // Push implies visibility and execution, but not in a way that we
     // need to track explicitly. Because push edges can't be useless,
     // they'll never get dropped from the graph, so it isn't important
@@ -1166,7 +1164,17 @@ void RealizeRMC::cutEdge(RMCEdge &edge) {
 }
 
 void RealizeRMC::cutEdges() {
-  // Maybe we should actually use the graph structure we built?
+  // Sort the edges by edge type so we do push, vis, exec, which
+  // results in better codegen with the crappy greedy algorithm.
+  // Should maybe do some better sorting to do things like cutting
+  // short edges first?
+  // Stable sort to preserve the ordering of other stuff.
+  auto cmp = [&] (const RMCEdge &l, const RMCEdge &r) {
+    return l.edgeType > r.edgeType;
+  };
+  std::stable_sort(edges_.begin(), edges_.end(), cmp);
+
+  // Now actually process the edges
   for (auto & edge : edges_) {
     cutEdge(edge);
   }
@@ -1215,8 +1223,6 @@ void removeUselessEdges(std::vector<Action> &actions) {
 std::vector<RMCEdge> rebuildEdges(std::vector<Action> &actions) {
   std::vector<RMCEdge> edges;
 
-  // We fill the array with push, then vis, then exec,
-  // so that the greedy cutEdges works better.
   for (auto edgeType : kEdgeTypes) {
     for (auto & src : actions) {
       for (auto & entry : src.transEdges[edgeType]) {

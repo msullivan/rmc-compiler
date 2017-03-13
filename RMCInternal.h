@@ -13,6 +13,8 @@
 #include "PathCache.h"
 
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/MapVector.h>
+#include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/TinyPtrVector.h>
 
@@ -62,7 +64,7 @@ enum RMCEdgeType {
   kNumEdgeTypes = NoEdge
 };
 const std::vector<RMCEdgeType> kEdgeTypes{
-  PushEdge, VisibilityEdge, ExecutionEdge};
+  ExecutionEdge, VisibilityEdge, PushEdge};
 raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t);
 
 //// Information for a node in the RMC graph.
@@ -117,8 +119,12 @@ struct Action {
 
   // As a binding site, null represents being bound outside of the
   // function.
-  typedef SmallPtrSet<BasicBlock *, 1> BindingSites;
-  typedef DenseMap<Action *, BindingSites> OutEdges;
+  typedef SmallSetVector<BasicBlock *, 1> BindingSites;
+  // We use MapVector here so that when we iterate over the graph to
+  // produce an updated list of edges, we get a deterministic (if not
+  // particularly /useful/) ordering. This is important because the
+  // greedy non-SMT algorithm is sensitive to the ordering.
+  typedef MapVector<Action *, BindingSites> OutEdges;
   typedef OutEdges TransEdges;
 
   OutEdges edges[kNumEdgeTypes];
