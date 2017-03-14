@@ -124,8 +124,9 @@ struct Action {
   // produce an updated list of edges, we get a deterministic (if not
   // particularly /useful/) ordering. This is important because the
   // greedy non-SMT algorithm is sensitive to the ordering.
-  typedef MapVector<Action *, BindingSites> OutEdges;
-  typedef OutEdges TransEdges;
+  template <int N> using Edges = SmallMapVector<Action *, BindingSites, N>;
+  typedef Edges<2> OutEdges;
+  typedef Edges<8> TransEdges;
 
   OutEdges edges[kNumEdgeTypes];
   TransEdges transEdges[kNumEdgeTypes];
