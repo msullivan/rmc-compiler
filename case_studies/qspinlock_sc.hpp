@@ -52,7 +52,7 @@ class QSpinLock {
         byteloc = 0;
 #else
         Node::Ptr state(nullptr, 1);
-        while (!loc.compare_exchange_strong(state, Node::Ptr(state, 0))) {
+        while (!loc.compare_exchange_weak(state, Node::Ptr(state, 0))) {
         }
 #endif
     }
