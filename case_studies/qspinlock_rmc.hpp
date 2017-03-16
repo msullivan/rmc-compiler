@@ -9,6 +9,8 @@
 #include <utility>
 #include "tagged_ptr.hpp"
 
+#define CLEAR_XADD 1
+
 namespace rmclib {
 
 // This is based on "MCS locks" and linux's qspinlocks.  The key idea
@@ -17,7 +19,7 @@ namespace rmclib {
 // different locations, reducing cache contention.
 
 class QSpinLock {
-    // Aligned to 256 so the
+    // Aligned to 256 so the CLEAR_BYTE_WRITE trick can work.
     struct alignas(256) Node {
         using Ptr = tagged_ptr<Node *>;
         rmc::atomic<Node *> next{nullptr};
@@ -37,7 +39,6 @@ class QSpinLock {
         // Or maybe what we want to do is to align Node on 256 boundaries
         // so that we can do a one byte write to clear the locked flag.
         // That is *especially* not a thing in the C++ memory model.
-        //
 #if CLEAR_XADD
         // This is probably undefined
         auto &intloc = reinterpret_cast<rmc::atomic<uintptr_t> &>(loc);
@@ -52,7 +53,6 @@ class QSpinLock {
 #else
         Node::Ptr state(nullptr, 1);
         while (!loc.compare_exchange_strong(state, Node::Ptr(state, 0))) {
-            delay();
         }
 #endif
     }
@@ -86,8 +86,6 @@ class QSpinLock {
                                                   Node::Ptr(nullptr, 1)))
                     goto out;
             }
-
-            delay();
         }
 
         // Need to make sure not to compete for the lock before the
