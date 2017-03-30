@@ -251,6 +251,12 @@ write-push, I suppose. x86 also has integrated write-pushes
 (xchg or even just mov; MFENCE, since all writes are globally
 visible).
 
+-
+
+It seems like dmb ld probably can't be used as a visibility edge from
+R->W, though the situation is complicated!
+
+
 
 -----
 

@@ -716,9 +716,11 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
       dmbst = true;
     }
     // TODO: we could also use dmbld for RMWs when it is an xcut
-    if (head && tail && (head->type == ActionSimpleRead)) {
-      dmbld = true;
-    }
+    // XXX: actually this is disabled because I think that 'dmb ld'
+    // is only suitable for xcuts!
+    //if (head && tail && (head->type == ActionSimpleRead)) {
+    //  dmbld = true;
+    // }
   }
 
   // XXX: We want to be able to use dmb st and dmb ld to cut
