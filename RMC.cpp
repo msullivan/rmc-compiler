@@ -774,7 +774,7 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
 #endif
 }
 
-////////////// Chicanary to handle disguising operands
+////////////// Chicanery to handle disguising operands
 
 // Return the copied value if the value is a bs copy, otherwise null
 Value *getBSCopyValue(Value *v) {
