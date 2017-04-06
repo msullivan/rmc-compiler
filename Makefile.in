@@ -55,7 +55,7 @@ all: RMC.so run-rmc
 Makefile config.mk: config.stamp
 config.stamp: configure Makefile.in
 	./configure $(CFG_CONFIGURE_ARGS)
-	make
+	make $(MAKECMDGOALS)
 
 
 # Generic rules and build stuff
