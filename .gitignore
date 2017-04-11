@@ -11,6 +11,7 @@ perf.data*
 *.lo
 *.o
 *.obj
+*.dwo
 
 # Precompiled Headers
 *.gch
