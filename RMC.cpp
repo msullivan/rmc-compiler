@@ -286,7 +286,21 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
 #error Unsupported LLVM version
 #endif
 
-
+#if LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 9
+bool keepValueNames(Function &func) {
+  LLVMContext &ctx = func.getContext();
+  bool discard = ctx.shouldDiscardValueNames();
+  ctx.setDiscardValueNames(false);
+  return discard;
+}
+void restoreValueNames(Function &func, bool discard) {
+  LLVMContext &ctx = func.getContext();
+  ctx.setDiscardValueNames(discard);
+}
+#else
+bool keepValueNames(Function &func) { return false; }
+void restoreValueNames(Function &func, bool discard) { }
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1365,6 +1379,7 @@ bool RealizeRMC::run() {
   for (auto & block : func_) {
     if (!block.hasName()) {
       block.setName("<unnamed>");
+      assert(block.hasName());
     }
   }
 
@@ -1439,10 +1454,18 @@ public:
     return false;
   }
   virtual bool runOnFunction(Function &F) override {
+    // We, for unfortunate reasons that we should fix, depend on having
+    // proper names for basic blocks. Make sure we do.
+    bool discard = keepValueNames(F);
+
+    // Do the stuff
     DominatorTree &dom = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo &li = getLoopInfo(*this);
     RealizeRMC rmc(F, this, dom, li, UseSMT, target);
-    return rmc.run();
+    bool res = rmc.run();
+
+    restoreValueNames(F, discard);
+    return res;
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
