@@ -108,6 +108,14 @@ Probably also want a way to specify binding something at the "most
 narrow possible binding" (least common dominator?).
 
 
+--
+
+OK the binding setup where it is anything that doesn't pass through
+the binding site is janky as shit when we try to express it in the
+formalism...  Maybe it works but we need to make it so that the
+binding site dominates the use sites.
+OH WAIT THAT IS HOW WE DEFINE IT NOW COOL.
+
 
 --- How elaborate of real dependencies do we want to try to preserve?
 And how do we preserve them?  Detecting and preserving straightforward

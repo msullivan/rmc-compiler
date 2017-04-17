@@ -1,7 +1,8 @@
 #!/bin/sh
 FLAGS="-Wall -Wextra  -std=c++11 -S -O2"
 
-CLANG=../../build-opt/bin/clang
+#CLANG=../../build-opt/bin/clang
+CLANG=clang-3.8
 
 set -x
 set -e
