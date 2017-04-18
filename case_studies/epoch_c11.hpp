@@ -8,7 +8,7 @@
 #include <atomic>
 
 #define UnsafeTStack EpochGarbageStack
-#include "unsafe_tstack_sc.hpp"
+#include "unsafe_tstack_c11.hpp"
 
 namespace rmclib {
     template<class T> using epoch_atomic = std::atomic<T>;
