@@ -24,12 +24,15 @@ private:
 public:
     Tag read_lock() {
         // Lock acquisition needs to execute before the critical section
-        XEDGE(read, out);
+        // XXX: The attempt to be clever and XEDGE before out actually makes
+        // things *slower*... Can we figure out when putting dmbs inside
+        // loops actually is the right thing and teach rmc-compiler??
+        XEDGE(read, post);
         Tag tag;
         while (is_locked((tag = L(read, count_)))) {
             delay();
         }
-        LPOST(out);
+        //LPOST(out);
         return tag;
     }
 
