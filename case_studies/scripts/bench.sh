@@ -9,6 +9,12 @@ ARGS="$1"
 shift
 PROGRAMS="$@"
 
+# Make sure they are all up to date
+for PROGRAM in $PROGRAMS
+do
+	make -j4 build/$PROGRAM
+done
+
 # But instead of stopping I am making it worse.
 RUN=1
 while [ $RUN ]
