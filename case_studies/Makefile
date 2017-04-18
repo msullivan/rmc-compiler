@@ -85,6 +85,12 @@ $(OBJDIR)/%.ll: %.cpp $(CONFIG_FILES)
 	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -emit-llvm -S -o $@ $<
+$(OBJDIR)/%.filt.ll: $(OBJDIR)/%.ll $(CONFIG_FILES)
+	@mkdir -p $(dir $@)
+	$(Q)c++filt < $< > $@
+$(OBJDIR)/%.filt.s: $(OBJDIR)/%.s $(CONFIG_FILES)
+	@mkdir -p $(dir $@)
+	$(Q)c++filt < $< > $@
 
 # Args 2-5 define the headers. Abuse the unused arg 1 in
 # compile_with_headers to pass the compilation flags.
