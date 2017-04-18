@@ -8,7 +8,6 @@
 #include <memory>
 #include "epoch_c11.hpp"
 #include "remote_fence.hpp"
-#include "util.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -77,7 +76,7 @@ void Participant::exit() noexcept {
 }
 
 bool Participant::tryCollect() {
-    uintptr_t cur_epoch = global_epoch_.load(mo_acq);
+    uintptr_t cur_epoch = global_epoch_;
 
     remote_thread_fence::trigger();
 
@@ -88,16 +87,16 @@ bool Participant::tryCollect() {
     // XXX: Do we want to factor out the list traversal?
 try_again:
     std::atomic<Participant::Ptr> *prevp = &Participants::head_;
-    Participant::Ptr cur = prevp->load(mo_acq);
+    Participant::Ptr cur = *prevp;
     while (cur) {
-        Participant::Ptr next = cur->next_.load(mo_rlx);
+        Participant::Ptr next = cur->next_;
         if (next.tag()) {
             // This node has exited. Try to unlink it from the
             // list. This will fail if it's already been unlinked or
             // the previous node has exited; in those cases, we start
             // back over at the head of the list.
             next = Ptr(next, 0); // clear next's tag
-            if (prevp->compare_exchange_strong(cur, next, mo_acq)) {
+            if (prevp->compare_exchange_strong(cur, next)) {
                 Guard g(this);
                 g.unlinked(cur.ptr());
             } else {
@@ -106,8 +105,7 @@ try_again:
         } else {
             // We can only advance the epoch if every thread in a critical
             // section is in the current epoch.
-            if (cur->in_critical_.load(mo_acq) &&
-                cur->epoch_.load(mo_acq) != cur_epoch) {
+            if (cur->in_critical_ && cur->epoch_ != cur_epoch) {
                 return false;
             }
             prevp = &cur->next_;
@@ -118,8 +116,7 @@ try_again:
 
     // Try to advance the global epoch
     uintptr_t new_epoch = cur_epoch + 1;
-    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch,
-                                               mo_acq_rel)) {
+    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch)) {
         return false;
     }
 
@@ -128,17 +125,17 @@ try_again:
     garbage_.collect();
     // Now that the collection is done, we can safely update our
     // local epoch.
-    epoch_.store(new_epoch, mo_rel);
+    epoch_ = new_epoch;
 
     return true;
 }
 
 void Participant::shutdown() noexcept {
-    Participant::Ptr next = next_.load(mo_acq);
+    Participant::Ptr next = next_;
     Participant::Ptr exited_next;
     do {
         exited_next = Participant::Ptr(next, 1);
-    } while (!next_.compare_exchange_weak(next, exited_next, mo_acq_rel));
+    } while (!next_.compare_exchange_weak(next, exited_next));
 }
 
 /////////////
