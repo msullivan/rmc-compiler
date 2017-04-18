@@ -8,9 +8,9 @@ QUEUE_TESTS=
 
 # Queue tests where we hold the library constant and vary the queue.
 # ... for epoch
-QUEUE_TESTS+="ms_queue-ec11-rmc-test ms_queue-ec11-sc-test ms_queue-ec11-c11-test "
+#QUEUE_TESTS+="ms_queue-ec11-rmc-test ms_queue-ec11-sc-test ms_queue-ec11-c11-test "
 # ... for freelist
-QUEUE_TESTS+="ms_queue-fc11-rmc2-test ms_queue-fc11-sc2-test ms_queue-fc11-c112-test "
+#QUEUE_TESTS+="ms_queue-fc11-rmc2-test ms_queue-fc11-sc2-test ms_queue-fc11-c112-test "
 
 # Queue tests where the underlying system matches
 # ... for epoch
