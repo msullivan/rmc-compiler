@@ -27,7 +27,7 @@ TUNE_WORK_TYPES=uh
 
 RCULIST_USER_EPOCH_TYPES=c11 rmc linux sc
 
-EPOCH_TYPES=sc c11 rmc leak
+EPOCH_TYPES=sc c11 rmc leak c11simp
 FREELIST_TYPES=sc rmc c11 leak
 
 PARKING_TYPES=lol
