@@ -17,7 +17,7 @@ STACK_TESTS+="tstack-fc11-rmc2-test tstack-fc11-sc2-test tstack-fc11-c112-test "
 #STACK_TESTS+="tstack-frmc-rmc2-test tstack-fsc-sc2-test tstack-fc11-c112-test "
 
 # Queue tests where we hold the queue constant and vary the epoch impl
-#STACK_TESTS+="tstack-ermc-c11-test tstack-esc-c11-test tstack-ec11-c11-test "
+STACK_TESTS+="tstack-ermc-c11-test tstack-esc-c11-test tstack-ec11-c11-test tstack-ec11simp-c11-test "
 
 STACK_TESTS=$(echo $STACK_TESTS | xargs -n1 | sort -u | xargs)
 echo $STACK_TESTS
