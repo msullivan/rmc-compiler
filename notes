@@ -617,6 +617,9 @@ In all models:
   pre-speculate a value and track it in the term until we actually
   speculate the RW
 
+- N.B: In RMCv2, the thread semantics are *super* untethered from the
+  semantics of the store!
+
 -- RMCv2.5
 
 - Like RMCv2, but:
