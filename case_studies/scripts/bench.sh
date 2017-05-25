@@ -10,10 +10,12 @@ shift
 PROGRAMS="$@"
 
 # Make sure they are all up to date
+NPROGRAMS=""
 for PROGRAM in $PROGRAMS
 do
-	make -j4 build/$PROGRAM
+	NPROGRAMS+="build/$PROGRAM "
 done
+make -j4 $NPROGRAMS
 
 # But instead of stopping I am making it worse.
 RUN=1
