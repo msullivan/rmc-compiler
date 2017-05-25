@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 from collections import namedtuple
-import sys, subprocess
+import sys, subprocess, math
 
 VERSIONS = ['c11', 'rmc', 'sc']
-TestGroup = namedtuple('TestGroup', ['name', 'subtests', 'groups', 'params'])
+TestGroup = namedtuple('TestGroup',
+                       ['name', 'subtests', 'groups', 'params'])
 
 ###
 # Code for executing the stuff
@@ -12,10 +13,11 @@ TestGroup = namedtuple('TestGroup', ['name', 'subtests', 'groups', 'params'])
 def get_binaries(test, groups):
     binaries = set(x for g in groups for x in test.groups[g])
     return ['-'.join([test.name] + list(b) + ['test']) for b in binaries]
-def run(test, groups, runs):
+def run(test, groups, run_mult):
+    runs = str(int(math.ceil(run_mult * test.params['base_runs'])))
     binaries = get_binaries(test, groups)
     for name, test_args in test.subtests.items():
-        cmd = (['./scripts/bench.sh', str(runs), name, test_args % test.params]
+        cmd = (['./scripts/bench.sh', runs, name, test_args % test.params]
                + binaries)
         subprocess.call(cmd)
 
@@ -39,7 +41,7 @@ def data_struct_test(name):
     }
     gs['fixed_lib'] = gs['fixed_epoch'] + gs['fixed_freelist']
     gs['matched_lib'] = gs['matched_epoch'] + gs['matched_freelist']
-    params = {'size': 10000000}
+    params = {'size': 10000000, 'base_runs': 50}
 
     return TestGroup(name, subtests, gs, params)
 
@@ -66,7 +68,7 @@ add_test(TestGroup(
         'matched_lib': [('e'+t, t) for t in RCU_VERSIONS],
         'rmc_only': [('ermc', 'rmc')],
     },
-    {'size': 3000000}
+    {'size': 3000000, 'base_runs': 20}
 ))
 
 add_test(TestGroup(
@@ -79,13 +81,13 @@ add_test(TestGroup(
         'fixed_lib': [('rmc',), ('c11',)],
         'rmc_only': [('rmc',)],
     },
-    {'size': 100000000}
+    {'size': 100000000, 'base_runs': 20}
 ))
 
 
 
 def main(args):
-    run(TESTS[args[1]], args[2:], 1)
+    run(TESTS[args[1]], args[2:], 1/50.)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
