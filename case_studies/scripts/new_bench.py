@@ -34,7 +34,7 @@ def data_struct_test(name):
         'fixed_freelist': [('fc11', t+'2') for t in VERSIONS],
         'matched_epoch': [('e'+t, t) for t in VERSIONS],
         'matched_freelist': [('f'+t, t+'2') for t in VERSIONS],
-        'fixed_queue': [('e'+t, 'c11') for t in VERSIONS+['c11simp']],
+        'fixed_object': [('e'+t, 'c11') for t in VERSIONS+['c11simp']],
         'rmc_only': [('ermc', 'rmc'), ('frmc', 'rmc2')],
     }
     gs['fixed_lib'] = gs['fixed_epoch'] + gs['fixed_freelist']
@@ -43,16 +43,49 @@ def data_struct_test(name):
 
     return TestGroup(name, subtests, gs, params)
 
-ms_queue_test = data_struct_test('ms_queue')
-tstack_test = data_struct_test('tstack')
+TESTS = {}
+def add_test(test):
+    TESTS[test.name] = test
 
+
+add_test(data_struct_test('ms_queue'))
+add_test(data_struct_test('tstack'))
+
+RCU_VERSIONS = VERSIONS+['linux']
+add_test(TestGroup(
+    'rcu',
+    {
+        '4x': "-p 0 -c 4 -n %(size)d",
+        '2x': "-p 0 -c 2 -n %(size)d",
+        'write_heavy_4x': "-p 0 -c 4 -n %(size)d -i 30",
+        'write_heavy_2x': "-p 0 -c 2 -n %(size)d -i 30",
+    },
+    {
+        'fixed_lib': [('ec11', t) for t in RCU_VERSIONS],
+        'fixed_object': [('e'+t, 'linux') for t in VERSIONS],
+        'matched_lib': [('e'+t, t) for t in RCU_VERSIONS],
+        'rmc_only': [('ermc', 'rmc')],
+    },
+    {'size': 3000000}
+))
+
+add_test(TestGroup(
+    'seqlock',
+    {
+        '4x': "-p 0 -c 4 -n %(size)d",
+        '2x': "-p 0 -c 2 -n %(size)d",
+    },
+    {
+        'fixed_lib': [('rmc',), ('c11',)],
+        'rmc_only': [('rmc',)],
+    },
+    {'size': 100000000}
+))
 
 
 
 def main(args):
-    test = data_struct_test(args[1])
-    print(test)
-    run(test, ['fixed_epoch', 'fixed_freelist'], 1)
+    run(TESTS[args[1]], args[2:], 1)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
