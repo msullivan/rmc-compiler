@@ -15,16 +15,35 @@ def get_binaries(test, groups):
     binaries = set(x for g in groups for x in test.groups[g]
                    if g in test.groups)
     return ['-'.join([test.name] + list(b) + ['test']) for b in binaries]
-def run_one(test, groups, run_mult):
+def run_one(test, groups, run_mult, branch):
     runs = str(int(math.ceil(run_mult * test.params['base_runs'])))
     binaries = get_binaries(test, groups)
     for name, test_args in test.subtests.items():
+        if branch:
+            name += "-" + branch
         cmd = (['./scripts/bench.sh', runs, name, test_args % test.params]
                + binaries)
         subprocess.call(cmd)
-def run(tests, groups, scale):
+def run(tests, groups, scale, branch):
     for test in tests:
-        run_one(test, groups, scale)
+        run_one(test, groups, scale, branch)
+
+#
+def run_branch(f, branch):
+    current = subprocess.run(
+        "git rev-parse --symbolic-full-name --abbrev-ref HEAD",
+        check=True, shell=True, universal_newlines=True,
+        stdout=subprocess.PIPE).stdout.strip()
+    print(current)
+    subprocess.run(['git', 'checkout', branch], check=True)
+    subprocess.run(['make', '-C', '..'], check=True)
+    res = f(branch)
+    subprocess.run(['git', 'checkout', current], check=True)
+
+def run_branches(f, branches):
+    if not branches: f(None)
+    else:
+        for branch in branches: run_branch(f, branch)
 
 ###
 # Test configurations
@@ -95,11 +114,13 @@ def main(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--test", action='append')
     parser.add_argument("-s", "--subtest", action='append')
+    parser.add_argument("-b", "--branch", action='append')
     parser.add_argument("--scale", type=float, default=1.0)
     args = parser.parse_args()
 
     tests = [TESTS[t] for t in args.test]
-    run(tests, args.subtest, args.scale)
+    r = lambda branch: run(tests, args.subtest, args.scale, branch)
+    run_branches(r, args.branch)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
