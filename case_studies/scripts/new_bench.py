@@ -2,6 +2,7 @@
 
 from collections import namedtuple
 import sys, subprocess, math
+import argparse
 
 VERSIONS = ['c11', 'rmc', 'sc']
 TestGroup = namedtuple('TestGroup',
@@ -11,15 +12,19 @@ TestGroup = namedtuple('TestGroup',
 # Code for executing the stuff
 
 def get_binaries(test, groups):
-    binaries = set(x for g in groups for x in test.groups[g])
+    binaries = set(x for g in groups for x in test.groups[g]
+                   if g in test.groups)
     return ['-'.join([test.name] + list(b) + ['test']) for b in binaries]
-def run(test, groups, run_mult):
+def run_one(test, groups, run_mult):
     runs = str(int(math.ceil(run_mult * test.params['base_runs'])))
     binaries = get_binaries(test, groups)
     for name, test_args in test.subtests.items():
         cmd = (['./scripts/bench.sh', runs, name, test_args % test.params]
                + binaries)
         subprocess.call(cmd)
+def run(tests, groups, scale):
+    for test in tests:
+        run_one(test, groups, scale)
 
 ###
 # Test configurations
@@ -29,7 +34,7 @@ def data_struct_test(name):
         'mpmc': "-p 2 -c 2 -n %(size)d",
         'spsc': "-p 1 -c 1 -n %(size)d",
         'spmc': "-p 1 -c 2 -n %(size)d",
-        'hammer': "-p 0 -c 0 -t 4 -n %(size)d"
+        'alt': "-p 0 -c 0 -t 4 -n %(size)d"
     }
     gs = {
         'fixed_epoch': [('ec11', t) for t in VERSIONS],
@@ -86,8 +91,15 @@ add_test(TestGroup(
 
 
 
-def main(args):
-    run(TESTS[args[1]], args[2:], 1/50.)
+def main(argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--test", action='append')
+    parser.add_argument("-s", "--subtest", action='append')
+    parser.add_argument("--scale", type=float, default=1.0)
+    args = parser.parse_args()
+
+    tests = [TESTS[t] for t in args.test]
+    run(tests, args.subtest, args.scale)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
