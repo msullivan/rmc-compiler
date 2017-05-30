@@ -864,21 +864,6 @@ void enforceAddrDeps(Use *use, std::vector<Instruction *> &trail) {
 
 ////////////// Program analysis that we use
 
-BasicBlock *getPathPred(PathCache *cache, PathID path, BasicBlock *block) {
-  //errs() << "looking for " << block->getName() << "\n";
-  if (!cache) return nullptr;
-  BasicBlock *pred = nullptr;
-  while (!cache->isEmpty(path)) {
-    BasicBlock *b = cache->getHead(path);
-    //errs() << "looking at " << b->getName() << "\n";
-    if (pred && b == block) return pred;
-    pred = b;
-    path = cache->getTail(path);
-  }
-  return nullptr;
-}
-
-
 // FIXME: reorganize the namespace stuff?. Or put this in the class.
 namespace llvm {
 
