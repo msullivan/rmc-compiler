@@ -79,7 +79,7 @@ add_test(data_struct_test('tstack'))
 
 RCU_VERSIONS = VERSIONS+['linux']
 add_test(TestGroup(
-    'rcu',
+    'rculist_user',
     {
         '4x': "-p 0 -c 4 -n %(size)d",
         '2x': "-p 0 -c 2 -n %(size)d",
