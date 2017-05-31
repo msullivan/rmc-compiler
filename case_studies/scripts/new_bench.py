@@ -35,7 +35,7 @@ def run_branch(f, branch):
         check=True, shell=True, universal_newlines=True,
         stdout=subprocess.PIPE).stdout.strip()
     print(current)
-    subprocess.run(['git', 'checkout', branch], check=True)
+    subprocess.run(['git', 'checkout', 'TEST_'+branch], check=True)
     subprocess.run(['make', '-C', '..'], check=True)
     res = f(branch)
     subprocess.run(['git', 'checkout', current], check=True)
