@@ -101,6 +101,7 @@ TuningParams armParams() {
 TuningParams armv8Params() {
   TuningParams p;
   p.syncCost = 50;
+  p.dmbstCost = 35; // XXX???
   p.useCtrlCost = 1;
   p.addCtrlCost = 7;
   p.useDataCost = 1;
