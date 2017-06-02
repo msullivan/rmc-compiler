@@ -62,6 +62,7 @@ def data_struct_test(name):
         'matched_freelist': [('f'+t, t+'2') for t in VERSIONS],
         'fixed_object': [('e'+t, 'c11') for t in VERSIONS+['c11simp']],
         'rmc_only': [('ermc', 'rmc'), ('frmc', 'rmc2')],
+        'c11_only': [('ec11', 'c11'), ('fc11', 'c112')],
     }
     gs['fixed_lib'] = gs['fixed_epoch'] + gs['fixed_freelist']
     gs['matched_lib'] = gs['matched_epoch'] + gs['matched_freelist']
@@ -91,6 +92,7 @@ add_test(TestGroup(
         'fixed_object': [('e'+t, 'linux') for t in VERSIONS],
         'matched_lib': [('e'+t, t) for t in RCU_VERSIONS],
         'rmc_only': [('ermc', 'rmc')],
+        'c11_only': [('ec11', 'c11')],
     },
     {'size': 3000000, 'base_runs': 20}
 ))
@@ -104,6 +106,7 @@ add_test(TestGroup(
     {
         'fixed_lib': [('rmc',), ('c11',)],
         'rmc_only': [('rmc',)],
+        'c11_only': [('c11',)],
     },
     {'size': 100000000, 'base_runs': 20}
 ))
