@@ -143,6 +143,8 @@ $$(POSSIBLE_LIB_OBJ): $(5)_$(2).cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
 $$(POSSIBLE_LIB_OBJ:.o=.ll): $(5)_$(2).cpp $$(CONFIG_FILES)
 	$(call compile_ll_with_headers,$(1),$(2),$(3),$(4),$(5))
+$$(POSSIBLE_LIB_OBJ:.o=.s): $(5)_$(2).cpp $$(CONFIG_FILES)
+	$(call compile_S_with_headers,$(1),$(2),$(3),$(4),$(5))
 endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(EXTRA_LIB_OBJS) $$(CONFIG_FILES)
