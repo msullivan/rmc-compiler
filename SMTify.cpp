@@ -432,6 +432,7 @@ struct VarMaps {
   DeclMap<EdgeKey> lwsync;
   DeclMap<EdgeKey> dmbst;
   DeclMap<EdgeKey> dmbld;
+  DeclMap<PathKey> pathDmbld;
   // release and acquire are really morally BlockKeyd things, but
   // we make them EdgeKey (with an edge to the unique successor block)
   // in order to have it match interfaces with the most of the other cuts
@@ -689,14 +690,13 @@ SmtExpr makePathDataCut(SmtSolver &s, VarMaps &m,
 
 SmtExpr makeEdgeVcut(SmtSolver &s, VarMaps &m,
                      BasicBlock *src, BasicBlock *dst,
-                     bool isPush, bool dmbst, bool dmbld) {
+                     bool isPush, bool dmbst) {
   if (isPush) {
     return getEdgeFunc(m.sync, src, dst);
   } else {
     SmtExpr cut = getEdgeFunc(m.lwsync, src, dst) ||
       getEdgeFunc(m.sync, src, dst);
     if (dmbst) cut = cut || getEdgeFunc(m.dmbst, src, dst);
-    if (dmbld) cut = cut || getEdgeFunc(m.dmbld, src, dst);
     return cut;
   }
 }
@@ -706,7 +706,11 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
                      PathID path,
                      bool isPush) {
   bool dmbst = false;
-  bool dmbld = false;
+  // XXX: We want to be able to use dmb st to cut visibility edges,
+  // which could potentially be a big win. Unfortunately, I think it
+  // means we need to actually have separate maps for the different
+  // sorts of cuts, because of the path suffix sharing we do... So
+  // instead we disable the path suffix sharing...
   if (NO_PATH_SUFFIX_SHARING && m.dmbst.enabled) {
     Action *head = m.bb2action[m.pc.getHead(path)];
     Action *tail = m.bb2action[m.pc.getLast(path)];
@@ -716,26 +720,15 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
         (tail->type == ActionSimpleWrites || tail->type == ActionSimpleRMW)) {
       dmbst = true;
     }
-    // TODO: we could also use dmbld for RMWs when it is an xcut
-    // XXX: actually this is disabled because I think that 'dmb ld'
-    // is only suitable for xcuts!
-    //if (head && tail && (head->type == ActionSimpleRead)) {
-    //  dmbld = true;
-    // }
   }
 
-  // XXX: We want to be able to use dmb st and dmb ld to cut
-  // visibility edges, which could potentially be a big
-  // win. Unfortunately, I think it means we need to actually have
-  // separate maps for the different sorts of cuts, because of the
-  // path suffix sharing we do...
   return forAllPathEdges(
     s, m, path,
     [&] (PathID path, bool *b) {
       return getFunc(isPush ? m.pathPcut : m.pathVcut,
                      makeBlockPathKey(nullptr, path), b); },
     [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
-      return makeEdgeVcut(s, m, src, dst, isPush, dmbst, dmbld);
+      return makeEdgeVcut(s, m, src, dst, isPush, dmbst);
     });
 }
 
@@ -744,6 +737,18 @@ SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite);
 SmtExpr makeVcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite, RMCEdgeType edgeType);
+
+SmtExpr makePathDmbldCut(SmtSolver &s, VarMaps &m,
+                         PathID path) {
+  if (!m.dmbld.enabled) return s.ctx().bool_val(false);
+  return forAllPathEdges(
+    s, m, path,
+    [&] (PathID path, bool *b) {
+      return getPathFunc(m.pathDmbld, path, b); },
+    [&] (BasicBlock *src, BasicBlock *dst, PathID path) {
+      return getEdgeFunc(m.dmbld, src, dst);
+    });
+}
 
 SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
                      PathID path, Action &tail,
@@ -772,7 +777,8 @@ SmtExpr makePathXcut(SmtSolver &s, VarMaps &m,
   }
 
   s.add(isCut ==
-        (makePathVcut(s, m, path, false) ||
+        (makePathDmbldCut(s, m, path) ||
+         makePathVcut(s, m, path, false) ||
          pathCtrlCut || pathDataCut));
 
   return isCut;
@@ -914,6 +920,8 @@ std::vector<EdgeCut> RealizeRMC::smtAnalyzeInner() {
     DeclMap<EdgeKey>(c.bool_sort(), "dmbst",
                      paramEnabled(params.dmbstCost)),
     DeclMap<EdgeKey>(c.bool_sort(), "dmbld",
+                     paramEnabled(params.dmbldCost)),
+    DeclMap<PathKey>(c.bool_sort(), "pathDmbld",
                      paramEnabled(params.dmbldCost)),
     DeclMap<EdgeKey>(c.bool_sort(), "release",
                      paramEnabled(params.makeReleaseCost)),
