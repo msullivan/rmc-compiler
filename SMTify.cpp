@@ -713,11 +713,10 @@ SmtExpr makePathVcut(SmtSolver &s, VarMaps &m,
   // instead we disable the path suffix sharing...
   if (NO_PATH_SUFFIX_SHARING && m.dmbst.enabled) {
     Action *head = m.bb2action[m.pc.getHead(path)];
-    Action *tail = m.bb2action[m.pc.getLast(path)];
-
-    if (head && tail &&
-        (head->type == ActionSimpleWrites) &&
-        (tail->type == ActionSimpleWrites || tail->type == ActionSimpleRMW)) {
+    // If the source is simple writes, we can use a dmb st for
+    // visibility. dmb st only orders writes, but visibility edges
+    // only meaningfully affect writes.
+    if (head && head->type == ActionSimpleWrites) {
       dmbst = true;
     }
   }
