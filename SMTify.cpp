@@ -65,7 +65,8 @@ struct TuningParams {
   int useDataCost{-1};
   int makeReleaseCost{-1};
   int makeAcquireCost{-1};
-  bool acqRelAbuse{false};
+  bool acqAbuse{false};
+  bool relAbuse{false};
 };
 bool paramEnabled(int param) { return param >= 0; }
 
@@ -108,7 +109,8 @@ TuningParams armv8Params() {
   p.useDataCost = 1;
   p.makeReleaseCost = 24;
   p.makeAcquireCost = 24;
-  p.acqRelAbuse = true;
+  p.acqAbuse = true;
+  p.relAbuse = true;
   return p;
 }
 
@@ -809,27 +811,29 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
   // Also, interestingly, reading the documentation made me think that
   // it *wouldn't* suffice for R-v->*, but the model paper implied
   // that it should.
-
-  const bool abuse = m.params.acqRelAbuse;
+  // Actually, reading more carefully I find the model paper pretty hard
+  // to reason clearly about in this case. Exploring the model with the
+  // tool seems to indicate that it acquire suffices for visibility
+  // edges.
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   // *  -v-> W/RW2  -- W/RW2 = rel, on ARMv8
   if (type == VisibilityEdge &&
-      (src.type == ActionSimpleWrites || abuse) &&
+      (src.type == ActionSimpleWrites || m.params.relAbuse) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
     relAcq = relAcq || getRelease(s, m, dst);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
-  // R/RW1 -v-> *   -- R/RW1 = acq, on ARMv8
+  // R/RW1 -v-> *   -- R/RW1 = acq, on ARMv8, probably (>_>)
   if ((type == ExecutionEdge ||
-       (type == VisibilityEdge && abuse)) &&
+       (type == VisibilityEdge && m.params.acqAbuse)) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
     relAcq = relAcq || getAcquire(s, m, src);
   }
   // R/RW1 -v-> W/RW2 -- complicated
   // If we /aren't/ doing the abusive non-C11 interpretation of
   // release and acquire, we can do an R->W vis edge by marking both.
-  if (!abuse &&
+  if (!(m.params.relAbuse || m.params.acqAbuse) &&
       (type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
