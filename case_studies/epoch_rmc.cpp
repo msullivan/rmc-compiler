@@ -19,12 +19,8 @@ const int kNumEpochs = 3;
 thread_local LocalEpoch Epoch::local_epoch_;
 rmc::atomic<Participant::Ptr> Participants::head_;
 
-
-// XXX: Should this be in a class??
 static rmc::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
-
-
 
 Participant *Participants::enroll() {
     VEDGE(init_p, cas);
