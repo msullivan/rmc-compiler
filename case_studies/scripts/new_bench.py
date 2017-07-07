@@ -9,7 +9,6 @@ TestGroup = namedtuple('TestGroup',
                        ['name', 'subtests', 'groups', 'params'])
 
 ###
-# Code for executing the stuff
 
 def get_binaries(test, groups):
     binaries = set(x for g in groups for x in test.groups[g]
@@ -48,6 +47,20 @@ def run_branches(f, branches):
 ###
 # Test configurations
 
+def tmatches(key, tup): return any(key in part for part in tup)
+def fill_tests(gs):
+    if 'fixed_lib' not in gs:
+        gs['fixed_lib'] = gs.get('fixed_epoch', [])+gs.get('fixed_freelist', [])
+    if 'matched_lib' not in gs:
+        gs['matched_lib'] = (
+            gs.get('matched_epoch', [])+gs.get('matched_freelist', []))
+    if 'baseline' not in gs:
+        gs['baseline'] = [x for x in gs['matched_lib'] if not tmatches('rmc',x)]
+    if 'rmc_only' not in gs:
+        gs['rmc_only'] = [x for x in gs['matched_lib'] if tmatches('rmc',x)]
+    if 'c11_only' not in gs:
+        gs['c11_only'] = [x for x in gs['matched_lib'] if tmatches('c11',x)]
+
 def data_struct_test(name):
     subtests = {
         'mpmc': "-p 2 -c 2 -n %(size)d",
@@ -61,17 +74,14 @@ def data_struct_test(name):
         'matched_epoch': [('e'+t, t) for t in VERSIONS],
         'matched_freelist': [('f'+t, t+'2') for t in VERSIONS],
         'fixed_object': [('e'+t, 'c11') for t in VERSIONS+['c11simp']],
-        'rmc_only': [('ermc', 'rmc'), ('frmc', 'rmc2')],
-        'c11_only': [('ec11', 'c11'), ('fc11', 'c112')],
     }
-    gs['fixed_lib'] = gs['fixed_epoch'] + gs['fixed_freelist']
-    gs['matched_lib'] = gs['matched_epoch'] + gs['matched_freelist']
     params = {'size': 10000000, 'base_runs': 50}
 
     return TestGroup(name, subtests, gs, params)
 
 TESTS = {}
 def add_test(test):
+    fill_tests(test.groups)
     TESTS[test.name] = test
 
 
@@ -88,11 +98,9 @@ add_test(TestGroup(
         'write_heavy_2x': "-p 0 -c 2 -n %(size)d -i 30",
     },
     {
-        'fixed_lib': [('ec11', t) for t in RCU_VERSIONS],
+        'fixed_epoch': [('ec11', t) for t in RCU_VERSIONS],
         'fixed_object': [('e'+t, 'linux') for t in VERSIONS],
-        'matched_lib': [('e'+t, t) for t in RCU_VERSIONS],
-        'rmc_only': [('ermc', 'rmc')],
-        'c11_only': [('ec11', 'c11')],
+        'matched_epoch': [('e'+t, t) for t in VERSIONS],
     },
     {'size': 3000000, 'base_runs': 20}
 ))
@@ -105,8 +113,7 @@ add_test(TestGroup(
     },
     {
         'fixed_lib': [('rmc',), ('c11',)],
-        'rmc_only': [('rmc',)],
-        'c11_only': [('c11',)],
+        'matched_lib': [('rmc',), ('c11',)],
     },
     {'size': 100000000, 'base_runs': 20}
 ))
@@ -118,8 +125,11 @@ def main(argv):
     parser.add_argument("-t", "--test", action='append')
     parser.add_argument("-s", "--subtest", action='append')
     parser.add_argument("-b", "--branch", action='append')
+    parser.add_argument("-d", "--debug", action='store_true')
     parser.add_argument("--scale", type=float, default=1.0)
     args = parser.parse_args()
+
+    if args.debug: print(TESTS)
 
     tests = [TESTS[t] for t in args.test]
     r = lambda branch: run(tests, args.subtest, args.scale, branch)
