@@ -123,7 +123,7 @@ add_test(TestGroup(
 def main(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--test", action='append')
-    parser.add_argument("-s", "--subtest", action='append')
+    parser.add_argument("-g", "--group", action='append')
     parser.add_argument("-b", "--branch", action='append')
     parser.add_argument("-d", "--debug", action='store_true')
     parser.add_argument("--scale", type=float, default=1.0)
@@ -132,7 +132,7 @@ def main(argv):
     if args.debug: print(TESTS)
 
     tests = [TESTS[t] for t in args.test]
-    r = lambda branch: run(tests, args.subtest, args.scale, branch)
+    r = lambda branch: run(tests, args.group, args.scale, branch)
     run_branches(r, args.branch)
 
 if __name__ == '__main__':
