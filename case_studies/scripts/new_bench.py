@@ -125,6 +125,9 @@ def main(argv):
     parser.add_argument("-t", "--test", action='append')
     parser.add_argument("-g", "--group", action='append')
     parser.add_argument("-b", "--branch", action='append')
+    # bare groups are only run on the current branch,
+    # not on branches given with -b
+    parser.add_argument("-G", "--bare_group", action='append')
     parser.add_argument("-d", "--debug", action='store_true')
     parser.add_argument("--scale", type=float, default=1.0)
     args = parser.parse_args()
@@ -134,6 +137,8 @@ def main(argv):
     tests = [TESTS[t] for t in args.test]
     r = lambda branch: run(tests, args.group, args.scale, branch)
     run_branches(r, args.branch)
+
+    run(tests, args.bare_group, args.scale, None)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
