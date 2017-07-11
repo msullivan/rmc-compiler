@@ -35,7 +35,6 @@ def run_branch(f, branch):
         stdout=subprocess.PIPE).stdout.strip()
     print(current)
     subprocess.run(['git', 'checkout', 'TEST_'+branch], check=True)
-    subprocess.run(['make', '-C', '..'], check=True)
     res = f(branch)
     subprocess.run(['git', 'checkout', current], check=True)
 
@@ -138,7 +137,8 @@ def main(argv):
     r = lambda branch: run(tests, args.group, args.scale, branch)
     run_branches(r, args.branch)
 
-    run(tests, args.bare_group, args.scale, None)
+    if args.bare_group:
+        run(tests, args.bare_group, args.scale, None)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
