@@ -1,5 +1,9 @@
 #!/bin/bash
 
+get_temp () {
+	read_temp 2>/dev/null || echo 0
+}
+
 ITERATIONS=$1
 shift
 TAG=$1
@@ -42,9 +46,10 @@ do
 		if [ $LEN -lt $ITERATIONS ]
 		then
 			I=$(expr $LEN + 1)
-			(printf "%d,%s,%s %s,$PROGRAM,$ARGS," $I `hostname` \
-				   `date --rfc-3339=seconds -u`;
-			 env -i ./build/$PROGRAM -b $ARGS) | tee -a $FILE
+			printf "%d,%s,%s %s,$PROGRAM,$ARGS,%s,%d\n" $I $(hostname) \
+				   $(date --rfc-3339=seconds -u) \
+				   $(env -i ./build/$PROGRAM -b $ARGS) \
+				   $(get_temp) | tee -a $FILE
 			#sleep 60 # evade, don't solve, temperature problems
 			RUN=1
 		fi
