@@ -24,6 +24,14 @@ T rculist_consume(std::atomic<T> &val) {
     // don't care about ALPHA. Should I bother doing more?
     return val.load(std::memory_order_relaxed);
 }
+#elif defined(USE_FENCED_CONSUME)
+// For testing whether fences are way worse than acquires.
+template <typename T>
+T rculist_consume(std::atomic<T> &val) {
+    T x = val.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    return x;
+}
 #else
 template <typename T>
 T rculist_consume(std::atomic<T> &val) {
