@@ -19,7 +19,6 @@
 #include <sys/resource.h>
 #include <malloc.h>
 
-
 #define rmc_noinline __attribute__((noinline))
 
 #ifndef __ASSERT_FUNCTION
@@ -81,6 +80,7 @@ static void busywait(double us) {
     }
 }
 
+int __attribute__((weak)) __memory_usage_stat = 0;
 class BenchTimer {
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> start_, stop_;
@@ -118,6 +118,9 @@ public:
 
         struct mallinfo info = mallinfo();
         long mem_used = (info.arena + info.hblkhd) / 1024;
+
+        // XXX this is an awful dumb hack
+        if (__memory_usage_stat) mem_used = __memory_usage_stat;
 
         if (verbose) {
             if (name_) printf("%s: ", name_);

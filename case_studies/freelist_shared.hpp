@@ -26,6 +26,18 @@ private:
     using Node = typename FreelistTStackGen<T>::TStackNode;
 
 public:
+    ~Freelist() {
+        unsigned count = 0;
+        Node *node;
+        while ((node = freestack_.popNode())) {
+            count++;
+            delete node;
+        }
+        extern int __memory_usage_stat;
+        __memory_usage_stat = count;
+        //fprintf(stderr, "freelist size: %u\n", count);
+    }
+
     // Allocate a new node. If we need to actually create a new one,
     // it will be constructed with the default constructor. If we
     // reuse an existing node, it will be in whatever state it was in
