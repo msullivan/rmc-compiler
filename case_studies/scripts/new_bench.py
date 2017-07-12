@@ -55,10 +55,16 @@ def fill_tests(gs):
             gs.get('matched_epoch', [])+gs.get('matched_freelist', []))
     if 'baseline' not in gs:
         gs['baseline'] = [x for x in gs['matched_lib'] if not tmatches('rmc',x)]
-    if 'rmc_only' not in gs:
-        gs['rmc_only'] = [x for x in gs['matched_lib'] if tmatches('rmc',x)]
-    if 'c11_only' not in gs:
-        gs['c11_only'] = [x for x in gs['matched_lib'] if tmatches('c11',x)]
+    for v in VERSIONS:
+        for thing in ['epoch', 'freelist', 'lib']:
+            name = v + '_' + ('only' if thing == 'lib' else thing)
+            if name not in gs:
+                gs[name] = [x for x in gs.get('matched_'+thing,[])
+                            if tmatches(v,x)]
+
+    for test in set(x for l in gs.values() for x in l):
+        key = "-".join(test)
+        if key not in gs: gs[key] = [test]
 
 def data_struct_test(name):
     subtests = {
