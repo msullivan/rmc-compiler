@@ -15,6 +15,9 @@
 #include <experimental/optional>
 #include <assert.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
 
 #define rmc_noinline __attribute__((noinline))
 
@@ -106,6 +109,9 @@ public:
             std::chrono::nanoseconds>(stop_ - start_);
         std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
 
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+
         if (verbose) {
             if (name_) printf("%s: ", name_);
             printf("Runtime: %lldms\n", (long long)int_ms.count());
@@ -115,10 +121,13 @@ public:
                        (long long)int_ns.count() / numOps,
                        fp_ns.count() / numOps);
             }
+            printf("Memory use: %.2lf MB\n", usage.ru_maxrss / 1024.0);
+
         } else {
-            printf("%lld,%lf\n",
+            printf("%lld,%lf,%ld\n",
                    (long long)int_ms.count(),
-                   fp_ns.count() / numOps);
+                   fp_ns.count() / numOps,
+                   usage.ru_maxrss);
         }
     }
 };
