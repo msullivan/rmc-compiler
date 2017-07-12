@@ -139,8 +139,8 @@ void consumer(Test *t, int no) {
         }
     }
     // Stupidly, this winds up being "more atomic" than using cout
-    //printf("Done: %lu\n", sum);
-    //printf("Missed: %lu\n", missed);
+    //fprintf(stderr, "Done: %lu\n", sum);
+    //fprintf(stderr, "Missed: %lu\n", missed);
     t->totalSum += sum;
     t->totalCount += count;
 }
