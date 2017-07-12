@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <malloc.h>
 
 
 #define rmc_noinline __attribute__((noinline))
@@ -109,8 +110,14 @@ public:
             std::chrono::nanoseconds>(stop_ - start_);
         std::chrono::duration<double, std::nano> fp_ns = stop_ - start_;
 
+        /*
         struct rusage usage;
         getrusage(RUSAGE_SELF, &usage);
+        long mem_used = usage.ru_maxrss;
+        */
+
+        struct mallinfo info = mallinfo();
+        long mem_used = (info.arena + info.hblkhd) / 1024;
 
         if (verbose) {
             if (name_) printf("%s: ", name_);
@@ -121,13 +128,13 @@ public:
                        (long long)int_ns.count() / numOps,
                        fp_ns.count() / numOps);
             }
-            printf("Memory use: %.2lf MB\n", usage.ru_maxrss / 1024.0);
+            printf("Memory use: %.2lf MB\n", mem_used / 1024.0);
 
         } else {
             printf("%lld,%lf,%ld\n",
                    (long long)int_ms.count(),
                    fp_ns.count() / numOps,
-                   usage.ru_maxrss);
+                   mem_used);
         }
     }
 };
