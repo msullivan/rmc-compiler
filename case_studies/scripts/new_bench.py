@@ -14,18 +14,19 @@ def get_binaries(test, groups):
     binaries = set(x for g in groups for x in test.groups[g]
                    if g in test.groups)
     return ['-'.join([test.name] + list(b) + ['test']) for b in binaries]
-def run_one(test, groups, run_mult, branch):
+def run_one(test, groups, run_mult, subtests, branch):
     runs = str(int(math.ceil(run_mult * test.params['base_runs'])))
     binaries = get_binaries(test, groups)
     for name, test_args in test.subtests.items():
+        if subtests and name not in subtests: continue
         if branch:
             name += "-" + branch
         cmd = (['./scripts/bench.sh', runs, name, test_args % test.params]
                + binaries)
         subprocess.call(cmd)
-def run(tests, groups, scale, branch):
+def run(tests, groups, scale, subtests, branch):
     for test in tests:
-        run_one(test, groups, scale, branch)
+        run_one(test, groups, scale, subtests, branch)
 
 #
 def run_branch(f, branch):
@@ -130,6 +131,7 @@ def main(argv):
     parser.add_argument("-t", "--test", action='append')
     parser.add_argument("-g", "--group", action='append')
     parser.add_argument("-b", "--branch", action='append')
+    parser.add_argument("-s", "--subtest", action='append')
     # bare groups are only run on the current branch,
     # not on branches given with -b
     parser.add_argument("-G", "--bare_group", action='append')
@@ -140,11 +142,11 @@ def main(argv):
     if args.debug: print(TESTS)
 
     tests = [TESTS[t] for t in args.test]
-    r = lambda branch: run(tests, args.group, args.scale, branch)
+    r = lambda branch: run(tests, args.group, args.scale, args.subtest, branch)
     run_branches(r, args.branch)
 
     if args.bare_group:
-        run(tests, args.bare_group, args.scale, None)
+        run(tests, args.bare_group, args.scale, args.subtest, None)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
