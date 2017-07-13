@@ -67,7 +67,7 @@ int guessSize(Test *t) {
 const int backPressureCheckFreq = 8192/2;
 // Backpressure at 100k does not seem to save us at /all/ but
 // backpressure at 10k pretty often does.
-const int backPressureMax = 10000;
+const int backPressureMax = 10000/2;
 
 void producer(Test *t, int no) {
     int maxSeen = 0;
