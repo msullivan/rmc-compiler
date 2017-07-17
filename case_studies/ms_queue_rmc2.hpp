@@ -18,7 +18,7 @@
 namespace rmclib {
 
 struct MSQueueNode {
-    rmc::gen_atomic<lf_ptr<MSQueueNode>> next_;
+    rmc::atomic<gen_ptr<lf_ptr<MSQueueNode>>> next_;
     // Traditional MS Queues need to read out the data from nodes
     // that may already be getting reused.
     // To avoid data races copying the elements around,
@@ -34,9 +34,9 @@ private:
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
     alignas(kCacheLinePadding)
-    rmc::gen_atomic<lf_ptr<MSQueueNode>> head_;
+    rmc::atomic<NodePtr> head_;
     alignas(kCacheLinePadding)
-    rmc::gen_atomic<lf_ptr<MSQueueNode>> tail_;
+    rmc::atomic<NodePtr> tail_;
 
     void enqueueNode(lf_ptr<MSQueueNode> node);
 
@@ -113,20 +113,21 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (L(enqueue, tail->next_.compare_exchange_weak_gen(next, node))){
+            if (L(enqueue, tail->next_.compare_exchange_weak(next,
+                                                             next.inc(node)))) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
             L(catchup_swing,
-              this->tail_.compare_exchange_strong_gen(tail, next));
+              this->tail_.compare_exchange_strong(tail, tail.inc(next)));
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
     L(enqueue_swing,
-      this->tail_.compare_exchange_strong_gen(tail, node));
+      this->tail_.compare_exchange_strong(tail, tail.inc(node)));
 }
 
 template<typename T>
@@ -182,7 +183,7 @@ optional<T> MSQueue<T>::dequeue() {
                 // try advancing the tail
                 // XXX weak v strong?
                 L(catchup_swing,
-                  this->tail_.compare_exchange_strong_gen(tail, next));
+                  this->tail_.compare_exchange_strong(tail, tail.inc(next)));
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -192,7 +193,8 @@ optional<T> MSQueue<T>::dequeue() {
             // *before* we try to dequeue it or else it could get
             // reused before we read it out.
             data = L(node_use, next->data_);
-            if (L(dequeue, this->head_.compare_exchange_weak_gen(head, next))){
+            if (L(dequeue, this->head_.compare_exchange_weak(head,
+                                                             tail.inc(next)))) {
                 break;
             }
         }

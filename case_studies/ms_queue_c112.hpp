@@ -18,7 +18,7 @@
 namespace rmclib {
 
 struct MSQueueNode {
-    std::gen_atomic<lf_ptr<MSQueueNode>> next_;
+    std::atomic<gen_ptr<lf_ptr<MSQueueNode>>> next_;
     // Traditional MS Queues need to read out the data from nodes
     // that may already be getting reused.
     // To avoid data races copying the elements around,
@@ -34,9 +34,9 @@ private:
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
     alignas(kCacheLinePadding)
-    std::gen_atomic<lf_ptr<MSQueueNode>> head_;
+    std::atomic<NodePtr> head_;
     alignas(kCacheLinePadding)
-    std::gen_atomic<lf_ptr<MSQueueNode>> tail_;
+    std::atomic<NodePtr> tail_;
 
     void enqueueNode(lf_ptr<MSQueueNode> node);
 
@@ -89,8 +89,8 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
             // XXX: does weak actually help us here?
             // release because publishing; not acquire since I don't
             // think we care what we see
-            if (tail->next_.compare_exchange_weak_gen(next, node,
-                                                      mo_rel, mo_rlx)) {
+            if (tail->next_.compare_exchange_weak(next, next.inc(node),
+                                                  mo_rel, mo_rlx)) {
                 // we did it! return
                 break;
             }
@@ -98,14 +98,14 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
             // nope. try to swing the tail further down the list and try again
             // release because we need to keep the node data visible
             // (**) - maybe can put an acq_rel *fence* here instead
-            this->tail_.compare_exchange_strong_gen(tail, next,
-                                                    mo_rel, mo_rlx);
+            this->tail_.compare_exchange_strong(tail, tail.inc(next),
+                                                mo_rel, mo_rlx);
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
     // release because publishing
-    this->tail_.compare_exchange_strong_gen(tail, node, mo_rel, mo_rlx);
+    this->tail_.compare_exchange_strong(tail, tail.inc(node), mo_rel, mo_rlx);
 }
 
 template<typename T>
@@ -138,8 +138,8 @@ optional<T> MSQueue<T>::dequeue() {
                 // try advancing the tail
                 // XXX weak v strong?
                 // Release because anything we saw needs to be republished
-                this->tail_.compare_exchange_strong_gen(tail, next,
-                                                        mo_rel, mo_rlx);
+                this->tail_.compare_exchange_strong(tail, tail.inc(next),
+                                                    mo_rel, mo_rlx);
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -150,8 +150,8 @@ optional<T> MSQueue<T>::dequeue() {
             data = next->data_;
 
             // release because we're republishing; don't care about what we read
-            if (this->head_.compare_exchange_weak_gen(head, next,
-                                                      mo_rel, mo_rlx)) {
+            if (this->head_.compare_exchange_weak(head, head.inc(next),
+                                                  mo_rel, mo_rlx)) {
                 break;
             }
         }

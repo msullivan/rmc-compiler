@@ -18,7 +18,7 @@
 namespace rmclib {
 
 struct MSQueueNode {
-    std::gen_atomic<lf_ptr<MSQueueNode>> next_;
+    std::atomic<gen_ptr<lf_ptr<MSQueueNode>>> next_;
     // Traditional MS Queues need to read out the data from nodes
     // that may already be getting reused.
     // To avoid data races copying the elements around,
@@ -34,9 +34,9 @@ private:
     using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
 
     alignas(kCacheLinePadding)
-    std::gen_atomic<lf_ptr<MSQueueNode>> head_;
+    std::atomic<NodePtr> head_;
     alignas(kCacheLinePadding)
-    std::gen_atomic<lf_ptr<MSQueueNode>> tail_;
+    std::atomic<NodePtr> tail_;
 
     void enqueueNode(lf_ptr<MSQueueNode> node);
 
@@ -83,18 +83,18 @@ void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
             // XXX: does weak actually help us here?
-            if (tail->next_.compare_exchange_weak_gen(next, node)) {
+            if (tail->next_.compare_exchange_weak(next, next.inc(node))) {
                 // we did it! return
                 break;
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            this->tail_.compare_exchange_strong_gen(tail, next);
+            this->tail_.compare_exchange_strong(tail, tail.inc(next));
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    this->tail_.compare_exchange_strong_gen(tail, node);
+    this->tail_.compare_exchange_strong(tail, tail.inc(node));
 }
 
 template<typename T>
@@ -125,7 +125,7 @@ optional<T> MSQueue<T>::dequeue() {
                 // not ok for the head to advance past the tail,
                 // try advancing the tail
                 // XXX weak v strong?
-                this->tail_.compare_exchange_strong_gen(tail, next);
+                this->tail_.compare_exchange_strong(tail, tail.inc(next));
             }
         } else {
             // OK, now we try to actually read the thing out.
@@ -134,7 +134,7 @@ optional<T> MSQueue<T>::dequeue() {
             // *before* we try to dequeue it or else it could get
             // reused before we read it out.
             data = next->data_;
-            if (this->head_.compare_exchange_weak_gen(head, next)) {
+            if (this->head_.compare_exchange_weak(head, head.inc(next))) {
                 break;
             }
         }
