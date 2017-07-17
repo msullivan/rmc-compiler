@@ -42,7 +42,7 @@ public:
 
 private:
     alignas(kCacheLinePadding)
-    rmc::gen_atomic<TStackNode *> head_;
+    rmc::atomic<NodePtr> head_;
 
 public:
     void pushNode(TStackNode *node);
@@ -65,7 +65,7 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     NodePtr oldHead = head_;
     for (;;) {
         L(node_next, node->next_ = oldHead);
-        if (L(push, head_.compare_exchange_weak_gen(oldHead, node)))
+        if (L(push, head_.compare_exchange_weak(oldHead, oldHead.inc(node))))
             break;
     }
 }
@@ -86,7 +86,8 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
         }
         TStackNode *next = L(read_next, head->next_);
 
-        if (L(read_head, this->head_.compare_exchange_weak_gen(head, next))){
+        if (L(read_head, this->head_.compare_exchange_weak(head,
+                                                           head.inc(next)))){
             break;
         }
     }

@@ -34,7 +34,8 @@ public:
     }
     bool operator!=(const gen_ptr<T> &rhs) const { return !(*this == rhs); }
 
-    gen_ptr<T> update(T n) { return gen_ptr<T>(n, gen()+1); }
+    gen_ptr<T> inc(T n) { return gen_ptr<T>(n, gen()+1); }
+    gen_ptr<T> update(T n) { return this->inc(n); }
 };
 
 }

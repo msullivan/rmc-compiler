@@ -42,7 +42,7 @@ public:
 
 private:
     alignas(kCacheLinePadding)
-    std::gen_atomic<TStackNode *> head_;
+    std::atomic<NodePtr> head_;
 
 public:
     void pushNode(TStackNode *node);
@@ -57,8 +57,8 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     NodePtr oldHead = head_.load(mo_rlx);
     for (;;) {
         node->next_.store(oldHead, mo_rlx);
-        if (head_.compare_exchange_weak_gen(oldHead, node,
-                                            mo_rel, mo_rlx)) break;
+        if (head_.compare_exchange_weak(oldHead, oldHead.inc(node),
+                                        mo_rel, mo_rlx)) break;
     }
 }
 
@@ -74,8 +74,8 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
 
         // We would like to make the success order mo_rlx,
         // but the success order can't be weaker than the failure one.
-        if (this->head_.compare_exchange_weak_gen(head, next,
-                                                  mo_acq, mo_acq)) {
+        if (this->head_.compare_exchange_weak(head, head.inc(next),
+                                              mo_acq, mo_acq)) {
             break;
         }
     }
