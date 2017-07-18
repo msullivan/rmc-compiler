@@ -25,9 +25,6 @@ namespace rmclib {
 template<typename T>
 class UnsafeTStackGen {
 public:
-    struct TStackNode;
-    using NodePtr = gen_ptr<TStackNode *>;
-
     struct TStackNode {
         rmc::atomic<TStackNode *> next_;
         T data_;
@@ -42,7 +39,7 @@ public:
 
 private:
     alignas(kCacheLinePadding)
-    rmc::atomic<NodePtr> head_;
+    rmc::atomic<gen_ptr<TStackNode *>> head_;
 
 public:
     void pushNode(TStackNode *node);
@@ -51,6 +48,7 @@ public:
     UnsafeTStackGen() { }
 };
 
+//// SNIP ////
 template<typename T>
 rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
@@ -62,7 +60,7 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
 
     LPRE(node_setup);
 
-    NodePtr oldHead = head_;
+    gen_ptr<TStackNode *> oldHead = head_;
     for (;;) {
         L(node_next, node->next_ = oldHead);
         if (L(push, head_.compare_exchange_weak(oldHead, oldHead.inc(node))))
@@ -79,7 +77,7 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
     XEDGE(read_head, read_next);
     XEDGE(read_head, out);
 
-    NodePtr head = L(read_head, this->head_);
+    gen_ptr<TStackNode *> head = L(read_head, this->head_);
     for (;;) {
         if (head == nullptr) {
             return nullptr;
@@ -96,6 +94,7 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
 
     return head;
 }
+//// SNIP ////
 
 }
 
