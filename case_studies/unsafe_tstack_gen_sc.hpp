@@ -63,9 +63,7 @@ rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
     gen_ptr<TStackNode *> head = this->head_;
     for (;;) {
-        if (head == nullptr) {
-            return nullptr;
-        }
+        if (head == nullptr) return nullptr;
         TStackNode *next = head->next_;
 
         if (this->head_.compare_exchange_weak(head, head.inc(next))) {

@@ -65,9 +65,7 @@ rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
     gen_ptr<TStackNode *> head = this->head_.load(mo_acq);
     for (;;) {
-        if (head == nullptr) {
-            return nullptr;
-        }
+        if (head == nullptr) return nullptr;
         TStackNode *next = head->next_.load(mo_rlx);
 
         // We would like to make the success order mo_rlx,
