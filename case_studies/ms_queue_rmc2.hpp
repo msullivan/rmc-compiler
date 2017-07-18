@@ -18,7 +18,7 @@
 namespace rmclib {
 
 struct MSQueueNode {
-    rmc::atomic<gen_ptr<lf_ptr<MSQueueNode>>> next_;
+    rmc::atomic<gen_ptr<MSQueueNode *>> next_;
     // Traditional MS Queues need to read out the data from nodes
     // that may already be getting reused.
     // To avoid data races copying the elements around,
@@ -31,14 +31,14 @@ struct MSQueueNode {
 template<typename T>
 class MSQueue {
 private:
-    using NodePtr = gen_ptr<lf_ptr<MSQueueNode>>;
+    using NodePtr = gen_ptr<MSQueueNode *>;
 
     alignas(kCacheLinePadding)
     rmc::atomic<NodePtr> head_;
     alignas(kCacheLinePadding)
     rmc::atomic<NodePtr> tail_;
 
-    void enqueueNode(lf_ptr<MSQueueNode> node);
+    void enqueueNode(MSQueueNode *node);
 
 public:
     MSQueue() {
@@ -64,7 +64,7 @@ public:
 
 template<typename T>
 rmc_noinline
-void MSQueue<T>::enqueueNode(lf_ptr<MSQueueNode> node) {
+void MSQueue<T>::enqueueNode(MSQueueNode *node) {
     node->next_ = node->next_.load().update(nullptr); // XXX: ok?
 
     // We publish the node in two ways:

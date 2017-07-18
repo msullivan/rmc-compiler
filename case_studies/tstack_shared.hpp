@@ -43,7 +43,7 @@ public:
 template<typename T>
 optional<T> TStack<T>::pop() {
     auto guard = Epoch::pin();
-    lf_ptr<TStackNode> node = stack_.popNode();
+    TStackNode *node = stack_.popNode();
 
     if (!node) return optional<T>{};
 

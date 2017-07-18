@@ -51,8 +51,6 @@ using std::experimental::optional;
 
 const int kCacheLinePadding = 64; // I have NFI
 
-template<class T> using lf_ptr = T*;
-
 // Abbreviations for the memory orders
 const std::memory_order mo_rlx = std::memory_order_relaxed;
 const std::memory_order mo_rel = std::memory_order_release;

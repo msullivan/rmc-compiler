@@ -174,7 +174,7 @@ public:
         me_->shutdown();
         me_ = nullptr;
     }
-    lf_ptr<Participant> get() { return me_; }
+    Participant *get() { return me_; }
 };
 
 // Guard manages the lifecycle of an Epoch critical section.

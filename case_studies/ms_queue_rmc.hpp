@@ -17,7 +17,7 @@ template<typename T>
 class MSQueue {
 private:
     struct MSQueueNode {
-        rmc::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
+        rmc::atomic<MSQueueNode *> next_{nullptr};
         optional<T> data_;
 
         MSQueueNode() {} // needed for allocating dummy
@@ -27,11 +27,11 @@ private:
 
 
     alignas(kCacheLinePadding)
-    rmc::atomic<lf_ptr<MSQueueNode>> head_{nullptr};
+    rmc::atomic<MSQueueNode *> head_{nullptr};
     alignas(kCacheLinePadding)
-    rmc::atomic<lf_ptr<MSQueueNode>> tail_{nullptr};
+    rmc::atomic<MSQueueNode *> tail_{nullptr};
 
-    void enqueue_node(lf_ptr<MSQueueNode> node);
+    void enqueue_node(MSQueueNode *node);
 
 public:
     MSQueue() {
@@ -51,7 +51,7 @@ public:
 
 template<typename T>
 rmc_noinline
-void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
+void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     auto guard = Epoch::pin();
 
     // We publish the node in two ways:
@@ -81,7 +81,7 @@ void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
     // enqueue_node call is "init".
     LPRE(node_init);
 
-    lf_ptr<MSQueueNode> tail, next;
+    MSQueueNode *tail, *next;
 
     for (;;) {
         tail = L(get_tail, this->tail_);
@@ -126,7 +126,7 @@ optional<T> MSQueue<T>::dequeue() {
     // stays visible when it gets republished at the head or tail
     VEDGE(get_next, dequeue);
 
-    lf_ptr<MSQueueNode> head, next;
+    MSQueueNode *head, *next;
 
     for (;;) {
         head = L(get_head, this->head_);

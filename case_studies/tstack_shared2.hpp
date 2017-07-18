@@ -45,7 +45,7 @@ public:
 
 template<typename T>
 optional<T> TStack<T>::pop() {
-    lf_ptr<TStackNode> node = stack_.popNode();
+    TStackNode *node = stack_.popNode();
 
     if (!node) return optional<T>{};
 

@@ -18,7 +18,7 @@ template<typename T>
 class MSQueue {
 private:
     struct MSQueueNode {
-        rmc::atomic<lf_ptr<MSQueueNode>> next_{nullptr};
+        rmc::atomic<MSQueueNode *> next_{nullptr};
         optional<T> data_;
 
         MSQueueNode() {} // needed for allocating dummy
@@ -28,11 +28,11 @@ private:
 
 
     alignas(kCacheLinePadding)
-    rmc::atomic<lf_ptr<MSQueueNode>> head_{nullptr};
+    rmc::atomic<MSQueueNode *> head_{nullptr};
     alignas(kCacheLinePadding)
-    rmc::atomic<lf_ptr<MSQueueNode>> tail_{nullptr};
+    rmc::atomic<MSQueueNode *> tail_{nullptr};
 
-    void enqueue_node(lf_ptr<MSQueueNode> node);
+    void enqueue_node(MSQueueNode *node);
 
 public:
     MSQueue() {
@@ -52,10 +52,10 @@ public:
 
 template<typename T>
 rmc_noinline
-void MSQueue<T>::enqueue_node(lf_ptr<MSQueueNode> node) {
+void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     auto guard = Epoch::pin();
 
-    lf_ptr<MSQueueNode> tail, next;
+    MSQueueNode *tail, *next;
 
     for (;;) {
         tail = this->tail_;
@@ -97,7 +97,7 @@ rmc_noinline
 optional<T> MSQueue<T>::dequeue() {
     auto guard = Epoch::pin();
 
-    lf_ptr<MSQueueNode> head, next;
+    MSQueueNode *head, *next;
 
     for (;;) {
         head = this->head_;
