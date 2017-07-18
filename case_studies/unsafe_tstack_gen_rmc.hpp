@@ -22,6 +22,7 @@
 
 namespace rmclib {
 
+/// BEGIN SNIP ///
 template<typename T>
 class UnsafeTStackGen {
 public:
@@ -29,26 +30,30 @@ public:
         rmc::atomic<TStackNode *> next_;
         T data_;
 
+        /* ... */
+/// END SNIP ///
         TStackNode() : data_() {}
         TStackNode(T &&t) : data_(std::move(t)) {}
         TStackNode(const T &t) : data_(t) {}
 
         T data() const { return data_; }
+/// BEGIN SNIP ///
     };
-
+    /* ... */
 
 private:
     alignas(kCacheLinePadding)
     rmc::atomic<gen_ptr<TStackNode *>> head_;
+/// END SNIP ///
 
 public:
     void pushNode(TStackNode *node);
     TStackNode *popNode();
 
     UnsafeTStackGen() { }
+/// BEGIN SNIP ///
 };
 
-//// SNIP ////
 template<typename T>
 rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
@@ -94,7 +99,7 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
 
     return head;
 }
-//// SNIP ////
+//// END SNIP ////
 
 }
 
