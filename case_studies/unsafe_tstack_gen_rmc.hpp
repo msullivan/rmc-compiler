@@ -87,8 +87,8 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
         if (head == nullptr) return nullptr;
         TStackNode *next = L(read_next, head->next_);
 
-        if (L(read_head, this->head_.compare_exchange_weak(head,
-                                                           head.inc(next)))) {
+        if (L(read_head, this->head_.compare_exchange_weak(
+                  head, head.inc(next)))) {
             break;
         }
     }

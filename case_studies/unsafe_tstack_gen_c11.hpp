@@ -55,8 +55,8 @@ void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
     gen_ptr<TStackNode *> oldHead = head_.load(mo_rlx);
     for (;;) {
         node->next_.store(oldHead, mo_rlx);
-        if (head_.compare_exchange_weak(oldHead, oldHead.inc(node),
-                                        mo_rel, mo_rlx)) break;
+        if (head_.compare_exchange_weak(
+                oldHead, oldHead.inc(node), mo_rel, mo_rlx)) break;
     }
 }
 
@@ -70,8 +70,13 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
 
         // We would like to make the success order mo_rlx,
         // but the success order can't be weaker than the failure one.
-        if (this->head_.compare_exchange_weak(head, head.inc(next),
-                                              mo_acq, mo_acq)) {
+        // We don't need to release--because all of the writes to head_
+        // are RMWs, every write to the head will be part of the
+        // "release sequence" of all previous writes. Thus any read that
+        // reads-from this will also synchronize-with any previous RMWs,
+        // because this write is in their release sequence.
+        if (this->head_.compare_exchange_weak(
+                head, head.inc(next), mo_acq, mo_acq)) {
             break;
         }
     }
