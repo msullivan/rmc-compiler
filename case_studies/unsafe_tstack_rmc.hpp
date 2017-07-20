@@ -90,9 +90,7 @@ typename UnsafeTStack<T>::TStackNode *UnsafeTStack<T>::popNode() {
         }
         TStackNode *next = L(read_next, head->next_);
 
-        if (L(pop, this->head_.compare_exchange_weak(head, next))) {
-            break;
-        }
+        if (L(pop, this->head_.compare_exchange_weak(head, next))) break;
     }
 
     LPOST(out);

@@ -52,23 +52,25 @@ public:
 template<typename T>
 rmc_noinline
 void UnsafeTStackGen<T>::pushNode(TStackNode *node) {
-    gen_ptr<TStackNode *> oldHead = head_.load(mo_rlx);
+    gen_ptr<TStackNode *> oldHead = head_.load(std::memory_order_relaxed);
     for (;;) {
-        node->next_.store(oldHead, mo_rlx);
+        node->next_.store(oldHead, std::memory_order_relaxed);
         if (head_.compare_exchange_weak(
-                oldHead, oldHead.inc(node), mo_rel, mo_rlx)) break;
+                oldHead, oldHead.inc(node),
+                std::memory_order_release, std::memory_order_relaxed))
+            break;
     }
 }
 
 template<typename T>
 rmc_noinline
 typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
-    gen_ptr<TStackNode *> head = this->head_.load(mo_acq);
+    gen_ptr<TStackNode *> head = this->head_.load(std::memory_order_acquire);
     for (;;) {
         if (head == nullptr) return nullptr;
-        TStackNode *next = head->next_.load(mo_rlx);
+        TStackNode *next = head->next_.load(std::memory_order_relaxed);
 
-        // We would like to make the success order mo_rlx,
+        // We would like to make the success order std::memory_order_relaxed,
         // but the success order can't be weaker than the failure one.
         // We don't need to release--because all of the writes to head_
         // are RMWs, every write to the head will be part of the
@@ -76,9 +78,9 @@ typename UnsafeTStackGen<T>::TStackNode *UnsafeTStackGen<T>::popNode() {
         // reads-from this will also synchronize-with any previous RMWs,
         // because this write is in their release sequence.
         if (this->head_.compare_exchange_weak(
-                head, head.inc(next), mo_acq, mo_acq)) {
+                head, head.inc(next),
+                std::memory_order_acquire, std::memory_order_acquire))
             break;
-        }
     }
 
     return head;
