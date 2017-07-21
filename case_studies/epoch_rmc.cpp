@@ -17,26 +17,26 @@ namespace rmclib {
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
-rmc::atomic<Participant::Ptr> Participants::head_;
+rmc::atomic<Participant::Ptr> Participant::participants_;
 
 static rmc::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
 
-Participant *Participants::enroll() {
+/////// Participant is where most of the interesting stuff happens
+Participant *Participant::enroll() {
     VEDGE(init_p, cas);
 
     Participant *p = L(init_p, new Participant());
 
-    Participant::Ptr head = head_;
+    Participant::Ptr head = participants_;
     for (;;) {
         L(init_p, p->next_ = head);
-        if (L(cas, head_.compare_exchange_weak(head, p))) break;
+        if (L(cas, participants_.compare_exchange_weak(head, p))) break;
     }
 
     return p;
 }
 
-/////// Participant is where most of the interesting stuff happens
 bool Participant::quickEnter() noexcept {
     uintptr_t new_count = in_critical_ + 1;
     in_critical_ = new_count;
@@ -93,7 +93,7 @@ bool Participant::tryCollect() {
     //
     // XXX: Do we want to factor out the list traversal?
 try_again:
-    rmc::atomic<Participant::Ptr> *prevp = &Participants::head_;
+    rmc::atomic<Participant::Ptr> *prevp = &participants_;
     Participant::Ptr cur = L(load_head, *prevp);
     while (cur) {
         Participant::Ptr next = L(a, cur->next_);

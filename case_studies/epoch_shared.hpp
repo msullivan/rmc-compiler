@@ -114,11 +114,15 @@ public:
     void registerCleanup(std::function<void()> f);
 };
 
+//// BEGIN SNIP ////
+
+// A Participant is a thread that is using the epoch
+// library. Participant contains each thread's local state for the
+// epoch library and is part of a linked list of
 class Participant {
 public:
     using Ptr = tagged_ptr<Participant *>;
 
-    friend class Participants;
     friend class LocalEpoch;
 private:
     // Local epoch
@@ -128,15 +132,20 @@ private:
     epoch_atomic<uintptr_t> in_critical_{0};
 
     alignas(kCacheLinePadding)
-    // Next pointer in the list of threads.  The tag bit is set if the
-    // current thread has exited and can be freed.
-    epoch_atomic<Ptr> next_{nullptr};
+    // Next pointer in the list of epoch participants.  The tag bit is
+    // set if the current thread has exited and can be freed.
+    epoch_atomic<Participant::Ptr> next_{nullptr};
 
     // Collection of garbage
     alignas(kCacheLinePadding)
     LocalGarbage garbage_;
 
+    // List of all active participants
+    static epoch_atomic<Participant::Ptr> participants_;
+
 public:
+    static Participant *enroll();
+
     bool quickEnter() noexcept;
     void enter() noexcept;
     void exit() noexcept;
@@ -147,26 +156,14 @@ public:
     void registerCleanup(GarbageCleanup f) {
         garbage_.registerCleanup(f);
     }
-
 };
-
-// XXX: Is this (static) the right way to do this?
-// Should it just be merged with Participant?? Or made globals??
-class Participants {
-private:
-    friend class Participant;
-    static epoch_atomic<Participant::Ptr> head_;
-
-public:
-    static Participant *enroll();
-};
-
+//// END SNIP ////
 
 class LocalEpoch {
 private:
     Participant *me_;
 public:
-    LocalEpoch() : me_(Participants::enroll()) {}
+    LocalEpoch() : me_(Participant::enroll()) {}
     ~LocalEpoch() {
         me_->enter();
         me_->garbage_.migrateGarbage();

@@ -17,18 +17,18 @@ namespace rmclib {
 const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
-std::atomic<Participant::Ptr> Participants::head_;
+std::atomic<Participant::Ptr> Participant::participants_;
 
 static std::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
 
-Participant *Participants::enroll() {
+Participant *Participant::enroll() {
     Participant *p = new Participant();
 
-    Participant::Ptr head = head_;
+    Participant::Ptr head = participants_;
     for (;;) {
         p->next_ = head;
-        if (head_.compare_exchange_weak(head, p)) break;
+        if (participants_.compare_exchange_weak(head, p)) break;
     }
 
     return p;
@@ -83,7 +83,7 @@ bool Participant::tryCollect() {
     //
     // XXX: Do we want to factor out the list traversal?
 try_again:
-    std::atomic<Participant::Ptr> *prevp = &Participants::head_;
+    std::atomic<Participant::Ptr> *prevp = &participants_;
     Participant::Ptr cur = prevp->load(mo_acq);
     while (cur) {
         Participant::Ptr next = cur->next_.load(mo_rlx);
