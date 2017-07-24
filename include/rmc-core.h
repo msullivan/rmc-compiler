@@ -46,7 +46,7 @@ extern "C" {
 // (except when there is exactly one call site).
 // The extra dummy argument to __rmc_action_register is to prevent
 // registers from getting merged when they have the same label.
-// RMC_NOEXCEPT tells a clang that they can't throw exceptions,
+// RMC_NOEXCEPT tells clang that they can't throw exceptions,
 // so it will generate calls instead of invokes.
 extern int __rmc_action_register(const char *name, int dummy)
   RMC_NOEXCEPT RMC_NODUPLICATE;
@@ -154,10 +154,10 @@ extern int __rmc_push(void) RMC_NOEXCEPT RMC_NODUPLICATE;
 
 // Nice way to extract a value directly from a named read
 // without needing to manually stick it in a temporary.
-// __rmc_typeof is defined in the C and C++ support files:
-// in C++ we do template magic to turn rmc<T> into T, which will
-// force the dereference.
-#define L(label, expr)                                         \
+// __rmc_typeof is defined in the C and C++ support files: in C++ we
+// do template magic to turn rmc::atomic<T> into T, which will force
+// the dereference.
+#define L(label, expr)                                          \
   ({LS(label, __rmc_typeof(expr) _______t = expr); _______t;})
 
 #define LGIVE(label, expr) LTRANSFER(label, expr, 0)

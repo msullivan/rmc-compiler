@@ -7,7 +7,6 @@
 #include <functional>
 #include <memory>
 #include "epoch_c11.hpp"
-#include "remote_fence.hpp"
 #include "util.hpp"
 // Very very closely modeled after crossbeam by aturon.
 
@@ -41,7 +40,7 @@ bool Participant::quickEnter() noexcept {
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
 
-    remote_thread_fence::placeholder(mo_sc);
+    std::atomic_thread_fence(mo_sc);
 
     // Copy the global epoch to the local one
     uintptr_t global_epoch = global_epoch_.load(mo_rlx);
@@ -75,7 +74,7 @@ void Participant::exit() noexcept {
 bool Participant::tryCollect() {
     uintptr_t cur_epoch = global_epoch_.load(mo_acq);
 
-    remote_thread_fence::trigger();
+    //remote_thread_fence::trigger();
 
     // Check whether all active threads are in the current epoch so we
     // can advance it.

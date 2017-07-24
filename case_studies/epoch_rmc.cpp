@@ -7,7 +7,6 @@
 #include <functional>
 #include <memory>
 #include "epoch_rmc.hpp"
-#include "remote_push.hpp"
 
 // Very very closely modeled after crossbeam by aturon.
 
@@ -43,7 +42,7 @@ bool Participant::quickEnter() noexcept {
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
 
-    remote_push::placeholder();
+    rmc::push_here();
 
     // Copy the global epoch to the local one;
     // if it has changed, garbage collect
@@ -85,7 +84,7 @@ bool Participant::tryCollect() {
 
     uintptr_t cur_epoch = L(load_epoch, global_epoch_);
 
-    remote_push::trigger();
+    //remote_push::trigger();
 
     // Check whether all active threads are in the current epoch so we
     // can advance it.
@@ -133,7 +132,7 @@ try_again:
     });
     // Now that the collection is done, we can safely update our
     // local epoch.
-    LS(update_local, epoch_ = new_epoch);
+    L(update_local, epoch_ = new_epoch);
 
     return true;
 }
