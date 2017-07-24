@@ -122,8 +122,9 @@ public:
 class Participant {
 public:
     using Ptr = tagged_ptr<Participant *>;
-
+//// END SNIP
     friend class LocalEpoch;
+//// BEGIN SNIP
 private:
     // Local epoch
     alignas(kCacheLinePadding)
@@ -144,13 +145,18 @@ private:
     static epoch_atomic<Participant::Ptr> participants_;
 
 public:
-    static Participant *enroll();
-
-    bool quickEnter() noexcept;
+    // Enter an epoch critical section
     void enter() noexcept;
+    // Exit an epoch critical section
     void exit() noexcept;
+    // Enter an epoch critical section, but don't try to GC
+    bool quickEnter() noexcept;
+    // Attempt to do a garbage collection
     bool tryCollect();
 
+    // Create a participant and add it to the list of active ones
+    static Participant *enroll();
+    // Shut down this participant and queue it up for removal
     void shutdown() noexcept;
 
     void registerCleanup(GarbageCleanup f) {
