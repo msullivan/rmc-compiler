@@ -90,8 +90,6 @@ bool Participant::tryCollect() {
     // Check whether all active threads are in the current epoch so we
     // can advance it.
     // As we do it, we lazily clean up exited threads.
-    //
-    // XXX: Do we want to factor out the list traversal?
 try_again:
     rmc::atomic<Participant::Ptr> *prevp = &participants_;
     Participant::Ptr cur = L(load_head, *prevp);
