@@ -37,17 +37,17 @@ Participant *Participant::enroll() {
 }
 
 bool Participant::quickEnter() noexcept {
+    PEDGE(enter, body);
+
     uintptr_t new_count = in_critical_ + 1;
-    in_critical_ = new_count;
+    L(enter, in_critical_ = new_count);
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
 
-    rmc::push_here();
-
     // Copy the global epoch to the local one;
-    // if it has changed, garbage collect
-    uintptr_t global_epoch = global_epoch_;
+    uintptr_t global_epoch = L(enter, global_epoch_);
     epoch_ = global_epoch;
+    LPOST(body);
     return true;
 }
 
@@ -72,9 +72,6 @@ void Participant::exit() noexcept {
 }
 
 bool Participant::tryCollect() {
-    // I think we might not need the load_epoch; we'll be CASing it anyways.
-    // Crossbeam makes it SC, though.
-    XEDGE(load_epoch, load_head); // XXX: discount double check
     XEDGE(load_head, a);
     // This could maybe be XEDGE but making it VEDGE lets us make the
     // invariant -vt-> based.
@@ -82,9 +79,7 @@ bool Participant::tryCollect() {
     VEDGE(update_epoch, collect); // XXX: discount double check
     XEDGE(collect, update_local);
 
-    uintptr_t cur_epoch = L(load_epoch, global_epoch_);
-
-    //remote_push::trigger();
+    uintptr_t cur_epoch = epoch_;
 
     // Check whether all active threads are in the current epoch so we
     // can advance it.
