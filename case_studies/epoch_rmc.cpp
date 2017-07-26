@@ -76,9 +76,9 @@ bool Participant::tryCollect() {
     // Crossbeam makes it SC, though.
     XEDGE(load_epoch, load_head); // XXX: discount double check
     XEDGE(load_head, a);
-    XEDGE(a, update_epoch);
     // This could maybe be XEDGE but making it VEDGE lets us make the
     // invariant -vt-> based.
+    VEDGE(a, update_epoch);
     VEDGE(update_epoch, collect); // XXX: discount double check
     XEDGE(collect, update_local);
 
