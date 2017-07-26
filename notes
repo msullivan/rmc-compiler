@@ -660,3 +660,10 @@ Compilation shortcomings:
 *** FIXED
 
 ---------------------------------------------------------------------
+
+Push edges have some seemingly fiddly bits, but it is actually fine.
+
+Given 'i1 -pu-> t' and 'i2 -pu-> t', the semantics will generate two
+pushes, p1 and p2, with i1 -vo-> p1 and i2 -vo-> p2. But this is fine,
+since one of the pushes will be to after, and so both i1/i2 will be vo
+before that one.
