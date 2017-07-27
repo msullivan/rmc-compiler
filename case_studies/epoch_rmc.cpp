@@ -17,29 +17,18 @@ const int kNumEpochs = 3;
 
 thread_local LocalEpoch Epoch::local_epoch_;
 rmc::atomic<Participant::Ptr> Participant::participants_;
-
-static rmc::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
 
+/// BEGIN SNIP
+static rmc::atomic<uintptr_t> global_epoch_{0};
+
 /////// Participant is where most of the interesting stuff happens
-Participant *Participant::enroll() {
-    VEDGE(init_p, cas);
-
-    Participant *p = L(init_p, new Participant());
-
-    Participant::Ptr head = participants_;
-    for (;;) {
-        L(init_p, p->next_ = head);
-        if (L(cas, participants_.compare_exchange_weak(head, p))) break;
-    }
-
-    return p;
-}
-
 bool Participant::quickEnter() noexcept {
     PEDGE(enter, body);
 
     uintptr_t new_count = in_critical_ + 1;
+    // XXX: THIS IS ACTUALLY FUCKED BECAUSE WE DO NOT HAVE FUCKING
+    // RELEASE SEQUENCES
     L(enter, in_critical_ = new_count);
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
@@ -127,11 +116,26 @@ try_again:
     });
     // Now that the collection is done, we can safely update our
     // local epoch.
+    // XXX: can we???
     L(update_local, epoch_ = new_epoch);
 
     return true;
 }
 
+// Participant lifetime management
+Participant *Participant::enroll() {
+    VEDGE(init_p, cas);
+
+    Participant *p = L(init_p, new Participant());
+
+    Participant::Ptr head = participants_;
+    for (;;) {
+        L(init_p, p->next_ = head);
+        if (L(cas, participants_.compare_exchange_weak(head, p))) break;
+    }
+
+    return p;
+}
 void Participant::shutdown() noexcept {
     VEDGE(before, exit);
     LPRE(before);
@@ -143,6 +147,7 @@ void Participant::shutdown() noexcept {
     } while (!L(exit, next_.compare_exchange_weak(next, exited_next)));
 
 }
+/// END SNIP
 
 /////////////
 void RealLocalGarbage::collectBag(Bag &bag) {
