@@ -26,15 +26,8 @@ private:
 public:
     Tag read_lock() {
         // Lock acquisition needs to execute before the critical section
-        // XXX: The attempt to be clever and XEDGE before out actually makes
-        // things *slower*... Can we figure out when putting dmbs inside
-        // loops actually is the right thing and teach rmc-compiler??
         XEDGE(read, post);
-        Tag tag;
-        while (is_locked((tag = L(read, count_)))) {
-            delay();
-        }
-        return tag;
+        return L(read, count_);
     }
 
     bool read_unlock(Tag tag) {
@@ -43,7 +36,7 @@ public:
         // writer critical section, it is important that we also
         // observe the lock.
         XEDGE(pre, check);
-        return L(check, count_) == tag;
+        return !is_locked(tag) && L(check, count_) == tag;
     }
 
     void write_lock() {

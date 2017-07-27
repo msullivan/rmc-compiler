@@ -26,11 +26,7 @@ private:
 
 public:
     Tag read_lock() {
-        Tag tag;
-        while (is_locked((tag = count_.load(std::memory_order_acquire)))) {
-            delay();
-        }
-        return tag;
+        return count_.load(std::memory_order_acquire);
     }
 
     bool read_unlock(Tag tag) {
@@ -38,7 +34,7 @@ public:
         // from a writer's critical section, we also see the writer's
         // acquisition of the lock
         std::atomic_thread_fence(std::memory_order_acquire);
-        return count_.load(std::memory_order_relaxed) == tag;
+        return !is_locked(tag) && count_.load(std::memory_order_relaxed) == tag;
     }
 
     void write_lock() {
