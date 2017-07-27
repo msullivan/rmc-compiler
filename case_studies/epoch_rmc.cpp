@@ -27,8 +27,6 @@ bool Participant::quickEnter() noexcept {
     PEDGE(enter, body);
 
     uintptr_t new_count = in_critical_ + 1;
-    // XXX: THIS IS ACTUALLY FUCKED BECAUSE WE DO NOT HAVE FUCKING
-    // RELEASE SEQUENCES
     L(enter, in_critical_ = new_count);
     // Nothing to do if we were already in a critical section
     if (new_count > 1) return false;
@@ -55,15 +53,20 @@ void Participant::enter() noexcept {
 }
 
 void Participant::exit() noexcept {
+    // This is actually super unfortunate. quickEnter() will
+    // subsequently write to in_critical_, and we need the body of a
+    // critical section to be visible to code that reads from that
+    // subsequent write as well as this one.
+    // In C++11, we would make the write to in_critical_ be a release
+    // and the convoluted release sequence rules would save us.
     VEDGE(pre, exit);
+    LPOST(exit);
     uintptr_t new_count = in_critical_ - 1;
-    L(exit, in_critical_ = new_count);
+    L(__exit, in_critical_ = new_count);
 }
 
 bool Participant::tryCollect() {
     XEDGE(load_head, a);
-    // This could maybe be XEDGE but making it VEDGE lets us make the
-    // invariant -vt-> based.
     VEDGE(a, update_epoch);
     VEDGE(update_epoch, collect); // XXX: discount double check
     XEDGE(collect, update_local);
