@@ -11,14 +11,16 @@
 
 namespace rmclib {
 
+/// BEGIN SNIP
 class SeqLock {
 public:
     using Tag = uintptr_t;
 
 private:
     rmc::atomic<uintptr_t> count_{0};
-
+/// END SNIP
     void delay() { }
+/// BEGIN SNIP
     bool is_locked(Tag tag) { return (tag & 1) != 0; }
 
 public:
@@ -32,7 +34,6 @@ public:
         while (is_locked((tag = L(read, count_)))) {
             delay();
         }
-        //LPOST(out);
         return tag;
     }
 
@@ -68,6 +69,7 @@ public:
         L(release, count_ = newval);
     }
 };
+/// END SNIP
 
 
 }
