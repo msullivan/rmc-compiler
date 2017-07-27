@@ -55,6 +55,7 @@ public:
         }
         LPOST(out);
     }
+
     void write_unlock() {
         VEDGE(pre, release);
         uintptr_t newval = count_ + 1;

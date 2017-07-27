@@ -32,25 +32,30 @@ public:
     }
 
     bool read_unlock(Tag tag) {
-        // acquire fence is to ensure that if we read any writes
+        // Acquire fence is to ensure that if we read any writes
         // from a writer's critical section, we also see the writer's
-        // acquisition of the lock
+        // acquisition of the lock.
         std::atomic_thread_fence(std::memory_order_acquire);
         return !is_locked(tag) && count_.load(std::memory_order_relaxed) == tag;
     }
 
     void write_lock() {
         for (;;) {
-            Tag tag = count_;
-            if (!is_locked(tag) && count_.compare_exchange_weak(tag, tag+1)) {
+            Tag tag = count_.load(std::memory_order_relaxed);
+            if (!is_locked(tag) &&
+                count_.compare_exchange_weak(tag, tag+1,
+                                             std::memory_order_relaxed)) {
                 break;
             }
             delay();
         }
-        // release fense ensures that anything that sees our critical
-        // section writes can see our lock acquisition
-        std::atomic_thread_fence(std::memory_order_release);
+        // Release fense ensures that anything that sees our critical
+        // section writes can see our lock acquisition.
+        // Acquire fence so that the CAS above acts as an acquire
+        // in the usual way.
+        std::atomic_thread_fence(std::memory_order_rel_acq);
     }
+
     void write_unlock() {
         uintptr_t newval = count_.load(std::memory_order_relaxed) + 1;
         count_.store(newval, std::memory_order_release);
