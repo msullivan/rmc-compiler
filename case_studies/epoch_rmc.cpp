@@ -68,7 +68,7 @@ void Participant::exit() noexcept {
 bool Participant::tryCollect() {
     XEDGE(load_head, a);
     VEDGE(a, update_epoch);
-    VEDGE(update_epoch, collect); // XXX: discount double check
+    XEDGE(update_epoch, collect);
 
     uintptr_t cur_epoch = epoch_;
 
