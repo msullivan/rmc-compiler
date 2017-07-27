@@ -202,7 +202,7 @@ int buf_dequeue_linux(ring_buf_t *buf)
 /********************* C11 style ************************************/
 int buf_enqueue_c11(ring_buf_c11_t *buf, unsigned char c)
 {
-    unsigned back = buf->back;
+    unsigned back = atomic_load_explicit(&buf->back, memory_order_relaxed);
     unsigned front = atomic_load_explicit(&buf->front, memory_order_acquire);
 
     int enqueued = 0;
@@ -217,7 +217,7 @@ int buf_enqueue_c11(ring_buf_c11_t *buf, unsigned char c)
 
 int buf_dequeue_c11(ring_buf_c11_t *buf)
 {
-    unsigned front = buf->front;
+    unsigned front = atomic_load_explicit(&buf->front, memory_order_relaxed);
     unsigned back = atomic_load_explicit(&buf->back, memory_order_acquire);
 
     int c = -1;
