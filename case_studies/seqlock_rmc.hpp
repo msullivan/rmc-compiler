@@ -13,17 +13,16 @@ namespace rmclib {
 
 /// BEGIN SNIP
 class SeqLock {
-public:
-    using Tag = uintptr_t;
-
 private:
     rmc::atomic<uintptr_t> count_{0};
 /// END SNIP
     void delay() { }
 /// BEGIN SNIP
-    bool is_locked(Tag tag) { return (tag & 1) != 0; }
+    bool is_locked(uintptr_t tag) { return (tag & 1) != 0; }
 
 public:
+    using Tag = uintptr_t;
+
     Tag read_lock() {
         // Lock acquisition needs to execute before the critical section
         XEDGE(read, post);
@@ -57,7 +56,7 @@ public:
         LPOST(out);
     }
     void write_unlock() {
-        XEDGE(pre, release);
+        VEDGE(pre, release);
         uintptr_t newval = count_ + 1;
         L(release, count_ = newval);
     }

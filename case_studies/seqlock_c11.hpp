@@ -14,17 +14,19 @@ namespace rmclib {
 // This is based on "Can Seqlocks Get Along With Programming Language
 // Memory Models" by Hans Boehm
 
+/// BEGIN SNIP
 class SeqLock {
-public:
-    using Tag = uintptr_t;
-
 private:
     std::atomic<uintptr_t> count_{0};
 
+/// END SNIP
     void delay() { }
-    bool is_locked(Tag tag) { return (tag & 1) != 0; }
+/// BEGIN SNIP
+    bool is_locked(uintptr_t tag) { return (tag & 1) != 0; }
 
 public:
+    using Tag = uintptr_t;
+
     Tag read_lock() {
         return count_.load(std::memory_order_acquire);
     }
@@ -50,10 +52,11 @@ public:
         std::atomic_thread_fence(std::memory_order_release);
     }
     void write_unlock() {
-        count_ = count_ + 1;
+        uintptr_t newval = count_.load(std::memory_order_relaxed) + 1;
+        count_.store(newval, std::memory_order_release);
     }
 };
-
+/// END SNIP
 
 }
 
