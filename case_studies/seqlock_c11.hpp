@@ -49,7 +49,7 @@ public:
             }
             delay();
         }
-        // Release fense ensures that anything that sees our critical
+        // Release fence ensures that anything that sees our critical
         // section writes can see our lock acquisition.
         // Acquire fence so that the CAS above acts as an acquire
         // in the usual way.
