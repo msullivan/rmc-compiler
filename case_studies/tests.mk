@@ -33,4 +33,4 @@ FREELIST_TYPES=sc rmc c11 leak
 PARKING_TYPES=lol
 
 #
-EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp parking.cpp futex.cpp
+EXTRA_LIB_SRCS=llvm-cl/CommandLine.cpp parking.cpp futex.cpp remote_push.cpp

@@ -24,6 +24,8 @@ static std::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
 
 Participant *Participant::enroll() {
+    remote_thread_fence::setup();
+
     Participant *p = new Participant();
 
     Participant::Ptr head = participants_;
@@ -130,6 +132,8 @@ void Participant::shutdown() noexcept {
     do {
         exited_next = Participant::Ptr(next, 1);
     } while (!next_.compare_exchange_weak(next, exited_next, mo_acq_rel));
+
+    remote_thread_fence::shutdown();
 }
 
 /////////////
