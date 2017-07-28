@@ -50,13 +50,11 @@ struct rculist_node {
     rculist_node * prev;
 
     rculist_node() : next(nullptr), prev(nullptr) {}
-    explicit
-    rculist_node(int is_head) : next(this), prev(this) {}
+    rculist_node(rculist_node *n, rculist_node *p) : next(n), prev(p) {}
 };
 struct rculist_head {
-    rculist_node head{1338};
+    rculist_node head{&head, &head};
 };
-
 
 // Some basic routines
 static void __rculist_insert_between(rculist_node *n,
