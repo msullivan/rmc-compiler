@@ -53,7 +53,7 @@ public:
         // section writes can see our lock acquisition.
         // Acquire fence so that the CAS above acts as an acquire
         // in the usual way.
-        std::atomic_thread_fence(std::memory_order_rel_acq);
+        std::atomic_thread_fence(std::memory_order_acq_rel);
     }
 
     void write_unlock() {
