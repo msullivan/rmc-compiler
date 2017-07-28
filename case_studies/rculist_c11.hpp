@@ -77,6 +77,12 @@ static void rculist_replace(rculist_node *n_old, rculist_node *n_new) {
                              n_old->prev,
                              n_old->next.load(std::memory_order_relaxed));
 }
+static void rculist_remove(rculist_node *n_old) {
+    rculist_node *next = n_old->next.load(std::memory_order_relaxed);
+    rculist_node *prev = n_old->prev;
+    next->prev = prev;
+    prev->next.store(next, std::memory_order_release);
+}
 
 
 #define rculist_entry(ptr, type, member) \
