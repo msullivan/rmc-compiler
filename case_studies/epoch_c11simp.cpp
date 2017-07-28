@@ -6,8 +6,10 @@
 #include <utility>
 #include <functional>
 #include <memory>
-#include "epoch_c11.hpp"
+#include "epoch_c11simp.hpp"
+#include "util.hpp"
 #include "remote_fence.hpp"
+
 // Very very closely modeled after crossbeam by aturon.
 
 namespace rmclib {
@@ -18,12 +20,8 @@ const int kNumEpochs = 3;
 thread_local LocalEpoch Epoch::local_epoch_;
 std::atomic<Participant::Ptr> Participant::participants_;
 
-
-// XXX: Should this be in a class??
 static std::atomic<uintptr_t> global_epoch_{0};
 static ConcurrentBag global_garbage_[kNumEpochs];
-
-
 
 Participant *Participant::enroll() {
     Participant *p = new Participant();
@@ -46,7 +44,7 @@ bool Participant::quickEnter() noexcept {
 
     // Copy the global epoch to the local one
     uintptr_t global_epoch = global_epoch_.load(mo_rlx);
-    std::atomic_thread_fence(mo_sc);
+    remote_thread_fence::placeholder(mo_sc);
     epoch_.store(global_epoch, mo_rlx);
     return true;
 }
@@ -66,32 +64,31 @@ void Participant::enter() noexcept {
 }
 
 void Participant::exit() noexcept {
+    remote_thread_fence::placeholder(mo_sc);
     uintptr_t new_count = in_critical_.load(mo_rlx) - 1;
-    // XXX: this may not need to be release
-    // in our current setup, nothing can get freed until we do another
-    // enter.
-    // wait, does anything about the claim make any sense??
     in_critical_.store(new_count, mo_rel);
 }
 
 bool Participant::tryCollect() {
-    uintptr_t cur_epoch = global_epoch_;
+    remote_thread_fence::trigger();
+
+    uintptr_t cur_epoch = epoch_.load(mo_rlx);
 
     // Check whether all active threads are in the current epoch so we
     // can advance it.
     // As we do it, we lazily clean up exited threads.
 try_again:
     std::atomic<Participant::Ptr> *prevp = &participants_;
-    Participant::Ptr cur = *prevp;
+    Participant::Ptr cur = prevp->load(mo_acq);
     while (cur) {
-        Participant::Ptr next = cur->next_;
+        Participant::Ptr next = cur->next_.load(mo_rlx);
         if (next.tag()) {
             // This node has exited. Try to unlink it from the
             // list. This will fail if it's already been unlinked or
             // the previous node has exited; in those cases, we start
             // back over at the head of the list.
             next = Ptr(next, 0); // clear next's tag
-            if (prevp->compare_exchange_strong(cur, next)) {
+            if (prevp->compare_exchange_strong(cur, next, mo_rlx)) {
                 Guard g(this);
                 g.unlinked(cur.ptr());
             } else {
@@ -100,7 +97,8 @@ try_again:
         } else {
             // We can only advance the epoch if every thread in a critical
             // section is in the current epoch.
-            if (cur->in_critical_ && cur->epoch_ != cur_epoch) {
+            if (cur->in_critical_.load(mo_rlx) &&
+                cur->epoch_.load(mo_rlx) != cur_epoch) {
                 return false;
             }
             prevp = &cur->next_;
@@ -109,9 +107,13 @@ try_again:
         cur = next;
     }
 
+    // Everything visible to the reads from the loop we want hb before
+    // the epoch update.
+    std::atomic_thread_fence(mo_acq);
     // Try to advance the global epoch
     uintptr_t new_epoch = cur_epoch + 1;
-    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch)) {
+    if (!global_epoch_.compare_exchange_strong(cur_epoch, new_epoch,
+                                               mo_acq_rel)) {
         return false;
     }
 
@@ -123,11 +125,11 @@ try_again:
 }
 
 void Participant::shutdown() noexcept {
-    Participant::Ptr next = next_;
+    Participant::Ptr next = next_.load(mo_acq);
     Participant::Ptr exited_next;
     do {
         exited_next = Participant::Ptr(next, 1);
-    } while (!next_.compare_exchange_weak(next, exited_next));
+    } while (!next_.compare_exchange_weak(next, exited_next, mo_acq_rel));
 }
 
 /////////////
