@@ -10,16 +10,16 @@
 
 namespace rmclib {
 
-struct noob {
+struct widget {
     unsigned key;
     unsigned val1, val2;
     rculist_node link;
-    noob(unsigned pkey, unsigned pval1, unsigned pval2) :
+    widget(unsigned pkey, unsigned pval1, unsigned pval2) :
         key(pkey), val1(pval1), val2(pval2) {}
 #if RCULIST_POISON
     // Poison the memory for testing purposes so that the world
     // is more likely to end of something goes wrong.
-    ~noob() {
+    ~widget() {
         rculist_node *dead = reinterpret_cast<rculist_node *>(0xdeaddead);
         link.next.store(dead, std::memory_order_relaxed);
         link.prev = dead;
@@ -28,13 +28,13 @@ struct noob {
 #endif
 };
 
-struct nooblist {
+struct widgetlist {
     rculist_head head;
     std::mutex write_lock;
 };
 
-noob *noob_find(nooblist *list, unsigned key) noexcept;
-void noob_insert(nooblist *list, noob *obj) noexcept;
+widget *widget_find(widgetlist *list, unsigned key) noexcept;
+void widget_insert(widgetlist *list, widget *obj) noexcept;
 
 }
 

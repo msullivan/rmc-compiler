@@ -55,12 +55,12 @@ static void rculist_replace(rculist_node *n_old, rculist_node *n_new) {
 #define rculist_entry(ptr, type, member, tag)                           \
     rcu_container_of(L(tag, ptr.load()), type, member)
 
-#define rculist_for_each_entry2(pos, h, member, tag_a, tag_b)                 \
-    XEDGE_HERE(tag_a, tag_a); XEDGE_HERE(tag_a, tag_b); \
+#define rculist_for_each_entry2(pos, h, member, tag_list, tag_use) \
+    XEDGE_HERE(tag_list, tag_list); XEDGE_HERE(tag_list, tag_use); \
     for (pos = rculist_entry((h)->head.next, __typeof__(*pos), \
-                             member, tag_a);                   \
+                             member, tag_list);                \
          &pos->member != &(h)->head; \
-         pos = rculist_entry(pos->member.next, __typeof__(*pos), member,tag_a))
+         pos = rculist_entry(pos->member.next, __typeof__(*pos), member,tag_list))
 #define rculist_for_each_entry(pos, head, member, tag) \
     rculist_for_each_entry2(pos, head, member, __rcu_read, tag)
 

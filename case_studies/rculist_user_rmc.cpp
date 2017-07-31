@@ -10,8 +10,8 @@
 
 namespace rmclib {
 
-noob *noob_find_give(nooblist *list, unsigned key) noexcept {
-    noob *node;
+widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
+    widget *node;
     rculist_for_each_entry(node, &list->head, link, r) {
         if (L(r, node->key) == key) {
             return LGIVE(r, node);
@@ -20,12 +20,13 @@ noob *noob_find_give(nooblist *list, unsigned key) noexcept {
 
     return nullptr;
 }
-noob *noob_find(nooblist *list, unsigned key) noexcept {
+widget *widget_find(widgetlist *list, unsigned key) noexcept {
     XEDGE(find, post);
-    return L(find, noob_find_give(list, key));
+    return L(find, widget_find_give(list, key));
 }
 
-void noob_insert(nooblist *list, noob *obj) noexcept {
+void widget_insert(widgetlist *list, widget *obj) noexcept {
+    // Acquires write_lock and automatically drops it when we leave scope.
     std::unique_lock<std::mutex> lock(list->write_lock);
     // We needn't give any constraints on the node lookup here.  Since
     // insertions always happen under the lock, any list modifications
@@ -33,13 +34,13 @@ void noob_insert(nooblist *list, noob *obj) noexcept {
 
     // There is some compilation fail here.
 
-    // LLVM inlines noob_find_give and ought to be able to eliminate
+    // LLVM inlines widget_find_give and ought to be able to eliminate
     // the use of nullptr and a null check to signal a nonexistent
     // node and instead have that emerge implicitly from the control
     // flow. Unfortunately, the value obfuscation that rmc-compiler
     // does to make sure that LLVM doesn't break our data dependencies
     // also hides the fact that node is non-NULL when returning it.
-    noob *old = noob_find_give(list, obj->key);
+    widget *old = widget_find_give(list, obj->key);
 
     // If nothing to replace we just insert it normally
     if (!old) {
@@ -49,7 +50,8 @@ void noob_insert(nooblist *list, noob *obj) noexcept {
 
     rculist_replace(&old->link, &obj->link);
 
-    // Whatever, we'll do it with synchronizing instead of unlink
+    // Wait until any readers that may be using the old node are gone
+    // and then delete it.
     Epoch::rcuSynchronize();
     delete old;
 }

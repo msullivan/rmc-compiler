@@ -34,7 +34,7 @@ struct Foo {
 };
 
 struct Test {
-    nooblist noobs;
+    widgetlist widgets;
 
     alignas(kCacheLinePadding)
     std::atomic<bool> consumersDone{false};
@@ -57,9 +57,9 @@ void produce(Test *t, int threadnum) {
     unsigned key = writeIdx % t->elems;
     unsigned val1 = writeIdx * 100 + threadnum;
     unsigned val2 = val1 - key;
-    noob *obj = new noob(key, val1, val2);
+    widget *obj = new widget(key, val1, val2);
 
-    noob_insert(&t->noobs, obj);
+    widget_insert(&t->widgets, obj);
 }
 
 // Producers just produce but are off by default.
@@ -76,7 +76,7 @@ void consume(Test *t, unsigned key) {
     XEDGE_HERE(find, a);
     auto guard = Epoch::rcuPin();
 
-    noob *nobe = LTAKE(find, noob_find_give(&t->noobs, key));
+    widget *nobe = LTAKE(find, widget_find_give(&t->widgets, key));
     assert(nobe);
     assert_eq(key, L(a, nobe->val1) - L(a, nobe->val2));
 }
@@ -85,7 +85,7 @@ void consume(Test *t, unsigned key) {
 void consume(Test *t, unsigned key) {
     auto guard = Epoch::rcuPin();
 
-    noob *nobe = noob_find(&t->noobs, key);
+    widget *nobe = widget_find(&t->widgets, key);
     assert(nobe);
     assert_eq(key, nobe->val1 - nobe->val2);
 }
@@ -107,16 +107,16 @@ void consumer(Test *t, int threadnum) {
 
 cl::opt<bool> BenchMode("b", cl::desc("Use benchmark output"));
 
-void build_list(nooblist *noobs, int size) {
+void build_list(widgetlist *widgets, int size) {
     for (int i = 0; i < size; i++) {
-        noob *node = new noob(i, i, 0);
-        noob_insert(noobs, node);
+        widget *node = new widget(i, i, 0);
+        widget_insert(widgets, node);
     }
 }
 
 
 void test(Test &t) {
-    build_list(&t.noobs, 100);
+    build_list(&t.widgets, 100);
 
     std::vector<std::thread> producers;
     std::vector<std::thread> consumers;

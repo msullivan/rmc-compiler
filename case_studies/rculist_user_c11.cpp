@@ -10,8 +10,8 @@
 
 namespace rmclib {
 ////////////
-noob *noob_find(nooblist *list, unsigned key) noexcept {
-    noob *node;
+widget *widget_find(widgetlist *list, unsigned key) noexcept {
+    widget *node;
     rculist_for_each_entry(node, &list->head, link) {
         if (node->key == key) {
             return node;
@@ -21,9 +21,9 @@ noob *noob_find(nooblist *list, unsigned key) noexcept {
     return nullptr;
 }
 
-void noob_insert(nooblist *list, noob *obj) noexcept {
+void widget_insert(widgetlist *list, widget *obj) noexcept {
     std::unique_lock<std::mutex> lock(list->write_lock);
-    noob *old = noob_find(list, obj->key);
+    widget *old = widget_find(list, obj->key);
 
     // If nothing to replace we just insert it normally
     if (!old) {
