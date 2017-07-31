@@ -25,7 +25,7 @@ CONDVAR_TYPES=sc rmc c11
 RCU_EPOCH_TYPES=uh
 TUNE_WORK_TYPES=uh
 
-RCULIST_USER_EPOCH_TYPES=c11 rmc linux sc
+RCULIST_USER_EPOCH_TYPES=c11 rmc linux sc rmc_simple
 
 EPOCH_TYPES=sc c11 rmc leak c11simp
 FREELIST_TYPES=sc rmc c11 leak
