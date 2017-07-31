@@ -5,17 +5,17 @@
 // thesis document.
 
 /// BEGIN SNIP
-#define rculist_for_each_entry2(pos, h, tag_load, tag_use) \
+#define rculist_for_each2(node, h, tag_load, tag_use) \
     XEDGE_HERE(tag_load, tag_load); XEDGE_HERE(tag_load, tag_use); \
-    for (pos = L(tag_load, (h)->next);                             \
-         pos != (h);                                               \
-         pos = L(tag_load, pos->next))
-#define rculist_for_each_entry(pos, head, tag_use) \
-    rculist_for_each_entry2(pos, head, __rcu_load, tag_use)
+    for (node = L(tag_load, (h)->next);                             \
+         node != (h);                                               \
+         node = L(tag_load, node->next))
+#define rculist_for_each(node, head, tag_use) \
+    rculist_for_each2(node, head, __rcu_load, tag_use)
 
 widget *widget_find_give2(widgetlist *list, unsigned key) noexcept {
     widget *node;
-    rculist_for_each_entry(node, &list->head, r) {
+    rculist_for_each(node, &list->head, r) {
         if (L(r, node->key) == key) {
             return LGIVE(r, node);
         }
