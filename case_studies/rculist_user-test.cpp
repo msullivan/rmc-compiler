@@ -71,7 +71,7 @@ void producer(Test *t, int threadnum) {
     }
 }
 
-#ifdef RCULIST_USER_RMC
+#if defined(RCULIST_USER_RMC) || defined(RCULIST_USER_RMC_SIMPLE)
 /// BEGIN SNIP
 void consume(Test *t, unsigned key) {
     XEDGE_HERE(find, a);
