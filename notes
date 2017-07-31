@@ -38,6 +38,14 @@ edges, since they might be in other functions or whatever.
     c. Pushes without both a visibility predecessor and a
        visibility/execution successor are discarded.
 
+--
+
+Maybe we can do a bit more filtering of operations here based on
+whether they are atomic or not.
+I think that:
+ * Non-atomic reads can't be the source of an edge
+ * Non-atomic writes can't be the destination of a visibility edge
+
 
 --
 pre and post edges we will just add the stuff and then try to notice it.
