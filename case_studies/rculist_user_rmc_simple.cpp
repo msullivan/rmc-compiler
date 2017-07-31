@@ -10,29 +10,24 @@
 #include "epoch.hpp"
 #include <mutex>
 
-
 namespace rmclib {
 
-/// BEGIN SNIP
-#define rculist_for_each_entry2(pos, h, tag_list, tag_use) \
-    XEDGE_HERE(tag_list, tag_list); XEDGE_HERE(tag_list, tag_use); \
-    for (pos = L(tag_list, (h)->next);                             \
-         pos != (h);                                               \
-         pos = L(tag_list, pos->next))
-#define rculist_for_each_entry(pos, head, tag) \
-    rculist_for_each_entry2(pos, head, __rcu_read, tag)
+#include "rculist_user_rmc_simple_macro.cpp"
 
+/// BEGIN SNIP
 // Perform a lookup in an RCU-protected widgetlist, with
 // execution edges drawn to the LGIVE return action.
 // Must be done in an Epoch read-side critical section.
 widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
+    XEDGE_HERE(load, load);
+    XEDGE_HERE(load, use);
     widget *node;
-    rculist_for_each_entry(node, &list->head, r) {
-        if (L(r, node->key) == key) {
-            return LGIVE(r, node);
+    widget *head = &list->head;
+    for (node = L(load, head->next); node != head; node = L(load, node->next)) {
+        if (L(use, node->key) == key) {
+            return LGIVE(use, node);
         }
     }
-
     return nullptr;
 }
 
@@ -44,25 +39,18 @@ widget *widget_find(widgetlist *list, unsigned key) noexcept {
     return L(find, widget_find_give(list, key));
 }
 
-
-static void __rculist_insert_between(widget *n,
-                                     widget *n1, widget *n2) {
+static void insert_between(widget *n, widget *n1, widget *n2) {
     VEDGE(pre, link);
     n->prev = n1;
     n2->prev = n;
     n->next = n2;
     L(link, n1->next = n);
 }
-static void rculist_insert_before(widget *n, widget *n_old) {
-    __rculist_insert_between(n, n_old->prev, n_old);
+static void insert_before(widget *n, widget *n_old) {
+    insert_between(n, n_old->prev, n_old);
 }
-static void rculist_insert_tail(widget *n, widget *head) {
-    rculist_insert_before(n, head);
-}
-static void rculist_replace(widget *n_old, widget *n_new) {
-    __rculist_insert_between(n_new,
-                             n_old->prev,
-                             n_old->next);
+static void replace(widget *n_old, widget *n_new) {
+    insert_between(n_new, n_old->prev, n_old->next);
 }
 
 // Insert an object into a widgetlist, replacing an old object with
@@ -78,11 +66,11 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
 
     // If nothing to replace we just insert it normally
     if (!old) {
-        rculist_insert_tail(obj, &list->head);
+        insert_before(obj, &list->head);
         return;
     }
 
-    rculist_replace(old, obj);
+    replace(old, obj);
 
     // Wait until any readers that may be using the old node are gone
     // and then delete it.
