@@ -14,6 +14,7 @@
 namespace rmclib {
 
 
+// "You are not expected to understand this."
 #define rcu_container_of(ptr, type, member) ({                        \
             const __typeof__( ((type *)0)->member ) *__mptr = (ptr);  \
             (type *)( (char *)__mptr - offsetof(type,member) );})

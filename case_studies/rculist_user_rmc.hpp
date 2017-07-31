@@ -11,12 +11,14 @@
 
 namespace rmclib {
 
+/// BEGIN SNIP
 struct widget {
     unsigned key;
     unsigned val1, val2;
     rculist_node link;
     widget(unsigned pkey, unsigned pval1, unsigned pval2) :
         key(pkey), val1(pval1), val2(pval2) {}
+/// END SNIP
 #if RCULIST_POISON
     // Poison the memory for testing purposes so that the world
     // is more likely to end of something goes wrong.
@@ -26,6 +28,7 @@ struct widget {
         key = val1 = val2 = 0xdeaddead;
     }
 #endif
+/// BEGIN SNIP
 };
 
 struct widgetlist {
@@ -36,6 +39,7 @@ struct widgetlist {
 widget *widget_find_give(widgetlist *list, unsigned key) noexcept;
 widget *widget_find(widgetlist *list, unsigned key) noexcept;
 void widget_insert(widgetlist *list, widget *obj) noexcept;
+/// END SNIP
 
 
 }

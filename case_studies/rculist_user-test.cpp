@@ -72,6 +72,7 @@ void producer(Test *t, int threadnum) {
 }
 
 #ifdef RCULIST_USER_RMC
+/// BEGIN SNIP
 void consume(Test *t, unsigned key) {
     XEDGE_HERE(find, a);
     auto guard = Epoch::rcuPin();
@@ -80,7 +81,7 @@ void consume(Test *t, unsigned key) {
     assert(nobe);
     assert_eq(key, L(a, nobe->val1) - L(a, nobe->val2));
 }
-
+/// END SNIP
 #else
 void consume(Test *t, unsigned key) {
     auto guard = Epoch::rcuPin();
