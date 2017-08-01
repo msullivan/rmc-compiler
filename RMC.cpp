@@ -248,7 +248,7 @@ Instruction *makeCtrlIsync(Value *v, Instruction *to_precede) {
 Instruction *makeCopy(Value *v, Instruction *to_precede) {
   Value *getRealValue(Value *v);
   FunctionType *f_ty = FunctionType::get(v->getType(), v->getType(), false);
-  InlineAsm *a = makeAsm(f_ty, "# copy", "=r,0", false); /* false?? */
+  InlineAsm *a = makeAsm(f_ty, "# bs_copy", "=r,0", false); /* false?? */
   return CallInst::Create(a, v,
                           getRealValue(v)->getName() + ".__rmc_bs_copy",
                           to_precede);
@@ -794,8 +794,10 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
 Value *getBSCopyValue(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
+  InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledValue());
+  if (!iasm) return nullptr;
   // This is kind of dubious
-  return call->getName().find(".__rmc_bs_copy") != StringRef::npos?
+  return iasm->getAsmString().find("# bs_copy #") != StringRef::npos ?
     call->getOperand(0) : nullptr;
 }
 
