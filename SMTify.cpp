@@ -82,33 +82,33 @@ TuningParams x86Params() {
 }
 TuningParams powerParams() {
   TuningParams p;
-  p.syncCost = 80;
-  p.lwsyncCost = 50;
-  p.isyncCost = 20;
+  p.syncCost = 800;
+  p.lwsyncCost = 500;
+  p.isyncCost = 200;
   p.useCtrlCost = 1;
-  p.addCtrlCost = 7;
+  p.addCtrlCost = 70;
   p.useDataCost = 1;
   return p;
 }
 TuningParams armParams() {
   TuningParams p;
-  p.syncCost = 50;
-  p.dmbstCost = 35; // XXX???
+  p.syncCost = 500;
+  p.dmbstCost = 350; // XXX???
   p.useCtrlCost = 1;
-  p.addCtrlCost = 7;
+  p.addCtrlCost = 70;
   p.useDataCost = 1;
   return p;
 }
 TuningParams armv8Params() {
   TuningParams p;
-  p.syncCost = 50;
-  p.dmbstCost = 35; // XXX???
-  p.dmbldCost = 30; // XXX???
+  p.syncCost = 500;
+  p.dmbstCost = 350; // XXX???
+  p.dmbldCost = 300; // XXX???
   p.useCtrlCost = 1;
-  p.addCtrlCost = 7;
+  p.addCtrlCost = 70;
   p.useDataCost = 1;
-  p.makeReleaseCost = 24;
-  p.makeAcquireCost = 24;
+  p.makeReleaseCost = 240;
+  p.makeAcquireCost = 240;
   p.acqAbuse = true;
   p.relAbuse = true;
   return p;
