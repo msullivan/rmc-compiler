@@ -52,6 +52,9 @@
 #undef NDEBUG
 #include <assert.h>
 
+// Which data dep hiding strategy to use?
+static const bool kUseTransitiveHiding = true;
+
 using namespace llvm;
 
 static void rmc_error() {
@@ -864,6 +867,61 @@ void enforceAddrDeps(Use *use, std::vector<Instruction *> &trail) {
   }
 }
 
+// Find everything that transitively depends on some value
+using UseSet = SmallPtrSet<Use *, 8>;
+UseSet findTransitiveUses(Value *v) {
+  UseSet seen;
+  SmallVector<Use *, 8> wl{};
+  auto processValue = [&] (Value *v) {
+    for (auto is = v->use_begin(), ie = v->use_end(); is != ie; is++) {
+      Use *use = &*is;
+      wl.push_back(use);
+    }
+  };
+
+  processValue(v);
+  while (!wl.empty()) {
+    auto *use = wl.back();
+    wl.pop_back();
+    if (seen.count(use)) continue;
+    seen.insert(use);
+    processValue(use->getUser());
+  }
+  return seen;
+}
+
+// We trace through GEP, BitCast, IntToPtr.
+// TODO: less heavily restrict what we use?
+bool isAddrDepSafe(Value *v) {
+  return isa<GetElementPtrInst>(v) || isa<BitCastInst>(v) ||
+    isa<SExtInst>(v) || isa<IntToPtrInst>(v) ||
+    isa<LoadInst>(v);
+}
+
+// A different approach for hiding address deps, in which we find all
+// transitive uses and hide operands to uses that could cause trouble.
+// (As opposed to hiding *all* uses off the main path of a trail.)
+void enforceAddrDeps(Value *src) {
+  auto uses = findTransitiveUses(src);
+  for (Use *use : uses) {
+    Value *v = use->getUser();
+    // TODO: what else can we allow? Probably a lot.
+    // We *might* be able to *blacklist*, even?? Though I am afraid.
+    // But notionally I think all we need worry about is comparisions
+    // and function calls (because they may be inlined and have
+    // comparisions).
+    // Comparisons against null should work.
+    if (!isAddrDepSafe(v) && !isa<PHINode>(v) &&
+        !isa<BranchInst>(v) && !isa<ReturnInst>(v) &&
+        !isa<StoreInst>(v) &&
+        !getBSCopyValue(v)) {
+      Instruction *instr = dyn_cast<Instruction>(v);
+      assert(instr);
+      hideOperand(instr, use->getOperandNo());
+    }
+  }
+}
+
 ////////////// Program analysis that we use
 
 // FIXME: reorganize the namespace stuff?. Or put this in the class.
@@ -936,11 +994,8 @@ bool addrDepsOnSearch(Value *pointer, Value *load,
     return extend_trails(succ);
   }
 
-  // We trace through GEP, BitCast, IntToPtr.
   // I wish we weren't recursive. Maybe we should restrict how we
   // trace through GEPs?
-  // TODO: less heavily restrict what we use?
-  // XXX: We need to do Loads now, right??? Is the way we do it right??
   if (isa<GetElementPtrInst>(instr) || isa<BitCastInst>(instr) ||
       isa<SExtInst>(instr) || isa<IntToPtrInst>(instr) ||
       isa<LoadInst>(instr)) {
@@ -1084,13 +1139,17 @@ CutStrength RealizeRMC::isPathCut(const RMCEdge &edge,
   // See if we have a data dep in a very basic way.
   // FIXME: Should be able to handle writes also!
   std::vector<std::vector<Instruction *> > trails;
-  auto trailp = enforceSoft ? &trails : nullptr;
+  auto trailp = enforceSoft && !kUseTransitiveHiding ? &trails : nullptr;
   if (edge.src->outgoingDep && edge.dst->incomingDep &&
       addrDepsOn(edge.dst->incomingDep, edge.src->outgoingDep,
                  &pc_, edge.bindSite, pathid, trailp)) {
     if (enforceSoft) {
-      for (auto & trail : trails) {
-        enforceAddrDeps(edge.dst->incomingDep, trail);
+      if (kUseTransitiveHiding) {
+        enforceAddrDeps(edge.src->outgoingDep);
+      } else {
+        for (auto & trail : trails) {
+          enforceAddrDeps(edge.dst->incomingDep, trail);
+        }
       }
     }
     return DataCut;
@@ -1331,13 +1390,17 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
   case CutData:
   {
     std::vector<std::vector<Instruction *> > trails;
+    auto trailp = !kUseTransitiveHiding ? &trails : nullptr;
     Use *end = bb2action_[cut.dst]->incomingDep;
     bool deps = addrDepsOn(end, cut.read, &pc_,
-                           cut.bindSite, cut.path, &trails);
+                           cut.bindSite, cut.path, trailp);
     assert_(deps);
-
-    for (auto & trail : trails) {
-      enforceAddrDeps(end, trail);
+    if (kUseTransitiveHiding) {
+      enforceAddrDeps(cut.read);
+    } else {
+      for (auto & trail : trails) {
+        enforceAddrDeps(end, trail);
+      }
     }
     break;
   }
