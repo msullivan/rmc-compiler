@@ -10,6 +10,7 @@
 
 #define REMOTE_PUSH_SYS_MEMBARRIER 0
 #define REMOTE_PUSH_MPROTECT 0
+#define REMOTE_PUSH_SIGNALS 1
 
 namespace rmclib {
 namespace remote_push {
@@ -60,6 +61,18 @@ inline void setup() {}
 inline void shutdown() {}
 
 }
+}
+
+#elif REMOTE_PUSH_SIGNALS
+
+namespace rmclib {
+namespace remote_push {
+inline void placeholder() { compiler_barrier(); }
+void trigger();
+void setup();
+void shutdown();
+}
+
 }
 
 #else
