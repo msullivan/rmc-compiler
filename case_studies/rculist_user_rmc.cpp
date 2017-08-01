@@ -14,7 +14,7 @@ namespace rmclib {
 // Perform a lookup in an RCU-protected widgetlist, with
 // execution edges drawn to the LGIVE return action.
 // Must be done in an Epoch read-side critical section.
-widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
+widget *widget_find_fine(widgetlist *list, unsigned key) noexcept {
     widget *node;
     rculist_for_each_entry(node, &list->head, link, r) {
         if (L(r, node->key) == key) {
@@ -29,7 +29,7 @@ widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
 // Must be done in an Epoch read-side critical section.
 widget *widget_find(widgetlist *list, unsigned key) noexcept {
     XEDGE(find, post);
-    return L(find, widget_find_give(list, key));
+    return L(find, widget_find_fine(list, key));
 }
 
 // Insert an object into a widgetlist, replacing an old object with
@@ -51,7 +51,7 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     // does to make sure that LLVM doesn't break our data dependencies
     // also hides the fact that node is non-NULL when returning it.
 /// BEGIN SNIP
-    widget *old = widget_find_give(list, obj->key);
+    widget *old = widget_find_fine(list, obj->key);
 
     // If nothing to replace we just insert it normally
     if (!old) {

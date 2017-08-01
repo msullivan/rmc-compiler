@@ -77,7 +77,7 @@ void consume(Test *t, unsigned key) {
     XEDGE_HERE(find, a);
     auto guard = Epoch::rcuPin();
 
-    widget *nobe = LTAKE(find, widget_find_give(&t->widgets, key));
+    widget *nobe = LTAKE(find, widget_find_fine(&t->widgets, key));
     assert(nobe);
     assert_eq(key, L(a, nobe->val1) - L(a, nobe->val2));
 }
@@ -86,7 +86,7 @@ void consume(Test *t, unsigned key) {
 void consume(Test *t, unsigned key) {
     auto guard = Epoch::rcuPin();
 
-    widget *nobe = widget_find(&t->widgets, key);
+    widget *nobe = widget_find_fine(&t->widgets, key);
     assert(nobe);
     assert_eq(key, nobe->val1 - nobe->val2);
 }

@@ -33,6 +33,7 @@ struct widgetlist {
     std::mutex write_lock;
 };
 
+widget *widget_find_fine(widgetlist *list, unsigned key) noexcept;
 widget *widget_find(widgetlist *list, unsigned key) noexcept;
 void widget_insert(widgetlist *list, widget *obj) noexcept;
 

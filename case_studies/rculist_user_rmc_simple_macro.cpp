@@ -13,7 +13,7 @@
 #define rculist_for_each(node, head, tag_use) \
     rculist_for_each2(node, head, __rcu_load, tag_use)
 
-widget *widget_find_give2(widgetlist *list, unsigned key) noexcept {
+widget *widget_find_fine2(widgetlist *list, unsigned key) noexcept {
     widget *node;
     rculist_for_each(node, &list->head, r) {
         if (L(r, node->key) == key) {

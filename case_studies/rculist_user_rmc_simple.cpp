@@ -18,7 +18,7 @@ namespace rmclib {
 // Perform a lookup in an RCU-protected widgetlist, with
 // execution edges drawn to the LGIVE return action.
 // Must be done in an Epoch read-side critical section.
-widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
+widget *widget_find_fine(widgetlist *list, unsigned key) noexcept {
     XEDGE_HERE(load, load);
     XEDGE_HERE(load, use);
     widget *node;
@@ -36,7 +36,7 @@ widget *widget_find_give(widgetlist *list, unsigned key) noexcept {
 // Must be done in an Epoch read-side critical section.
 widget *widget_find(widgetlist *list, unsigned key) noexcept {
     XEDGE(find, post);
-    return L(find, widget_find_give(list, key));
+    return L(find, widget_find_fine(list, key));
 }
 
 static void insert_between(widget *n, widget *n1, widget *n2) {
@@ -62,7 +62,7 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     // We needn't give any constraints on the node lookup here.  Since
     // insertions always happen under the lock, any list modifications
     // are already visible to us.
-    widget *old = widget_find_give(list, obj->key);
+    widget *old = widget_find_fine(list, obj->key);
 
     // If nothing to replace we just insert it normally
     if (!old) {
