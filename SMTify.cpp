@@ -73,9 +73,9 @@ bool paramEnabled(int param) { return param >= 0; }
 // Screw you, C++, for not having designated initializers
 TuningParams x86Params() {
   TuningParams p;
-  p.syncCost = 80;
+  p.syncCost = 800;
   // this "lwsync" is really just a compiler barrier on x86
-  p.lwsyncCost = 10;
+  p.lwsyncCost = 500;
   // ponder: maybe using release/acquire would be better for compiler
   // reasons.
   return p;
