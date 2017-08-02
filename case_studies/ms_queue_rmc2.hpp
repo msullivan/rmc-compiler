@@ -194,7 +194,7 @@ optional<T> MSQueue<T>::dequeue() {
             // reused before we read it out.
             data = L(node_use, next->data_);
             if (L(dequeue, this->head_.compare_exchange_weak(head,
-                                                             tail.inc(next)))) {
+                                                             head.inc(next)))) {
                 break;
             }
         }

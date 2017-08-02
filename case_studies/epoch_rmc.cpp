@@ -42,7 +42,7 @@ void Participant::enter() noexcept {
     uintptr_t epoch = epoch_;
     if (!quickEnter()) return;
 
-    // If the epoch has changed, garbage collect
+    // If the epoch has changed, collect our local garbage
     if (epoch != epoch_) {
         garbage_.collect();
     }
