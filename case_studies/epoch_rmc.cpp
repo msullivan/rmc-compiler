@@ -68,7 +68,8 @@ void Participant::exit() noexcept {
 bool Participant::tryCollect() {
     XEDGE(load_head, a);
     VEDGE(a, update_epoch);
-    XEDGE(update_epoch, collect);
+    XEDGE(update_epoch, post);
+    VEDGE(collect, update_local);
 
     uintptr_t cur_epoch = epoch_;
 
@@ -116,6 +117,9 @@ try_again:
         global_garbage_[(new_epoch+1) % kNumEpochs].collect();
         garbage_.collect();
     });
+    // Now that the collection is done, we can safely update our
+    // local epoch.
+    L(update_local, epoch_ = new_epoch);
 
     return true;
 }

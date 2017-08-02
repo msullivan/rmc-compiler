@@ -117,6 +117,9 @@ try_again:
     // Garbage collect
     global_garbage_[(new_epoch+1) % kNumEpochs].collect();
     garbage_.collect();
+    // Now that the collection is done, we can safely update our
+    // local epoch.
+    epoch_ = new_epoch;
 
     return true;
 }
