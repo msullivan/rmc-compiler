@@ -18,8 +18,13 @@ namespace rmclib {
 // ticket-taking spinlocks, is that different threads can spin-wait on
 // different locations, reducing cache contention.
 
+//// BEGIN SNIP
 class QSpinLock {
+//// END SNIP
+    // This should be yield() or cpu_relax() or something
+    void delay() { }
     // Aligned to 256 so the CLEAR_BYTE_WRITE trick can work.
+//// BEGIN SNIP
     struct alignas(256) Node {
         using Ptr = tagged_ptr<Node *>;
         rmc::atomic<Node *> next{nullptr};
@@ -28,10 +33,8 @@ class QSpinLock {
 
     rmc::atomic<Node::Ptr> tail_;
 
-    // This should be yield() or cpu_relax() or something
-    void delay() { }
-
-    void clearTag(rmc::atomic<Node::Ptr> &loc) {
+//// END SNIP
+    void clearLowBit(rmc::atomic<Node::Ptr> &loc) {
         // We want to just xadd(-1) the thing, but C++ doesn't let us
         // because of the level of obstruction^Wabstraction that
         // tagged_ptr adds.
@@ -56,6 +59,7 @@ class QSpinLock {
         }
 #endif
     }
+//// BEGIN SNIP
 
     void slowpathLock(Node::Ptr oldTail) {
         // makes sure that init of me.next is prior to tail_link in
@@ -64,7 +68,8 @@ class QSpinLock {
         // init of me needs to be done before publishing it to
         // previous thread also
         VEDGE(node_init, tail_link);
-        // Can't write self into previous node until previous node inited
+        // Can't write self into previous node until we have read out
+        // the correct previous node (which we do while enqueueing).
         XEDGE(enqueue, tail_link);
 
         LS(node_init, Node me);
@@ -81,9 +86,9 @@ class QSpinLock {
 
             // OK, maybe the whole thing is just unlocked now?
             if (oldTail == Node::Ptr(nullptr, 0)) {
-                // If so, try the top level lock
-                if (tail_.compare_exchange_strong(oldTail,
-                                                  Node::Ptr(nullptr, 1)))
+                // If so, just try to take the lock and be done.
+                if (tail_.compare_exchange_strong(
+                        oldTail, Node::Ptr(nullptr, 1)))
                     goto out;
             }
         }
@@ -129,6 +134,9 @@ class QSpinLock {
             Node *newTailP = newThreads ? curTail : nullptr;
             Node::Ptr newTail = Node::Ptr(newTailP, 1);
 
+            // This can fail if new threads add themselves to the
+            // queue. However, nobody else can actually *take* the
+            // lock, so we'll succeed quickly.
             if (L(lock, tail_.compare_exchange_strong(curTail, newTail))) break;
         }
 
@@ -138,21 +146,24 @@ class QSpinLock {
         if (newThreads) {
             // Next thread might not have written itself in, yet,
             // so we have to wait.
+            // Waiting for threads *after* you in the queue kind of
+            // offends me, to be honest.
             Node *next;
             XEDGE(load_next, signal_next);
             while (!L(load_next, next = me.next)) delay();
             L(signal_next, next->ready = true);
         }
 
-        //printf("full slowpath out\n");
     out:
-        //printf("made it out of slowpath!\n");
         return;
     }
 
 public:
     void lock() {
         XEDGE(lock, out);
+        // If the lock is unlocked and has no waiters, we can acquire
+        // it with no fanfare. Otherwise we need to fall back to the
+        // slow path.
         Node::Ptr unlocked(nullptr, 0);
         if (!L(lock,
                tail_.compare_exchange_strong(unlocked, Node::Ptr(nullptr, 1)))){
@@ -162,10 +173,11 @@ public:
     }
     void unlock() {
         VEDGE(pre, unlock);
-        LS(unlock, clearTag(tail_));
+        LS(unlock, clearLowBit(tail_));
     }
 
 };
+//// END SNIP
 
 }
 
