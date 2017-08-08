@@ -91,8 +91,6 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
         // If we are using an epoch/gc based approach
         // (which we had better be, since we don't have gen counters),
         // this is purely an optimization.
-        // XXX: constraint? I think it doesn't matter here, where it is
-        // purely an optimization
         if (tail != this->tail_) continue;
 
         // was tail /actually/ the last node?
