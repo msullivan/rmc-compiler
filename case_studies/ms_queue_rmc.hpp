@@ -76,11 +76,6 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     // Make sure the contents of the next node stay visible
     // to anything that finds it through tail_, when we swing
     VEDGE(get_next, catchup_swing);
-    // enqueue needs to be visible before enqueue_swing so that if
-    // head != tail in dequeue, it always manages to have seen
-    // head->next
-    // XXX: do we still need this??
-    VEDGE(enqueue, enqueue_swing);
 
 
     // Marker for node initialization. Everything before the
