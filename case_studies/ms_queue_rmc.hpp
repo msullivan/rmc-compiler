@@ -13,18 +13,21 @@
 namespace rmclib {
 
 // I'm doing this all C++ified, but maybe I shouldn't be.
+//// BEGIN SNIP
 template<typename T>
 class MSQueue {
 private:
     struct MSQueueNode {
         rmc::atomic<MSQueueNode *> next_{nullptr};
         optional<T> data_;
+        // ...
+//// END SNIP
 
         MSQueueNode() {} // needed for allocating dummy
         MSQueueNode(T &&t) : data_(std::move(t)) {} // is this right
         MSQueueNode(const T &t) : data_(t) {}
+//// BEGIN SNIP
     };
-
 
     alignas(kCacheLinePadding)
     rmc::atomic<MSQueueNode *> head_{nullptr};
@@ -41,12 +44,15 @@ public:
 
     optional<T> dequeue();
 
+    // ... enqueue() routines that take a T
+//// END SNIP
     void enqueue(T &&t) {
         enqueue_node(new MSQueueNode(std::move(t)));
     }
     void enqueue(const T &t) {
         enqueue_node(new MSQueueNode(t));
     }
+//// BEGIN SNIP
 };
 
 template<typename T>
@@ -97,7 +103,6 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
         // was tail /actually/ the last node?
         if (next == nullptr) {
             // if so, try to write it in. (nb. this overwrites next)
-            // XXX: does weak actually help us here?
             if (L(enqueue, tail->next_.compare_exchange_weak(next, node))) {
                 // we did it! return
                 break;
@@ -158,6 +163,7 @@ optional<T> MSQueue<T>::dequeue() {
     return ret;
 }
 
+//// END SNIP
 }
 
 
