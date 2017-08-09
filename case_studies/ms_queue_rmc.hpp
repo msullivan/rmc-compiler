@@ -128,7 +128,7 @@ optional<T> MSQueue<T>::dequeue() {
         if (next == nullptr) {
             return optional<T>{};
         } else {
-            // OK, actuallly pop the head off now.
+            // OK, actually pop the head off now.
             if (L(dequeue, this->head_.compare_exchange_weak(head, next))) {
                 break;
             }
