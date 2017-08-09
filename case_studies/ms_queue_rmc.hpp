@@ -63,19 +63,18 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     // We publish the node in two ways:
     //  * at enqueue, which links it in as the next_ pointer
     //    of the list tail
-    //  * at enqueue_swing, which links it in as
+    //  * at enqueue_tail, which links it in as
     //    the new tail_ of the queue
     // Node initialization needs be be visible before a node
     // publication is.
     VEDGE(node_init, enqueue);
-    VEDGE(node_init, enqueue_swing);
+    VEDGE(node_init, enqueue_tail);
     // Make sure to see node init, etc
     // This we should get to use a data-dep on!
-    // Pretty sure we don't need XEDGE(get_tail, catchup_swing)...
     XEDGE(get_tail, get_next);
     // Make sure the contents of the next node stay visible
     // to anything that finds it through tail_, when we swing
-    VEDGE(get_next, catchup_swing);
+    VEDGE(get_next, catchup_tail);
 
 
     // Marker for node initialization. Everything before the
@@ -102,12 +101,12 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
             }
         } else {
             // nope. try to swing the tail further down the list and try again
-            L(catchup_swing, this->tail_.compare_exchange_strong(tail, next));
+            L(catchup_tail, this->tail_.compare_exchange_strong(tail, next));
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
-    L(enqueue_swing, this->tail_.compare_exchange_strong(tail, node));
+    L(enqueue_tail, this->tail_.compare_exchange_strong(tail, node));
 }
 
 template<typename T>
