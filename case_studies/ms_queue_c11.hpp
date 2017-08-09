@@ -62,13 +62,6 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
         // acquire because anything we see through this needs to be
         // re-published if we try to do a catchup swing: **
         next = tail->next_.load(mo_acq);
-        // Check that tail and next are consistent:
-        // If we are using an epoch/gc based approach
-        // (which we had better be, since we don't have gen counters),
-        // this is purely an optimization.
-        // XXX: order? I think it doesn't matter since in this version
-        // this check is an optimization??
-        if (tail != this->tail_.load(mo_rlx)) continue;
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
@@ -106,10 +99,6 @@ optional<T> MSQueue<T>::dequeue() {
         head = this->head_.load(mo_acq);
         // This one could maybe use an acq/rel fence
         next = head->next_.load(mo_acq);
-
-        // Consistency check; see note above
-        // no ordering because just an optimization thing
-        if (head != this->head_.load(mo_rlx)) continue;
 
         // Queue empty?
         if (next == nullptr) {

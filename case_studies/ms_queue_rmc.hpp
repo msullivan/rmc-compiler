@@ -86,11 +86,6 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
     for (;;) {
         tail = L(get_tail, this->tail_);
         next = L(get_next, tail->next_);
-        // Check that tail and next are consistent:
-        // If we are using an epoch/gc based approach
-        // (which we had better be, since we don't have gen counters),
-        // this is purely an optimization.
-        if (tail != this->tail_) continue;
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
@@ -128,9 +123,6 @@ optional<T> MSQueue<T>::dequeue() {
     for (;;) {
         head = L(get_head, this->head_);
         next = L(get_next, head->next_);
-
-        // Consistency check; see note above
-        if (head != this->head_) continue;
 
         // Is the queue empty?
         if (next == nullptr) {
