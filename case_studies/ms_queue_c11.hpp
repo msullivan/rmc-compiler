@@ -58,10 +58,10 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
 
     for (;;) {
         // acquire because we need to see node init
-        tail = this->tail_.load(mo_acq);
+        tail = this->tail_.load(std::memory_order_acquire);
         // acquire because anything we see through this needs to be
         // re-published if we try to do a catchup swing: **
-        next = tail->next_.load(mo_acq);
+        next = tail->next_.load(std::memory_order_acquire);
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
@@ -69,8 +69,10 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
             // XXX: does weak actually help us here?
             // release because publishing; not acquire since I don't
             // think we care what we see
-            if (tail->next_.compare_exchange_weak(next, node,
-                                                  mo_rel, mo_rlx)) {
+            if (tail->next_.compare_exchange_weak(
+                    next, node,
+                    std::memory_order_release,
+                    std::memory_order_relaxed)) {
                 // we did it! return
                 break;
             }
@@ -78,14 +80,19 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
             // nope. try to swing the tail further down the list and try again
             // release because we need to keep the node data visible
             // (**) - maybe can put an acq_rel *fence* here instead
-            this->tail_.compare_exchange_strong(tail, next,
-                                                mo_rel, mo_rlx);
+            this->tail_.compare_exchange_strong(
+                tail, next,
+                std::memory_order_release,
+                std::memory_order_relaxed);
         }
     }
 
     // Try to swing the tail_ to point to what we inserted
     // release because publishing
-    this->tail_.compare_exchange_strong(tail, node, mo_rel, mo_rlx);
+    this->tail_.compare_exchange_strong(
+        tail, node,
+        std::memory_order_release,
+        std::memory_order_relaxed);
 }
 
 template<typename T>
@@ -96,9 +103,9 @@ optional<T> MSQueue<T>::dequeue() {
     MSQueueNode *head, *next;
 
     for (;;) {
-        head = this->head_.load(mo_acq);
+        head = this->head_.load(std::memory_order_acquire);
         // This one could maybe use an acq/rel fence
-        next = head->next_.load(mo_acq);
+        next = head->next_.load(std::memory_order_acquire);
 
         // Queue empty?
         if (next == nullptr) {
@@ -106,8 +113,10 @@ optional<T> MSQueue<T>::dequeue() {
         } else {
             // OK, now we try to actually read the thing out.
             // release because we're republishing; don't care what we read
-            if (this->head_.compare_exchange_weak(head, next,
-                                                  mo_rel, mo_rlx)) {
+            if (this->head_.compare_exchange_weak(
+                    head, next,
+                    std::memory_order_release,
+                    std::memory_order_relaxed)) {
                 break;
             }
         }
