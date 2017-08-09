@@ -79,7 +79,7 @@ def data_struct_test(name):
         'fixed_freelist': [('fc11', t+'2') for t in VERSIONS],
         'matched_epoch': [('e'+t, t) for t in VERSIONS],
         'matched_freelist': [('f'+t, t+'2') for t in VERSIONS],
-        'fixed_object': [('e'+t, 'c11') for t in VERSIONS+['c11simp']],
+        'fixed_object': [('e'+t, 'c11') for t in VERSIONS],
     }
     params = {'size': 10000000, 'base_runs': 50}
 
