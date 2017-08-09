@@ -89,7 +89,7 @@ void MSQueue<T>::enqueue_node(MSQueueNode *node) {
 
         // was tail /actually/ the last node?
         if (next == nullptr) {
-            // if so, try to write it in. (nb. this overwrites next)
+            // if so, try to write it in.
             if (L(enqueue, tail->next_.compare_exchange_weak(next, node))) {
                 // we did it! return
                 break;
@@ -128,7 +128,7 @@ optional<T> MSQueue<T>::dequeue() {
         if (next == nullptr) {
             return optional<T>{};
         } else {
-            // OK, now we try to actually read the thing out.
+            // OK, actuallly pop the head off now.
             if (L(dequeue, this->head_.compare_exchange_weak(head, next))) {
                 break;
             }
