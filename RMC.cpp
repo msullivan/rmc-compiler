@@ -57,6 +57,9 @@ static const bool kUseTransitiveHiding = true;
 
 using namespace llvm;
 
+cl::opt<bool> DebugSpew("rmc-debug-spew",
+                        cl::desc("Enable RMC debug spew"));
+
 static void rmc_error() {
   exit(1);
 }
@@ -1068,15 +1071,15 @@ bool addrDepsOn(Use *use, Value *load,
     return reachableSccs.count(sccs[b]) > 0;
   };
 
-#ifdef DEBUG_SPEW
-  errs() << "from: " << load_instr->getParent()->getName() << " ";
-  if (bindSite) errs() << "bound: " << bindSite->getName() << " ";
-  errs() << "reachable sccs: {";
-  for (BasicBlock *block : reachableSccs) {
-    errs() << block->getName() << ", ";
+  if (DebugSpew) {
+    errs() << "from: " << load_instr->getParent()->getName() << " ";
+    if (bindSite) errs() << "bound: " << bindSite->getName() << " ";
+    errs() << "reachable sccs: {";
+    for (BasicBlock *block : reachableSccs) {
+      errs() << block->getName() << ", ";
+    }
+    errs() << "}\n";
   }
-  errs() << "}\n";
-#endif
 
   PendingPhis phis;
   return addrDepsOnSearch(pointer, load_instr,
@@ -1448,22 +1451,22 @@ bool RealizeRMC::run() {
     }
   }
 
-#ifdef DEBUG_SPEW
-  errs() << "********************************************************\n";
-  errs() << "Stuff to do for: " << func_.getName() << "\n";
-  for (auto & edge : edges_) {
-    errs() << "Found an edge: " << edge << "\n";
+  if (DebugSpew) {
+    errs() << "********************************************************\n";
+    errs() << "Stuff to do for: " << func_.getName() << "\n";
+    for (auto & edge : edges_) {
+      errs() << "Found an edge: " << edge << "\n";
+    }
   }
-#endif
 
   // Analyze the instructions in actions to see what they do.
   for (auto & action : actions_) {
     analyzeAction(action);
   }
-#ifdef DEBUG_SPEW
-  errs() << "========================================\n";
-  errs() << "Func body after setup:\n" << func_ << "\n";
-#endif
+  if (DebugSpew) {
+    errs() << "========================================\n";
+    errs() << "Func body after setup:\n" << func_ << "\n";
+  }
 
   // Compute the transitive closure of the graph, prune actions that
   // were only meaningful for their transitive properties, and then
@@ -1471,9 +1474,9 @@ bool RealizeRMC::run() {
   buildActionGraph(actions_, numNormalActions_, domTree_);
   removeUselessEdges(actions_);
   edges_ = std::move(rebuildEdges(actions_));
-#ifdef DEBUG_SPEW
-  dumpGraph(actions_);
-#endif
+  if (DebugSpew) {
+    dumpGraph(actions_);
+  }
 
   if (!useSMT_) {
     cutEdges();
@@ -1484,11 +1487,11 @@ bool RealizeRMC::run() {
       insertCut(cut);
     }
   }
-#ifdef DEBUG_SPEW
-  errs() << "========================================\n";
-  errs() << "Func body at end:\n" << func_ << "\n";
-  errs() << "\n\n\n";
-#endif
+  if (DebugSpew) {
+    errs() << "========================================\n";
+    errs() << "Func body at end:\n" << func_ << "\n";
+    errs() << "\n\n\n";
+  }
 
   return true;
 }

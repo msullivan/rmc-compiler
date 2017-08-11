@@ -41,11 +41,17 @@ do
 			shift
 			PRINT_LIB=1
 			;;
+		--debug-spew)
+			shift
+			DEBUG_SPEW=1
+			;;
 		*)
 			echo "Unknown argument: $1">&2
 			exit 1
 	esac
 done
+
+PASS_ARG="-Xclang -mllvm -Xclang"
 
 if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
    printf -- "-I %q " "$RMC_INCLUDE_DIR"
@@ -55,12 +61,16 @@ if [ -n "$PRINT_CFLAGS" -o -n "$PRINT_CXXFLAGS" ]; then
 	   printf -- "-Xclang -load -Xclang %q " "$RMC_LIB"
 	   printf -- "-Xclang -mllvm -Xclang -rmc-pass "
 
+	   if [ $DEBUG_SPEW ]; then
+		   printf -- "$PASS_ARG -rmc-debug-spew "
+	   fi
+
 	   if [ $USE_SMT ]; then
-		   printf -- "-Xclang -mllvm -Xclang -rmc-use-smt "
+		   printf -- "$PASS_ARG -rmc-use-smt "
 	   fi
 
 	   if [ $DO_CLEANUP ]; then
-		   printf -- "-Xclang -mllvm -Xclang -rmc-cleanup-copies "
+		   printf -- "$PASS_ARG -rmc-cleanup-copies "
 	   fi
    fi
 fi
