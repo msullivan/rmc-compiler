@@ -85,6 +85,21 @@ raw_ostream& operator<<(raw_ostream& os, const RMCEdgeType& t) {
   }
   return os;
 }
+// ew
+#define SPEW_CASE(x) case x: os << #x; break
+raw_ostream& operator<<(raw_ostream& os, const ActionType& t) {
+  switch (t) {
+    SPEW_CASE(ActionPrePost);
+    SPEW_CASE(ActionNop);
+    SPEW_CASE(ActionComplex);
+    SPEW_CASE(ActionSimpleRead);
+    SPEW_CASE(ActionSimpleWrites);
+    SPEW_CASE(ActionSimpleRMW);
+    SPEW_CASE(ActionGive);
+    SPEW_CASE(ActionTake);
+  }
+  return os;
+}
 
 raw_ostream& operator<<(raw_ostream& os, const RMCEdge& e) {
   e.print(os);
@@ -735,6 +750,10 @@ void RealizeRMC::findActions() {
 void dumpGraph(std::vector<Action> &actions) {
   // Debug spew!!
   for (auto & src : actions) {
+    errs() << "Action: " << src.bb->getName().substr(5) << ": " <<
+      src.type << "\n";
+  }
+  for (auto & src : actions) {
     for (auto edgeType : kEdgeTypes) {
       for (auto entry : src.transEdges[edgeType]) {
         auto *dst = entry.first;
@@ -785,10 +804,6 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
   for (auto edgeType : kEdgeTypes) {
     transitiveClosure(actions, edgeType, merge);
   }
-
-#ifdef DEBUG_SPEW
-  dumpGraph(actions);
-#endif
 }
 
 ////////////// Chicanery to handle disguising operands
@@ -1434,6 +1449,7 @@ bool RealizeRMC::run() {
   }
 
 #ifdef DEBUG_SPEW
+  errs() << "********************************************************\n";
   errs() << "Stuff to do for: " << func_.getName() << "\n";
   for (auto & edge : edges_) {
     errs() << "Found an edge: " << edge << "\n";
@@ -1441,11 +1457,13 @@ bool RealizeRMC::run() {
 #endif
 
   // Analyze the instructions in actions to see what they do.
-  // Also change their memory accesses to have an atomic ordering.
   for (auto & action : actions_) {
     analyzeAction(action);
   }
-  //errs() << "Func body after setup:\n" << func_ << "\n";
+#ifdef DEBUG_SPEW
+  errs() << "========================================\n";
+  errs() << "Func body after setup:\n" << func_ << "\n";
+#endif
 
   // Compute the transitive closure of the graph, prune actions that
   // were only meaningful for their transitive properties, and then
@@ -1453,6 +1471,9 @@ bool RealizeRMC::run() {
   buildActionGraph(actions_, numNormalActions_, domTree_);
   removeUselessEdges(actions_);
   edges_ = std::move(rebuildEdges(actions_));
+#ifdef DEBUG_SPEW
+  dumpGraph(actions_);
+#endif
 
   if (!useSMT_) {
     cutEdges();
@@ -1463,8 +1484,11 @@ bool RealizeRMC::run() {
       insertCut(cut);
     }
   }
-  //errs() << "========================================\n";
-  //errs() << "Func body at end:\n" << func_ << "\n";
+#ifdef DEBUG_SPEW
+  errs() << "========================================\n";
+  errs() << "Func body at end:\n" << func_ << "\n";
+  errs() << "\n\n\n";
+#endif
 
   return true;
 }

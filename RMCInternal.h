@@ -78,6 +78,7 @@ enum ActionType {
   ActionGive,
   ActionTake,
 };
+raw_ostream& operator<<(raw_ostream& os, const ActionType& t);
 struct Action {
   explicit
   Action(BasicBlock *p_bb,
