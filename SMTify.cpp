@@ -813,12 +813,12 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
   // that it should.
   // Actually, reading more carefully I find the model paper pretty hard
   // to reason clearly about in this case. Exploring the model with the
-  // tool seems to indicate that it acquire suffices for visibility
+  // tool seems to indicate that acquire suffices for visibility
   // edges.
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   // *  -v-> W/RW2  -- W/RW2 = rel, on ARMv8
-  if (type == VisibilityEdge &&
+  if ((type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleWrites || m.params.relAbuse) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
     relAcq = relAcq || getRelease(s, m, dst);
