@@ -85,9 +85,7 @@ typename UnsafeTStack<T>::TStackNode *UnsafeTStack<T>::popNode() {
 
     for (;;) {
         head = L(read_head, this->head_);
-        if (head == nullptr) {
-            return nullptr;
-        }
+        if (head == nullptr) break;
         TStackNode *next = L(read_next, head->next_);
 
         if (L(pop, this->head_.compare_exchange_weak(head, next))) break;
