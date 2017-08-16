@@ -58,8 +58,6 @@ class QSpinLock {
     }
 
     void slowpathLock(Node::Ptr oldTail) {
-        //printf("into slowpath!\n");
-
         Node me;
         Node::Ptr curTail;
         bool newThreads;
@@ -122,9 +120,7 @@ class QSpinLock {
             next->ready = true;
         }
 
-        //printf("full slowpath out\n");
     out:
-        //printf("made it out of slowpath!\n");
         return;
     }
 
