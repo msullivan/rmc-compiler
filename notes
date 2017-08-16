@@ -675,3 +675,26 @@ Given 'i1 -pu-> t' and 'i2 -pu-> t', the semantics will generate two
 pushes, p1 and p2, with i1 -vo-> p1 and i2 -vo-> p2. But this is fine,
 since one of the pushes will be to after, and so both i1/i2 will be vo
 before that one.
+
+---------------------------------------------------------------------
+
+When busy-waiting on a flag on ARMv7, it actually seems to be *better*
+in some cases to execute barriers in the loop:
+
+In my qspinlock tests on ARMv7:
+XEDGE(ready_wait, lock);
+while (!L(ready_wait, me.ready)) delay();
+
+is slower than:
+XEDGE(ready_wait, lock);
+XEDGE(ready_wait, ready_wait);
+
+which is slower than:
+XEDGE(ready_wait, post);
+
+The fastest one will insert a barrier immediately after the read,
+*before* the branch.  The middle one, in this case, will put a barrier
+inside the loop and then one well after it.
+
+I've observed stuff like this with seqlocks also: busy-waiting stuff
+is *faster* when you use a post edge.
