@@ -9,7 +9,7 @@
 #include <utility>
 #include "tagged_ptr.hpp"
 
-#define CLEAR_XADD 1
+#define CLEAR_RMW 1
 
 namespace rmclib {
 
@@ -42,10 +42,10 @@ class QSpinLock {
         // Or maybe what we want to do is to align Node on 256 boundaries
         // so that we can do a one byte write to clear the locked flag.
         // That is *especially* not a thing in the C++ memory model.
-#if CLEAR_XADD
+#if CLEAR_RMW
         // This is probably undefined
         auto &intloc = reinterpret_cast<rmc::atomic<uintptr_t> &>(loc);
-        intloc.fetch_sub(Node::Ptr::kTagBits);
+        intloc.fetch_and(~Node::Ptr::kTagBits);
 #elif CLEAR_BYTE_WRITE
         // This is certainly undefined, and only works on little endian.
         // C++ really does not have any story for mixed-size atomics
