@@ -45,7 +45,7 @@ class QSpinLock {
 #if CLEAR_XADD
         // This is probably undefined
         auto &intloc = reinterpret_cast<rmc::atomic<uintptr_t> &>(loc);
-        intloc.fetch_sub(1);
+        intloc.fetch_sub(Node::Ptr::kTagBits);
 #elif CLEAR_BYTE_WRITE
         // This is certainly undefined, and only works on little endian.
         // C++ really does not have any story for mixed-size atomics

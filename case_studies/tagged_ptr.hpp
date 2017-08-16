@@ -26,14 +26,15 @@ class tagged_ptr {
 private:
     uintptr_t val_;
 
+public:
     static const uintptr_t kTagMask = (1 << bits) - 1;
     static const uintptr_t kPtrMask = ~((1 << ptr_data<T>::kAvailBits) - 1);
     static const uintptr_t kShift = ptr_data<T>::kAvailBits - bits;
+    static const uintptr_t kTagBits = kTagMask << kShift;
     static_assert(ptr_data<T>::kAvailBits >= bits, "Has enough bits left");
 
     friend ptr_data<tagged_ptr<T, bits>>;
 
-public:
     tagged_ptr() noexcept : val_(0) {}
     tagged_ptr(T t) noexcept : tagged_ptr(t, 0) {}
     tagged_ptr(T t, uintptr_t tag) noexcept {
