@@ -18,7 +18,7 @@ RWLOCKS_TESTS=seqlock-rwlock
 RWLOCKS_TYPES=sc c11 rmc
 
 QSPINLOCK_TESTS=seqlock-lock
-QSPINLOCK_TYPES=sc rmc relacq
+QSPINLOCK_TYPES=sc rmc c11 relacq
 
 CONDVAR_TYPES=sc rmc c11
 
