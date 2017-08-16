@@ -160,7 +160,7 @@ class QSpinLock {
 
 public:
     void lock() {
-        XEDGE(lock, out);
+        XEDGE(lock, body);
         // If the lock is unlocked and has no waiters, we can acquire
         // it with no fanfare. Otherwise we need to fall back to the
         // slow path.
@@ -169,7 +169,7 @@ public:
                tail_.compare_exchange_strong(unlocked, Node::Ptr(nullptr, 1)))){
             LS(lock, slowpathLock(unlocked));
         }
-        LPOST(out);
+        LPOST(body);
     }
     void unlock() {
         VEDGE(pre, unlock);
