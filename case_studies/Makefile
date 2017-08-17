@@ -51,7 +51,7 @@ ifeq (1,$(MISSING_CAS2))
 DEFINES += -U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 endif
 
-DEP_FLAGS=-MMD -MP -MF $(@:.o=.d) -MT $@
+DEP_FLAGS=-MMD -MP -MF $(basename $@).d -MT "$(basename $@).o $(basename $@).ll $(basename $@).s"
 
 RMC_CONFIG_FLAGS:=--cleanup
 ifdef DEBUG_SPEW
@@ -137,9 +137,9 @@ endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o: $(1)-test.cpp $$(CONFIG_FILES)
 	$(call compile_with_headers,$(1),$(2),$(3),$(4),$(5))
-$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.ll: $(1)-test.cpp $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.ll: $(1)-test.cpp $$(CONFIG_FILES)
 	$(call compile_ll_with_headers,$(1),$(2),$(3),$(4),$(5))
-$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.s: $(1)-test.cpp $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(CONFIG_FILES)
+$$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.s: $(1)-test.cpp $$(CONFIG_FILES)
 	$(call compile_S_with_headers,$(1),$(2),$(3),$(4),$(5))
 
 ifeq (,$$(findstring $$(POSSIBLE_LIB_OBJ),$$(BUILTLIBS)))
