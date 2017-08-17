@@ -31,7 +31,7 @@ class QSpinLock {
     // This should be yield() or cpu_relax() or something
     void delay() { }
 
-    void clearTag(std::atomic<Node::Ptr> &loc) {
+    void clearTag(std::atomic<Node::Ptr> &loc, std::memory_order mo) {
         // We want to just xadd(-1) the thing, but C++ doesn't let us
         // because of the level of obstruction^Wabstraction that
         // tagged_ptr adds.
@@ -42,17 +42,18 @@ class QSpinLock {
 #if CLEAR_RMW
         // This is probably undefined
         auto &intloc = reinterpret_cast<std::atomic<uintptr_t> &>(loc);
-        intloc.fetch_and(~Node::Ptr::kTagBits);
+        intloc.fetch_and(~Node::Ptr::kTagBits, mo);
 #elif CLEAR_BYTE_WRITE
         // This is certainly undefined, and only works on little endian
         // C++ really does not have any story for mixed-size atomics
         // and mixed-size atomics are pretty funky in practice.
         // Linux does do this on some platforms, though.
         auto &byteloc = reinterpret_cast<std::atomic<uint8_t> &>(loc);
-        byteloc = 0;
+        byteloc.store(0, mo);
 #else
         Node::Ptr state(nullptr, 1);
-        while (!loc.compare_exchange_weak(state, Node::Ptr(state, 0))) {
+        while (!loc.compare_exchange_weak(state, Node::Ptr(state, 0),
+                                          mo, std::memory_order_relaxed)) {
         }
 #endif
     }
@@ -67,13 +68,17 @@ class QSpinLock {
             Node::Ptr newTail = Node::Ptr(&me, oldTail.tag());
 
             // Enqueue ourselves...
-            if (tail_.compare_exchange_strong(oldTail, newTail)) break;
+            if (tail_.compare_exchange_strong(oldTail, newTail,
+                                              std::memory_order_acq_rel,
+                                              std::memory_order_relaxed)) break;
 
             // OK, maybe the whole thing is just unlocked now?
             if (oldTail == Node::Ptr(nullptr, 0)) {
                 // If so, try the top level lock
                 if (tail_.compare_exchange_strong(oldTail,
-                                                  Node::Ptr(nullptr, 1)))
+                                                  Node::Ptr(nullptr, 1),
+                                                  std::memory_order_acquire,
+                                                  std::memory_order_relaxed))
                     goto out;
             }
         }
@@ -84,13 +89,13 @@ class QSpinLock {
             // * Writing into the oldTail is safe because threads can't
             //   leave unless there is no thread after them or they have
             //   marked the next ready
-            oldTail->next = &me;
+            oldTail->next.store(&me, std::memory_order_release);
 
-            while (!me.ready) delay();
+            while (!me.ready.load(std::memory_order_acquire)) delay();
         }
 
         // Step three: wait until the lock is freed
-        while ((curTail = tail_).tag()) {
+        while ((curTail = tail_.load(std::memory_order_relaxed)).tag()) {
             delay();
         }
 
@@ -106,7 +111,9 @@ class QSpinLock {
             Node *newTailP = newThreads ? curTail : nullptr;
             Node::Ptr newTail = Node::Ptr(newTailP, 1);
 
-            if (tail_.compare_exchange_strong(curTail, newTail)) break;
+            if (tail_.compare_exchange_strong(curTail, newTail,
+                                              std::memory_order_acquire,
+                                              std::memory_order_relaxed)) break;
         }
 
         // Step five: now that we have the lock, if any threads came
@@ -116,10 +123,9 @@ class QSpinLock {
             // Next thread might not have written itself in, yet,
             // so we have to wait.
             Node *next;
-            while (!(next = me.next)) delay();
-            next->ready = true;
+            while (!(next = me.next.load(std::memory_order_acquire))) delay();
+            next->ready.store(true, std::memory_order_release);
         }
-
     out:
         return;
     }
@@ -127,12 +133,13 @@ class QSpinLock {
 public:
     void lock() {
         Node::Ptr unlocked(nullptr, 0);
-        if (!tail_.compare_exchange_strong(unlocked, Node::Ptr(nullptr, 1))) {
+        if (!tail_.compare_exchange_strong(unlocked, Node::Ptr(nullptr, 1),
+                                           std::memory_order_acquire)) {
             slowpathLock(unlocked);
         }
     }
     void unlock() {
-        clearTag(tail_);
+        clearTag(tail_, std::memory_order_release);
     }
 
 };
