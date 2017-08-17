@@ -118,10 +118,23 @@ add_test(TestGroup(
         '2x': "-p 0 -c 2 -n %(size)d",
     },
     {
-        'fixed_lib': [('rmc',), ('c11',)],
-        'matched_lib': [('rmc',), ('c11',)],
+        bs_key: [('rmc',), ('c11',)]
+        for bs_key in ['fixed_lib', 'matched_lib', 'fixed_object']
     },
     {'size': 100000000, 'base_runs': 20}
+))
+
+add_test(TestGroup(
+    'seqlock-lock',
+    {
+        '%dx' % i: "-p 0 -c %d -n %%(size)d" % i
+        for i in range(1, 5)
+    },
+    {
+        bs_key: [('rmc',), ('c11',),('sc',)]
+        for bs_key in ['fixed_lib', 'matched_lib', 'fixed_object']
+    },
+    {'size': 10000000, 'base_runs': 50}
 ))
 
 
