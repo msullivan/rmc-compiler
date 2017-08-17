@@ -114,6 +114,10 @@ public:
 
   // We could add operator overloading, but I'm not sure if I approve
   // of it in this circumstance.
+
+  // Get the underlying std::atomic. This is for perpetrating various
+  // terrible nonsense.
+  std::atomic<T> &get_std_atomic() noexcept { return val; }
 };
 
 template<class T>
