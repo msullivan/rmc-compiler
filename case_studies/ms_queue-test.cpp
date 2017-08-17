@@ -187,7 +187,7 @@ void test(Test &t) {
     joinAll(consumers);
     joinAll(trolls);
 
-    timer.report(t.count * (t.producers+t.consumers+t.trolls*2), !BenchMode);
+    timer.report(t.count * (t.producers*2+t.trolls*2), !BenchMode);
 
     // This is real dumb, but overflow means we can't use the closed form...
     ulong expected = 0;
