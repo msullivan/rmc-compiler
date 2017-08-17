@@ -97,6 +97,7 @@ class QSpinLock {
         // right time. This makes sure the ordering doesn't get messed
         // up.
         XEDGE(ready_wait, lock);
+        XEDGE(ready_wait, post); // XXX: PERFORMANCE HACK
 
         // Step two: OK, there is an actual queue, so link up with the old
         // tail and wait until we are at the head of the queue
@@ -150,6 +151,7 @@ class QSpinLock {
             // offends me, to be honest.
             Node *next;
             XEDGE(load_next, signal_next);
+            XEDGE(load_next, post); // XXX: PERFORMANCE HACK
             while (!L(load_next, next = me.next)) delay();
             L(signal_next, next->ready = true);
         }
