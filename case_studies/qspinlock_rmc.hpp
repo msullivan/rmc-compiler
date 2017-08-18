@@ -72,6 +72,8 @@ class QSpinLock {
         // the correct previous node (which we do while enqueueing).
         XEDGE(enqueue, tail_link);
 
+        XEDGE(early_acquire, body);
+
         LS(node_init, Node me);
         Node::Ptr curTail;
         bool newThreads;
@@ -87,8 +89,9 @@ class QSpinLock {
             // OK, maybe the whole thing is just unlocked now?
             if (oldTail == Node::Ptr(nullptr, 0)) {
                 // If so, just try to take the lock and be done.
-                if (tail_.compare_exchange_strong(
-                        oldTail, Node::Ptr(nullptr, 1)))
+                if (L(early_acquire,
+                      tail_.compare_exchange_strong(
+                          oldTail, Node::Ptr(nullptr, 1))))
                     goto out;
             }
         }
@@ -122,6 +125,7 @@ class QSpinLock {
         // next thread a chance to try to acquire the lock or it could
         // compete with us for it, causing trouble.
         VEDGE(lock, signal_next);
+        XEDGE(lock, body);
 
         // Step four: take the lock
         for (;;) {
@@ -157,19 +161,21 @@ class QSpinLock {
         }
 
     out:
+        LPOST(body);
         return;
     }
 
 public:
     void lock() {
-        XEDGE(lock, body);
+        XEDGE(lock, post);
+
         // If the lock is unlocked and has no waiters, we can acquire
         // it with no fanfare. Otherwise we need to fall back to the
         // slow path.
         Node::Ptr unlocked(nullptr, 0);
         if (!L(lock,
                tail_.compare_exchange_strong(unlocked, Node::Ptr(nullptr, 1)))){
-            LS(lock, slowpathLock(unlocked));
+            slowpathLock(unlocked);
         }
         LPOST(body);
     }
