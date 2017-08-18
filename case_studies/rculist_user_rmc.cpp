@@ -10,7 +10,6 @@
 
 namespace rmclib {
 
-/// BEGIN SNIP
 // Perform a lookup in an RCU-protected widgetlist, with
 // execution edges drawn to the LGIVE return action.
 // Must be done in an Epoch read-side critical section.
@@ -41,7 +40,6 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     // We needn't give any constraints on the node lookup here.  Since
     // insertions always happen under the lock, any list modifications
     // are already visible to us.
-/// END SNIP
     // There is some compilation fail here.
 
     // LLVM inlines widget_find_give and ought to be able to eliminate
@@ -50,7 +48,6 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     // flow. Unfortunately, the value obfuscation that rmc-compiler
     // does to make sure that LLVM doesn't break our data dependencies
     // also hides the fact that node is non-NULL when returning it.
-/// BEGIN SNIP
     widget *old = widget_find_fine(list, obj->key);
 
     // If nothing to replace we just insert it normally
@@ -66,6 +63,5 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     Epoch::rcuSynchronize();
     delete old;
 }
-/// END SNIP
 
 }
