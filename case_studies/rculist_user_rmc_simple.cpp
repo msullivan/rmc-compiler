@@ -57,8 +57,7 @@ static void replace(widget *n_old, widget *n_new) {
 // the same key, if necessary.
 // Must *not* be called from an Epoch read-side critical section.
 void widget_insert(widgetlist *list, widget *obj) noexcept {
-    // Acquires write_lock and automatically drops it when we leave scope.
-    std::unique_lock<std::mutex> lock(list->write_lock);
+    list->write_lock.lock();
     // We needn't give any constraints on the node lookup here.  Since
     // insertions always happen under the lock, any list modifications
     // are already visible to us.
@@ -67,11 +66,12 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     // If nothing to replace we just insert it normally
     if (!old) {
         insert_before(obj, &list->head);
+        list->write_lock.unlock();
         return;
     }
 
     replace(old, obj);
-    lock.unlock();
+    list->write_lock.unlock();
 
     // Wait until any readers that may be using the old node are gone
     // and then delete it.
