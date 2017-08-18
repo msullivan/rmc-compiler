@@ -38,6 +38,7 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     }
 
     rculist_replace(&old->link, &obj->link);
+    lock.unlock();
 
     // Whatever, we'll do it with synchronizing instead of unlink
     Epoch::rcuSynchronize();

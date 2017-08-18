@@ -71,6 +71,7 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     }
 
     replace(old, obj);
+    lock.unlock();
 
     // Wait until any readers that may be using the old node are gone
     // and then delete it.
