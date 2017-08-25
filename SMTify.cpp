@@ -65,7 +65,6 @@ struct TuningParams {
   int useDataCost{-1};
   int makeReleaseCost{-1};
   int makeAcquireCost{-1};
-  bool acqAbuse{false};
   bool relAbuse{false};
 };
 bool paramEnabled(int param) { return param >= 0; }
@@ -109,7 +108,6 @@ TuningParams armv8Params() {
   p.useDataCost = 1;
   p.makeReleaseCost = 240;
   p.makeAcquireCost = 240;
-  p.acqAbuse = true;
   p.relAbuse = true;
   return p;
 }
@@ -804,17 +802,8 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
   // On x86 and on ARMv8, we can get more guarentees from the
   // realization of release/acquire than C++11 actually provides. In
-  // particular, ARMv8's rel/acq insturctions suffice to implement *
-  // -v-> W and even R -v-> *.
-  // XXX: double check the ARMv8 thing against the model paper, not
-  // just the ARM documentation - seems good, maybe triple check.
-  // Also, interestingly, reading the documentation made me think that
-  // it *wouldn't* suffice for R-v->*, but the model paper implied
-  // that it should.
-  // Actually, reading more carefully I find the model paper pretty hard
-  // to reason clearly about in this case. Exploring the model with the
-  // tool seems to indicate that acquire suffices for visibility
-  // edges.
+  // particular, ARMv8's release instruction suffices to implement
+  // * -v-> W.
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   // *  -v-> W/RW2  -- W/RW2 = rel, on ARMv8
@@ -824,16 +813,14 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
     relAcq = relAcq || getRelease(s, m, dst);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
-  // R/RW1 -v-> *   -- R/RW1 = acq, on ARMv8, probably (>_>)
-  if ((type == ExecutionEdge ||
-       (type == VisibilityEdge && m.params.acqAbuse)) &&
+  if (type == ExecutionEdge &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW)) {
     relAcq = relAcq || getAcquire(s, m, src);
   }
   // R/RW1 -v-> W/RW2 -- complicated
   // If we /aren't/ doing the abusive non-C11 interpretation of
-  // release and acquire, we can do an R->W vis edge by marking both.
-  if (!(m.params.relAbuse || m.params.acqAbuse) &&
+  // release, we can do an R->W vis edge by marking both.
+  if (!m.params.relAbuse&&
       (type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
