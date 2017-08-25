@@ -698,3 +698,6 @@ inside the loop and then one well after it.
 
 I've observed stuff like this with seqlocks also: busy-waiting stuff
 is *faster* when you use a post edge.
+
+
+---
