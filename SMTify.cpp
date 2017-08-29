@@ -834,14 +834,6 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
 SmtExpr makeXcut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
                  BasicBlock *bindSite) {
-  // For complex sources we fall back to doing a pure visibility cut.
-  // We couldn't generate anything nice starting from a complex action
-  // source anyways and the xcut code doesn't handle multi-block
-  // actions right.
-  if (src.type == ActionComplex) {
-    return makeVcut(s, m, src, dst, bindSite, ExecutionEdge);
-  }
-
   bool alreadyMade;
   SmtExpr isCut = getFunc(m.xcut, makeBlockEdgeKey(bindSite, src.bb, dst.bb),
                           &alreadyMade);
