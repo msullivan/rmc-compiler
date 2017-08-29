@@ -73,10 +73,9 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     replace(old, obj);
     list->write_lock.unlock();
 
-    // Wait until any readers that may be using the old node are gone
-    // and then delete it.
-    Epoch::rcuSynchronize();
-    delete old;
+    // Register node to be reclaimed
+    auto guard = Epoch::pin();
+    guard.unlinked(old);
 }
 /// END SNIP
 

@@ -59,10 +59,9 @@ void widget_insert(widgetlist *list, widget *obj) noexcept {
     rculist_replace(&old->link, &obj->link);
     lock.unlock();
 
-    // Wait until any readers that may be using the old node are gone
-    // and then delete it.
-    Epoch::rcuSynchronize();
-    delete old;
+    auto guard = Epoch::pin();
+    guard.unlinked(old);
+    guard.tryCollect();
 }
 
 }
