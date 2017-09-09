@@ -701,3 +701,11 @@ is *faster* when you use a post edge.
 
 
 ---
+
+Adding push edges between everything gives us SC.
+Does adding visibility edges gives us TSO!?
+Nope! See 2+2W.
+That's interesting and I think Brooks had something to say related to
+this and his models.
+
+--
