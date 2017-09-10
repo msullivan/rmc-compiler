@@ -39,13 +39,11 @@ bool Ringbuf<T, numElems>::enqueue(T val) {
     unsigned back = back_;
     unsigned front = front_;
 
-    bool enqueued = 0;
-    if (back - kNumElems != front) {
-        buf_[back % kNumElems] = val;
-        back_ = back + 1;
-        enqueued = 1;
-    }
-    return enqueued;
+    if (back - kNumElems == front) return false;
+
+    buf_[back % kNumElems] = val;
+    back_ = back + 1;
+    return true;
 }
 
 template<typename T, unsigned numElems>
@@ -54,13 +52,11 @@ optional<T> Ringbuf<T, numElems>::dequeue() {
     unsigned front = front_;
     unsigned back = back_;
 
-    if (front != back) {
-        T ret = buf_[front % kNumElems];
-        front_ = front+1;
-        return ret;
-    }
+    if (front == back) return optional<T>{};
 
-    return optional<T>{};
+    T ret = buf_[front % kNumElems];
+    front_ = front+1;
+    return ret;
 }
 
 }
