@@ -1,10 +1,12 @@
 THINGS=ms_queue seqlock rcu tstack rwlocks qspinlock parking condvar \
-	rculist_user tune_work four_slot
+	rculist_user tune_work four_slot ringbuf
 
 MS_QUEUE_TESTS=ms_queue ms_queue-big
 MS_QUEUE_EPOCH_TYPES=sc relacq rmc c11 barrier
 MS_QUEUE_FREELIST_TYPES=sc2 rmc2 c112 relacq2
 MS_QUEUE_TYPES=lock 2lock
+
+RINGBUF_TYPES=sc
 
 TSTACK_EPOCH_TYPES=sc rmc c11
 TSTACK_FREELIST_TYPES=sc2 rmc2 c112
