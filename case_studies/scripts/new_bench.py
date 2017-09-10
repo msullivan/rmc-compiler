@@ -141,7 +141,7 @@ add_test(TestGroup(
 add_test(TestGroup(
     'ringbuf',
     {
-        'ringbuf': "%(size)d"
+        'ringbuf': "-n %(size)d"
     },
     {
         bs_key: [('rmc',), ('c11',),('sc',)]
