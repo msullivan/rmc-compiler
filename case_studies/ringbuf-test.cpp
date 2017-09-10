@@ -18,7 +18,7 @@ using namespace rmclib;
 
 typedef unsigned long ulong;
 
-const ulong kCount = 10000000;
+const ulong kCount = 100000000;
 
 cl::opt<int> Work("w", cl::desc("Number of dummy work iterations"),
                   cl::init(kDefaultWork));
