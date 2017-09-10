@@ -137,6 +137,19 @@ add_test(TestGroup(
     {'size': 10000000, 'base_runs': 50}
 ))
 
+# unfortunately there aren't really variants here??
+add_test(TestGroup(
+    'ringbuf',
+    {
+        'ringbuf': "%(size)d"
+    },
+    {
+        bs_key: [('rmc',), ('c11',),('sc',)]
+        for bs_key in ['fixed_lib', 'matched_lib', 'fixed_object']
+    },
+    {'size': 100000000, 'base_runs': 50}
+))
+
 
 
 def main(argv):
