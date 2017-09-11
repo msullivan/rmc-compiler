@@ -16,8 +16,8 @@ template<typename T,
          unsigned numElems = 1024>
 class Ringbuf {
 private:
-    const unsigned kNumElems = numElems;
-    T buf_[numElems];
+    static const unsigned kNumElems = numElems;
+    T buf_[kNumElems];
 
     static constexpr bool isPowerOf2(size_t v) { return v && ((v&(v-1)) == 0);}
     static_assert(isPowerOf2(numElems), "Ringbuf size must be power of 2");
