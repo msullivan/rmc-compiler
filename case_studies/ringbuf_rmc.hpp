@@ -65,7 +65,7 @@ optional<T> Ringbuf<T, numElems>::dequeue() {
     if (front == back) return optional<T>{};
 
     T ret = L(read, buf_[front % kNumElems]);
-    front_ = L(d_update, front+1);
+    L(d_update, front_ = front+1);
     LPOST(node_use);
 
     return ret;
