@@ -155,7 +155,7 @@ endif
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(EXTRA_LIB_OBJS) $$(CONFIG_FILES)
 	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
-	$$(Q)$$(CXX) -pthread -o $$@ $$(filter %.o,$$^)
+	$$(Q)$$(CXX) $$(LDFLAGS) -o $$@ $$(filter %.o,$$^)
 
 TESTS += $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test
 
