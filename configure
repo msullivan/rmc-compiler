@@ -494,7 +494,7 @@ case $CFG_CPUTYPE in
         CFG_CPUTYPE=aarch64
         ;;
 
-    powerpc)
+    powerpc | ppc64le)
         CFG_CPUTYPE=powerpc
         ;;
 
