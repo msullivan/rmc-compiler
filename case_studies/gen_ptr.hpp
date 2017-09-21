@@ -7,8 +7,6 @@
 
 #include <cstdint>
 #include <cassert>
-#include <atomic>
-#include <rmc++.h>
 
 namespace rmclib {
 
