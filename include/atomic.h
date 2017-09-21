@@ -73,6 +73,7 @@
 // In the one simple test I tried, using ctrl_isync didn't seem any better
 #define USE_CTRL_ACQUIRE 1
 
+// asdf really this should use LDA/STL on armv8
 #define smp_store_release(p, v)                  \
     do {                                         \
         smp_mb();                                \
@@ -169,6 +170,45 @@
 #define bogus_dep(v, bs) ((v)+dependent_zero(bs))
 
 #define vis_barrier() smp_mb()
+
+#elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__)
+
+// Partial implementation to get full suite to build
+#define power_sync(typ) __asm__ __volatile__("sync" :::"memory")
+#define power_lwsync(typ) __asm__ __volatile__("lwsync" :::"memory")
+
+#define smp_mb() power_sync()
+#define smp_rmb() power_lsync()
+#define smp_wmb() power_lwsync()
+#define smp_read_barrier_depends() nop()
+#define vis_barrier() power_lwsync()
+
+
+#define smp_store_release(p, v)                  \
+    do {                                         \
+        power_lwsync();                          \
+        ACCESS_ONCE(*p) = v;                     \
+    } while (0)
+
+#if USE_CTRL_ACQUIRE
+/* Use ctrlisync to do acquire */
+#define smp_load_acquire(p)                      \
+    ({                                           \
+    __typeof__(*p) __v = ACCESS_ONCE(*p);        \
+    ctrl_isync(__v);                             \
+    __v;                                         \
+    })
+
+#else
+/* Just emit a lwsync for it */
+#define smp_load_acquire(p)                      \
+    ({                                           \
+    __typeof__(*p) __v = ACCESS_ONCE(*p);        \
+    power_lwsync();                              \
+    __v;                                         \
+    })
+#endif
+
 
 #else
 #error CPU not supported
