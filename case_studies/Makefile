@@ -11,6 +11,7 @@ CONFIG_FILES:=Makefile ../config.mk ../RMC.so uppercase.mk \
 OBJDIR=build
 
 DEFINES :=
+LDFLAGS :=
 
 ifeq ($(CFG_DISABLE_OPTIMIZE),1)
 OPT_LEVEL=-O0
@@ -39,6 +40,11 @@ ifeq (x86_64,$(findstring x86_64,$(shell uname -m)))
 MARCH:=-mcx16
 endif
 
+# Clang/LLVM don't support double-wide atomics on Power so we have to
+# link against libatomic to get those tests to build. Ugh.
+ifeq (ppc,$(findstring ppc,$(shell uname -m)))
+LDFLAGS+=-latomic
+endif
 
 # Clang and gcc disagree for -march=armv6 on whether to define
 # __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2. The libstdc++ ABI for shared_ptr
@@ -64,7 +70,7 @@ CXXFLAGS=--std=c++14 $(RMC_FLAGS) \
 	$(MARCH) \
 	-Wall -Wno-unused-function $(DEFINES) $(OPT_LEVEL)
 DBG_FLAG=-g # Separate flag so we can disable it when we emit .ll
-LDFLAGS=-pthreads
+LDFLAGS+=-pthreads
 
 # Optional local overrides of any of the above variables
 # Especially likely to be useful on ARM where portability is a
