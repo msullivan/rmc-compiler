@@ -293,8 +293,9 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
   return llvm::SplitBlock(Old, SplitPt, underlyingPass_);
 }
 
-#elif LLVM_VERSION_MAJOR == 3 &&                        \
-  (LLVM_VERSION_MINOR >= 7 && LLVM_VERSION_MINOR <= 9)
+#elif (LLVM_VERSION_MAJOR == 3 &&                       \
+       (LLVM_VERSION_MINOR >= 7 && LLVM_VERSION_MINOR <= 9)) || \
+  LLVM_VERSION_MAJOR == 4
 
 #define LOOPINFO_PASS_NAME LoopInfoWrapperPass
 LoopInfo &getLoopInfo(const Pass &pass) {
@@ -309,7 +310,8 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
 #error Unsupported LLVM version
 #endif
 
-#if LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 9
+#if (LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 9) || \
+  LLVM_VERSION_MAJOR == 4
 bool keepValueNames(Function &func) {
   LLVMContext &ctx = func.getContext();
   bool discard = ctx.shouldDiscardValueNames();
