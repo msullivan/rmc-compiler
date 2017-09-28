@@ -68,7 +68,7 @@
     __asm__ __volatile__("cmp %[val], %[val];"          \
                          "beq 1f;"                      \
                          "1: isb":  :                   \
-                         [val] "r" (v) : "memory")
+                         [val] "r" (v) : "memory","cc")
 
 // In the one simple test I tried, using ctrl_isync didn't seem any better
 #define USE_CTRL_ACQUIRE 1
@@ -128,7 +128,7 @@
     __asm__ __volatile__("cmp %[val], %[val];"          \
                          "beq 1f;"                      \
                          "1: isb":  :                   \
-                         [val] "r" (v) : "memory")
+                         [val] "r" (v) : "memory","cc")
 
 // In the one simple test I tried, using ctrl_isync didn't seem any better
 #define USE_CTRL_ACQUIRE 1
