@@ -32,8 +32,8 @@
             fprintf(stderr,                                             \
                     "%s:%d: %s%sAssertion failed: %s (%ld) %s %s (%ld)\n", \
                     __FILE__, __LINE__,                                 \
-                    __ASSERT_FUNCTION ? __ASSERT_FUNCTION : "",         \
-                    __ASSERT_FUNCTION ? ": " : "",                      \
+                    __ASSERT_FUNCTION != NULL ? __ASSERT_FUNCTION : "",  \
+                    __ASSERT_FUNCTION != NULL ? ": " : "",              \
                     #e1, (long)_____t1, #op, #e2, (long)_____t2);       \
             abort();                                                    \
         }                                                               \
