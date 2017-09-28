@@ -70,7 +70,7 @@ CXXFLAGS=--std=c++14 $(RMC_FLAGS) \
 	$(MARCH) \
 	-Wall -Wno-unused-function $(DEFINES) $(OPT_LEVEL)
 DBG_FLAG=-g # Separate flag so we can disable it when we emit .ll
-LDFLAGS+=-pthreads
+LDFLAGS+=-pthread
 
 # Optional local overrides of any of the above variables
 # Especially likely to be useful on ARM where portability is a
