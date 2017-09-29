@@ -255,7 +255,7 @@ Instruction *makeCtrl(Value *v, Instruction *to_precede) {
   if (isARM(target)) {
     a = makeAsm(f_ty, "cmp $0, $0;beq 1f;1: // ctrl", "r,~{memory},~{cc}", true);
   } else if (target == TargetPOWER) {
-    a = makeAsm(f_ty, "cmpw $0, $0;beq 1f;1: # ctrl", "r,~{memory},~{cr0}", true);
+    a = makeAsm(f_ty, "cmpw $0, $0;bne- 1f;1: # ctrl", "r,~{memory},~{cr0}", true);
   } else if (target == TargetX86) {
     a = makeAsm(f_ty, "# ctrl", "r,~{memory}", true);
   }
