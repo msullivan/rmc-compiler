@@ -105,7 +105,7 @@
     ({                                                                  \
     __typeof__(v) __i = v;                                              \
     __asm__ __volatile__("eor %[val], %[val];" : [val] "+r" (__i) ::);  \
-    __i;                                                                \
+    (uintptr_t)__i;                                                     \
     })
 
 #define bogus_dep(v, bs) ((v)+dependent_zero(bs))
@@ -164,7 +164,7 @@
     ({                                                                  \
     __typeof__(v) __i = v;                                              \
     __asm__ __volatile__("eor %[val], %[val], %[val];" : [val] "+r" (__i) ::);\
-    __i;                                                                \
+    (uintptr_t)__i;                                                     \
     })
 
 #define bogus_dep(v, bs) ((v)+dependent_zero(bs))
@@ -178,11 +178,31 @@
 #define power_lwsync(typ) __asm__ __volatile__("lwsync" :::"memory")
 
 #define smp_mb() power_sync()
-#define smp_rmb() power_lsync()
+#define smp_rmb() power_lwsync()
 #define smp_wmb() power_lwsync()
 #define smp_read_barrier_depends() nop()
 #define vis_barrier() power_lwsync()
 
+#define dependent_zero(v)                                               \
+    ({                                                                  \
+    __typeof__(v) __i = v;                                              \
+    uintptr_t __o;                                                      \
+    __asm__ __volatile__("xor %[out], %[val], %[val];"                  \
+                         : [out] "=r" (__o)                             \
+                         : [val] "r" (__i) :);                          \
+    __o;                                                                \
+    })
+
+#define bogus_dep(v, bs) ((v)+dependent_zero(bs))
+
+// Make sure you are doing your own control!
+#define isync() __asm__ __volatile__("isync":::"memory")
+
+#define ctrl_isync(v)                                   \
+  __asm__ __volatile__("cmpw 7, %[val], %[val];"         \
+                       "bne- 7, 1f;"                        \
+                       "1: isync":  :                       \
+                       [val] "r" (v) : "memory","cr7")
 
 #define smp_store_release(p, v)                  \
     do {                                         \
