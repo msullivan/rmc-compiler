@@ -47,7 +47,6 @@ struct Test {
     Test(int c) : count(c) {}
 };
 
-
 void producer(Test *t) {
     int i = 0;
     while (i < t->count) {
@@ -55,6 +54,7 @@ void producer(Test *t) {
         //fakeWork(Work);
         bool success = t->queue.enqueue(c);
         if (!success) {
+            fakeWork(Work);
             t->fullCount++;
         } else {
             i++;
@@ -70,6 +70,7 @@ void consumer(Test *t) {
         auto res = t->queue.dequeue();
         //fakeWork(Work);
         if (!res) {
+            fakeWork(Work);
             t->emptyCount++;
         } else {
             unsigned char expected = i % kModulus;
@@ -95,6 +96,7 @@ void test(Test &t) {
     t.producersDone = true;
     consumer_t.join();
 
+    //printf("empty = %d\n full = %d\n", t.emptyCount, t.fullCount);
     timer.report(t.count*2, !BenchMode);
 }
 
