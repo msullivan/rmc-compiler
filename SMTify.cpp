@@ -807,9 +807,16 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
 
   // W1 -v-> W/RW2  -- W/RW2 = rel
   // *  -v-> W/RW2  -- W/RW2 = rel, on ARMv8
+  // *  -x-> W2     -- W2 = rel, on ARMv8
+  // Note that the first cases establish visbility but unusually
+  // *not* execution. They will establish visibility order
+  // with the write but won't guarantee that the execution order
+  // is right for a failed CAS. Ugh!
+  // I think it would be fine for regular RMWs though?
   if ((type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleWrites || m.params.relAbuse) &&
-      (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
+      (dst.type == ActionSimpleWrites ||
+       (dst.type == ActionSimpleRMW && type == VisibilityEdge))) {
     relAcq = relAcq || getRelease(s, m, dst);
   }
   // R/RW1 -x-> *   -- R/RW1 = acq
@@ -820,7 +827,7 @@ SmtExpr makeRelAcqCut(SmtSolver &s, VarMaps &m, Action &src, Action &dst,
   // R/RW1 -v-> W/RW2 -- complicated
   // If we /aren't/ doing the abusive non-C11 interpretation of
   // release, we can do an R->W vis edge by marking both.
-  if (!m.params.relAbuse&&
+  if (!m.params.relAbuse &&
       (type == VisibilityEdge || type == ExecutionEdge) &&
       (src.type == ActionSimpleRead || src.type == ActionSimpleRMW) &&
       (dst.type == ActionSimpleWrites || dst.type == ActionSimpleRMW)) {
