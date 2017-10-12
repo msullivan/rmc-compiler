@@ -175,20 +175,22 @@ TESTS :=
 getdefault = $(if $(1),$(1),$(2))
 gettests = $(call getdefault,$(value $(call uppercase,$(1))_TESTS),$(1))
 
+# For each type of algo ('thing'), generate all possible combinations
+# of (library,algo,test).
 $(foreach thing,$(THINGS), \
  $(foreach test,$(call gettests,$(thing)), \
+\
   $(foreach type,$(value $(call uppercase,$(thing))_EPOCH_TYPES), \
    $(foreach epoch,$(EPOCH_TYPES), \
-    $(eval $(call TEST_template,$(test),$(type),$(epoch),none,$(thing)))))))
-$(foreach thing,$(THINGS), \
- $(foreach test,$(call gettests,$(thing)), \
+    $(eval $(call TEST_template,$(test),$(type),$(epoch),none,$(thing))))) \
+\
   $(foreach type,$(value $(call uppercase,$(thing))_FREELIST_TYPES), \
    $(foreach flist,$(FREELIST_TYPES), \
-    $(eval $(call TEST_template,$(test),$(type),none,$(flist),$(thing)))))))
-$(foreach thing,$(THINGS), \
- $(foreach test,$(call gettests,$(thing)), \
+    $(eval $(call TEST_template,$(test),$(type),none,$(flist),$(thing))))) \
+\
   $(foreach type,$(value $(call uppercase,$(thing))_TYPES), \
-   $(eval $(call TEST_template,$(test),$(type),none,none,$(thing))))))
+   $(eval $(call TEST_template,$(test),$(type),none,none,$(thing)))) \
+))
 
 ########
 
