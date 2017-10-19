@@ -28,10 +28,22 @@ struct CacheLineCounter {
     std::atomic<int> ctr{0};
 };
 
+#define USE_WIDE_OBJ 0
+#if USE_WIDE_OBJ
+struct Obj {
+    ulong a_, b_;
+    Obj() : a_(0), b_(0) {}
+    Obj(unsigned char c) : a_(1337*c+20), b_(1338*c+20) {}
+    operator unsigned long() { return b_ - a_; }
+};
+#else
+using Obj = unsigned char;
+#endif
+
 const int kModulus = 251;
 
 struct Test {
-    Ringbuf<unsigned char> queue;
+    Ringbuf<Obj> queue;
 
     std::atomic<bool> producersDone{false};
     std::atomic<ulong> totalSum{0};
