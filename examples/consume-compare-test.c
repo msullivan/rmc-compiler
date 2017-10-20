@@ -45,3 +45,18 @@ int test3(rmc_pint* pp) {
     if (p != &foo) abort();
     return a;
 }
+
+int test4_part(rmc_pint* pp, int **outpp) {
+    XEDGE_HERE(a, b);
+    int *p = L(a, rmc_load(pp));
+    int a = L(b, *p);
+    *outpp = p;
+    return a;
+}
+
+int test4(rmc_pint* pp) {
+    int *p;
+    int a = test4_part(pp, &p);
+    if (p != &foo) abort();
+    return a;
+}

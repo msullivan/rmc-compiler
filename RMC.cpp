@@ -881,9 +881,6 @@ void enforceAddrDeps(Use *use, std::vector<Instruction *> &trail) {
   //errs() << "enforcing for: " << *end << "\n";
   for (auto is = trail.begin(), ie = trail.end(); is != ie; is++) {
     // Hide all the uses except for the other ones in the dep chain
-    // XXX: maybe we need to hide more, in case the function gets
-    // inlined, which could provide more information.
-    // Think about, at least.
     Instruction *next = is+1 != ie ? *(is+1) : end;
     hideUses(*is, next);
   }
@@ -932,10 +929,11 @@ void enforceAddrDeps(Value *src) {
     // But notionally I think all we need worry about is comparisions
     // and function calls (because they may be inlined and have
     // comparisions).
+    // Also important to disallow returns and stores, which can propagate
+    // information to a calling function if *this* function is inlined.
+    // Disallowing returns is super annoying, though.
     // Comparisons against null should work.
     if (!isAddrDepSafe(v) && !isa<PHINode>(v) &&
-        !isa<BranchInst>(v) && !isa<ReturnInst>(v) &&
-        !isa<StoreInst>(v) &&
         !getBSCopyValue(v)) {
       Instruction *instr = dyn_cast<Instruction>(v);
       assert(instr);
