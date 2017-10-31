@@ -89,24 +89,19 @@ endif
 EXTRA_LIB_OBJS=$(patsubst %.cpp, $(OBJDIR)/%.o, $(EXTRA_LIB_SRCS))
 
 $(OBJDIR)/%.o: %.cpp $(CONFIG_FILES)
-	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DBG_FLAG) $(DEP_FLAGS) -c -o $@ $<
 $(OBJDIR)/%.ll: %.cpp $(CONFIG_FILES)
-	@mkdir -p $(dir $@)
 	@$(call E, COMPILE $@)
 	$(Q)$(CXX) $(CXXFLAGS) $(DEP_FLAGS) -emit-llvm -S -o $@ $<
 $(OBJDIR)/%.filt.ll: $(OBJDIR)/%.ll $(CONFIG_FILES)
-	@mkdir -p $(dir $@)
 	$(Q)c++filt < $< > $@
 $(OBJDIR)/%.filt.s: $(OBJDIR)/%.s $(CONFIG_FILES)
-	@mkdir -p $(dir $@)
 	$(Q)c++filt < $< > $@
 
 # Args 2-5 define the headers. Abuse the unused arg 1 in
 # compile_with_headers to pass the compilation flags.
 define compile_with_headers_inner
-	@mkdir -p $$(dir $$@)
 	@$$(call E, COMPILE $$@)
 	$$(Q)$(CXX) $$(CXXFLAGS) $$(DEP_FLAGS)  \
 		-D$(call uppercase,$(5))_HEADER='"$(5)_$(2).hpp"' \
@@ -159,7 +154,6 @@ $$(POSSIBLE_LIB_OBJ:.o=.s): $(5)_$(2).cpp $$(CONFIG_FILES)
 endif
 
 $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test: $$(OBJDIR)/$(1)$$(LIBPART)-$(2)-test.o $$(EXTRA_LIB_OBJS) $$(CONFIG_FILES)
-	@mkdir -p $$(dir $$@)
 	@$$(call E, LINK $$@)
 	$$(Q)$$(CXX) $$(LDFLAGS) -o $$@ $$(filter %.o,$$^)
 
@@ -201,6 +195,10 @@ LIB_SRCS=$(patsubst %, epoch_%.cpp, $(EPOCH_TYPES)) \
 OBJ_FILES=$(patsubst %, %.o, $(TESTS)) \
 	      $(patsubst %.cpp, $(OBJDIR)/%.o, $(LIB_SRCS)) \
 	      $(BUILTLIBS)
+# Create all of the target directories for output files
+# (so that rules don't need to do it themselves)
+DIRS=$(sort $(dir $(OBJ_FILES) $(TESTS)))
+$(shell mkdir -p $(DIRS))
 
 -include $(patsubst $(OBJDIR)/%.o, $(OBJDIR)/%.d, $(OBJ_FILES))
 
