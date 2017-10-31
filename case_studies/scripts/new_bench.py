@@ -56,6 +56,11 @@ def fill_tests(gs):
             gs.get('matched_epoch', [])+gs.get('matched_freelist', []))
     if 'baseline' not in gs:
         gs['baseline'] = [x for x in gs['matched_lib'] if not tmatches('rmc',x)]
+    if 'sensible' not in gs:
+        gs['sensible'] = (
+            gs.get('fixed_lib', [])+gs.get('matched_lib', [])+gs.get('fixed_object', []))
+    if 'sensible_rmc' not in gs:
+        gs['sensible_rmc'] = [x for x in gs['sensible'] if tmatches('rmc',x)]
     for v in VERSIONS:
         for thing in ['epoch', 'freelist', 'lib']:
             name = v + '_' + ('only' if thing == 'lib' else thing)
