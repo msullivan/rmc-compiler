@@ -196,7 +196,13 @@ Instruction *makeLwsync(Instruction *to_precede) {
   LLVMContext &C = to_precede->getContext();
   FunctionType *f_ty = FunctionType::get(FunctionType::getVoidTy(C), false);
   InlineAsm *a = nullptr;
-  if (isARM(target)) {
+  if (target == TargetARMv8) {
+    // Because ARM strengthened their memory model to be "Other
+    // multi-copy atomic", we can fake an lwsync (or at least the
+    // properties of lwsync we require) by doing an dmb st; dmb ld!
+    // This actually performs well too!
+    a = makeAsm(f_ty, "dmb ishld; dmb ishst // lwsync", "~{memory}", true);
+  } else if (target == TargetARM) {
     a = makeAsm(f_ty, "dmb ish // lwsync", "~{memory}", true);
   } else if (target == TargetPOWER) {
     a = makeAsm(f_ty, "lwsync # lwsync", "~{memory}", true);
