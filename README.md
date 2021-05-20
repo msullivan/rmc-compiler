@@ -23,7 +23,7 @@ paper is a bit out of date, though, so the best documentation for how
 the actual concrete syntax works is the proposal and the code in the
 `case_studies/` and `examples/` directories.
 
-You can find me in `##rmc` on `irc.freenode.org`.
+You can find me in `#rmc` on `irc.libera.chat`.
 
 Building
 -----------
