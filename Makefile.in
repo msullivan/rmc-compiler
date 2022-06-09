@@ -38,7 +38,7 @@ endif
 
 LLVM_FLAGS:=$(shell $(CFG_LLVM_CONFIG) --cxxflags | sed s/-fno-exceptions//)
 CXXFLAGS=-Wall -Wno-unused-function -g \
-	$(LLVM_FLAGS) $(INCLUDE_PATHS) $(DEFINES) $(OPT_LEVEL)
+	$(LLVM_FLAGS) $(INCLUDE_PATHS) $(DEFINES) $(OPT_LEVEL) -fPIC
 
 ifeq ($(CFG_OSTYPE),apple-darwin)
 LD_ARGS=-rdynamic -dynamiclib -Wl,-flat_namespace -Wl,-undefined,suppress
