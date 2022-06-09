@@ -233,6 +233,7 @@ private:
 
   // Functions
   BasicBlock *splitBlock(BasicBlock *Old, Instruction *SplitPt);
+  void fixupBlockNames();
 
   // Analysis routines
   void findActions();

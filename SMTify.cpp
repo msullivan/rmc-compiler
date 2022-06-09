@@ -340,6 +340,13 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
   DeclMap<BasicBlock *> nodeCapM(c.int_sort(), "node_cap");
   DeclMap<EdgeKey> edgeCapM(c.int_sort(), "edge_cap");
 
+  bool hasInfiniteLoops = false;
+  for (auto & loop : loops) {
+    if (loop->hasNoExitBlocks()) {
+      hasInfiniteLoops = true;
+    }
+  }
+
   //// Build the equations.
   SmtExpr incomingEntryCap = c.int_val(0);
   for (auto & block : F) {
@@ -361,7 +368,10 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
       // higher for exits that stay in the loop.
       // TODO: handle loop nesting in a smarter way.
       auto *loop = loops[&block];
-      if (loop && !loop->isLoopExiting(&block)) return 1;
+      if (!loop) return 1;
+      if (target == loop->getHeader() && loop->hasNoExitBlocks()) return 0;
+      if (!loop->isLoopExiting(&block)) return 1;
+      // XXX: Is this logic inverted?
       return loops[target] == loop ? 1 : 4;
     };
 
@@ -370,6 +380,9 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
     int denominator = 0;
     for (; i != e; ++i) {
       denominator += numerator(*i);
+    }
+    if (denominator == 0) {
+      denominator = 1;
     }
     i = succ_begin(&block), e = succ_end(&block);
     for (; i != e; ++i) {
@@ -394,9 +407,15 @@ DenseMap<EdgeKey, int> computeCapacities(const LoopInfo &loops, Function &F) {
 
   SmtExpr entryNodeCap = getFunc(nodeCapM, &F.getEntryBlock());
   // Make the entry node equations add up.
-  s.add(entryNodeCap == incomingEntryCap);
+  if (!hasInfiniteLoops) {
+    s.add(entryNodeCap == incomingEntryCap);
+  }
   // Keep all zeros from working:
   s.add(entryNodeCap > c.int_val(0));
+
+  // if (debugSpew) {
+  //   dumpSolver(s);
+  // }
 
   //// Extract a solution.
   DenseMap<EdgeKey, int> caps;

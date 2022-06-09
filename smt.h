@@ -6,8 +6,9 @@
 // well.
 
 #include <z3++.h>
+#include <stdint.h>
 
-typedef __uint64 smt_uint;
+typedef uint64_t smt_uint;
 
 #if USE_Z3_OPTIMIZER
 typedef z3::optimize SmtSolver;

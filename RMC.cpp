@@ -22,8 +22,10 @@
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
 
+#include <llvm/InitializePasses.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Utils.h>
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
@@ -287,23 +289,8 @@ Instruction *makeCopy(Value *v, Instruction *to_precede) {
 ///////////////////////////////////////////////////////////////////////////
 //// Some annoying LLVM version specific stuff
 
-#if LLVM_VERSION_MAJOR == 3 &&                          \
-  (LLVM_VERSION_MINOR >= 5 && LLVM_VERSION_MINOR <= 6)
-// Some annoying changes with how LoopInfo interacts with the pass manager
-#define LOOPINFO_PASS_NAME LoopInfo
-LoopInfo &getLoopInfo(const Pass &pass) {
-  return pass.getAnalysis<LoopInfo>();
-}
-// And the signature of SplitBlock changed...
-BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
-  return llvm::SplitBlock(Old, SplitPt, underlyingPass_);
-}
+#if LLVM_VERSION_MAJOR == 12
 
-#elif (LLVM_VERSION_MAJOR == 3 &&                       \
-       (LLVM_VERSION_MINOR >= 7 && LLVM_VERSION_MINOR <= 9)) || \
-  LLVM_VERSION_MAJOR == 4
-
-#define LOOPINFO_PASS_NAME LoopInfoWrapperPass
 LoopInfo &getLoopInfo(const Pass &pass) {
   return pass.getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 }
@@ -316,8 +303,6 @@ BasicBlock *RealizeRMC::splitBlock(BasicBlock *Old, Instruction *SplitPt) {
 #error Unsupported LLVM version
 #endif
 
-#if (LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 9) || \
-  LLVM_VERSION_MAJOR == 4
 bool keepValueNames(Function &func) {
   LLVMContext &ctx = func.getContext();
   bool discard = ctx.shouldDiscardValueNames();
@@ -328,10 +313,6 @@ void restoreValueNames(Function &func, bool discard) {
   LLVMContext &ctx = func.getContext();
   ctx.setDiscardValueNames(discard);
 }
-#else
-bool keepValueNames(Function &func) { return false; }
-void restoreValueNames(Function &func, bool discard) { }
-#endif
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -378,7 +359,7 @@ Instruction *getPrevInstr(Instruction *i) {
 // Sigh. LLVM 3.7 has a method inside BasicBlock for this, but
 // earlier ones don't.
 BasicBlock *getSingleSuccessor(BasicBlock *bb) {
-  TerminatorInst *term = bb->getTerminator();
+  Instruction *term = bb->getTerminator();
   return term->getNumSuccessors() == 1 ? term->getSuccessor(0) : nullptr;
 }
 
@@ -387,7 +368,7 @@ BasicBlock *getSingleSuccessor(BasicBlock *bb) {
 // Code to detect our inline asm things
 bool isInstrInlineAsm(Instruction *i, const char *string) {
   if (CallInst *call = dyn_cast_or_null<CallInst>(i)) {
-    if (InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledValue())) {
+    if (InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledOperand())) {
       if (iasm->getAsmString().find(string) != std::string::npos) {
         return true;
       }
@@ -591,12 +572,12 @@ void handleTransfer(Action &info, CallInst *call) {
 template <typename T>
 bool actionIsSC(T *i) {
   return i->getOrdering() == AtomicOrdering::SequentiallyConsistent &&
-    i->getSynchScope() == CrossThread;
+    i->getSyncScopeID() == SyncScope::System;
 }
 bool actionIsSC(AtomicCmpXchgInst *i) {
   return i->getSuccessOrdering() == AtomicOrdering::SequentiallyConsistent &&
     i->getFailureOrdering() == AtomicOrdering::SequentiallyConsistent &&
-    i->getSynchScope() == CrossThread;
+    i->getSyncScopeID() == SyncScope::System;
 }
 
 void analyzeAction(Action &info) {
@@ -745,7 +726,7 @@ void RealizeRMC::findActions() {
     // We work around this in a hacky way by storing the *end* block
     // instead and then patching them up once we have processed all
     // the actions.
-    actions_.emplace_back(main, end, name);
+    actions_.emplace_back(main, end, name.data());
     bb2action_[main] = &actions_.back();
 
     deleteRegisterCall(reg);
@@ -825,7 +806,7 @@ void buildActionGraph(std::vector<Action> &actions, int numReal,
 Value *getBSCopyValue(Value *v) {
   CallInst *call = dyn_cast<CallInst>(v);
   if (!call) return nullptr;
-  InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledValue());
+  InlineAsm *iasm = dyn_cast<InlineAsm>(call->getCalledOperand());
   if (!iasm) return nullptr;
   // This is kind of dubious
   return iasm->getAsmString().find("# bs_copy #") != StringRef::npos ?
@@ -1336,7 +1317,7 @@ std::vector<RMCEdge> rebuildEdges(std::vector<Action> &actions) {
 // don't much up the ordering.
 // This relies on isync's being processed before ctrls :/
 Instruction *getCutInstr(const EdgeCut &cut) {
-  TerminatorInst *term = cut.src->getTerminator();
+  Instruction *term = cut.src->getTerminator();
   if (term->getNumSuccessors() > 1) return &*cut.dst->getFirstInsertionPt();
   if (cut.type == CutCtrl && isInstrIsync(getPrevInstr(term))) {
     return getPrevInstr(term);
@@ -1362,11 +1343,11 @@ void strengthenBlockOrders(BasicBlock *block, AtomicOrdering strength) {
       load->setAtomic(strengthenOrder(load->getOrdering(), strength));
     }
     if (AtomicRMWInst *rmw = dyn_cast<AtomicRMWInst>(&i)) {
-      rmw->setSynchScope(CrossThread);
+      rmw->setSyncScopeID(SyncScope::System);
       rmw->setOrdering(strengthenOrder(rmw->getOrdering(), strength));
     }
     if (AtomicCmpXchgInst *cas = dyn_cast<AtomicCmpXchgInst>(&i)) {
-      cas->setSynchScope(CrossThread);
+      cas->setSyncScopeID(SyncScope::System);
       cas->setSuccessOrdering(
         strengthenOrder(cas->getSuccessOrdering(), strength));
       // Failure orderings are just loads, so making them Release
@@ -1444,12 +1425,7 @@ void RealizeRMC::insertCut(const EdgeCut &cut) {
 
 ////////////// Shared compilation
 
-bool RealizeRMC::run() {
-  findActions();
-  findEdges();
-
-  if (actions_.empty() && edges_.empty()) return false;
-
+void RealizeRMC::fixupBlockNames() {
   // This is kind of silly, but we depend on blocks having names, so
   // give a bogus name to any unnamed edges.
   for (auto & block : func_) {
@@ -1458,6 +1434,25 @@ bool RealizeRMC::run() {
       assert(block.hasName());
     }
   }
+
+  // And we need blocks to have *unique* names, too
+  DenseMap<StringRef, int> names; // XXX?
+  for (auto & block : func_) {
+    StringRef name = block.getName();
+    names[name]++;
+    if (names[name] > 1) {
+      block.setName(name + "@" + std::to_string(names[name]));
+    }
+  }
+}
+
+bool RealizeRMC::run() {
+  findActions();
+  findEdges();
+
+  if (actions_.empty() && edges_.empty()) return false;
+
+  fixupBlockNames();
 
   if (DebugSpew) {
     errs() << "********************************************************\n";
@@ -1556,7 +1551,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(BreakCriticalEdgesID);
     AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<LOOPINFO_PASS_NAME>();
+    AU.addRequired<LoopInfoWrapperPass>();
   }
 };
 
@@ -1572,9 +1567,7 @@ namespace llvm { void initializeRealizeRMCPassPass(PassRegistry&); }
 INITIALIZE_PASS_BEGIN(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
                       false, false)
 INITIALIZE_PASS_DEPENDENCY(BreakCriticalEdges)
-// Hack to cause macro expansion of the name first...
-#define INITIALIZE_PASS_DEPENDENCY_X(x) INITIALIZE_PASS_DEPENDENCY(x)
-INITIALIZE_PASS_DEPENDENCY_X(LOOPINFO_PASS_NAME)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(RealizeRMCPass, "realize-rmc", "Compile RMC annotations",
                     false, false)
@@ -1614,13 +1607,13 @@ static RegisterStandardPasses
 // Nope: on POWER with -O=3, it optimizes out the deps in dep1 and dep5
 // Actually, for POWER, it gets broken by pre-IR optimizations that
 // are enabled in a POWER specific way as part of the backend...
-class CleanupCopiesPass : public BasicBlockPass {
+class CleanupCopiesPass : public FunctionPass {
 public:
   static char ID;
-  CleanupCopiesPass() : BasicBlockPass(ID) { }
+  CleanupCopiesPass() : FunctionPass(ID) { }
   ~CleanupCopiesPass() { }
 
-  virtual bool runOnBasicBlock(BasicBlock &BB) override {
+  virtual bool runOnBasicBlock(BasicBlock &BB) {
     bool changed = false;
     for (auto is = BB.begin(), ie = BB.end(); is != ie; ) {
       Instruction *i = &*is++;
@@ -1629,6 +1622,14 @@ public:
         i->eraseFromParent();
         changed = true;
       }
+    }
+    return changed;
+  }
+
+  virtual bool runOnFunction(Function &F) override {
+    bool changed = false;
+    for (auto & block : F) {
+      changed |= runOnBasicBlock(block);
     }
     return changed;
   }
