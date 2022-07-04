@@ -13,15 +13,15 @@ RMC is an alternate atomics system based around programmers explicitly
 specifying visibility order and execution order constraints on memory
 action.
 
-Right now the best documentation for RMC is (sorry) Chapter 3 of my
-[thesis proposal] (https://www.msully.net/stuff/thesprop.pdf). Some more
-background on the ideas behind the system are in the [RMC slides]
-(http://www.msully.net/stuff/rmc-popl-talk.pdf) and the [RMC paper]
-(http://www.cs.cmu.edu/~crary/papers/2015/rmc.pdf), although the paper
-is pretty theoretical. The concrete syntax in the slides and original
-paper is a bit out of date, though, so the best documentation for how
-the actual concrete syntax works is the proposal and the code in the
-`case_studies/` and `examples/` directories.
+The best documentation for RMC is (sorry) Chapter 2 of my
+[thesis](https://www.msully.net/thesis/thesprop.pdf). Some more
+background on the ideas behind the system are in the
+[RMC slides](http://www.msully.net/stuff/rmc-popl-talk.pdf) and the
+[RMC paper](http://www.cs.cmu.edu/~crary/papers/2015/rmc.pdf), although
+the paper is pretty theoretical. The concrete syntax in the slides and
+original paper is a bit out of date, though, so the best documentation
+for how the actual concrete syntax works is the thesis and the code
+in the `case_studies/` and `examples/` directories.
 
 You can find me in `#rmc` on `irc.libera.chat`.
 
